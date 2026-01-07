@@ -1,0 +1,158 @@
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import AOS from 'aos';
+import 'aos/dist/aos.css';
+
+// Public Pages
+import LandingPage from './components/LandingPage';
+import LoginPage from './components/auth/LoginPage';
+import RegisterPage from './components/auth/RegisterPage';
+import ResetPasswordPage from './components/auth/ResetPassword';
+
+// Layouts
+import AdminLayout from './components/admin/AdminLayout';
+import HRLayout from './components/hr/HRLayout';
+import MentorLayout from './components/mentor/MentorLayout';
+import MenteeLayout from './components/mentee/MenteeLayout';
+
+// Admin Pages
+import AdminDashboard from './components/admin/AdminDashboard';
+import AdminUsers from './components/admin/UserManagement';
+import AdminOnboardingManagement from './components/admin/OnboardingManagement';
+// import AdminIntegrations from './components/admin/IntegrationHub';
+// import AdminReports from './components/admin/ReportPage';
+// import AdminAnalytics from './components/admin/LearningAnalytics';
+import AdminProfile from './components/admin/UserProfile';
+import AdminMentorshipManagement from './components/admin/MentorshipManagement';
+import MentorshipDetailPage from './components/admin/MentorshipDetailPage';
+import ProgramManagement from './components/admin/ProgramManagement';
+import DepartmentsManagement from './components/admin/ManageDepartments';
+
+// HR Pages
+import HRDashboard from './components/hr/HRDashboard';
+import HRUsers from './components/hr/UserManagement';
+import HROnboardingModule from './components/hr/ManageOnboardings';
+import HRMentorshipManagement from './components/hr/MentorshipManagement';
+
+// Context Providers
+import { AuthProvider } from './context/AuthContext';
+
+// Custom Toaster Component
+const Toaster = () => {
+  const [toasts, setToasts] = useState([]);
+
+  // You can add toast functions here that can be called from other components
+  // For now, this is a simple placeholder that doesn't show anything
+  // To make it functional, you'd need a toast context or global state management
+
+  return (
+    <div className="fixed top-4 right-4 z-50 space-y-2">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`px-4 py-3 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${
+            toast.type === 'success'
+              ? 'bg-green-500 text-white'
+              : toast.type === 'error'
+              ? 'bg-red-500 text-white'
+              : toast.type === 'warning'
+              ? 'bg-yellow-500 text-white'
+              : 'bg-blue-500 text-white'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToasts(toasts.filter(t => t.id !== toast.id))}
+              className="ml-4 text-white hover:text-gray-200"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Simple Toaster Hook (optional - can be used by components)
+export const useToast = () => {
+  // This would need to be connected to a global state
+  // For simplicity, we'll just return placeholder functions
+  return {
+    success: (message) => console.log('Success:', message),
+    error: (message) => console.error('Error:', message),
+    warning: (message) => console.warn('Warning:', message),
+    info: (message) => console.log('Info:', message),
+  };
+};
+
+function App() {
+  useEffect(() => {
+    AOS.init({
+      offset: 100,
+      duration: 800,
+      easing: "ease-in",
+      delay: 100,
+    });
+    AOS.refresh();
+  }, []);
+
+  return (
+    <div className="bg-white dark:bg-black dark:text-white text-black overflow-x-hidden">
+      <Router>
+        <AuthProvider>
+          <Routes>
+            {/* ==================== PUBLIC ROUTES ==================== */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/help" element={<LandingPage />} />
+
+            {/* ==================== ADMIN ROUTES ==================== */}
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="onboarding-management" element={<AdminOnboardingManagement />} />
+              {/* <Route path="reports" element={<AdminReports />} />
+              <Route path="analytics" element={<AdminAnalytics />} /> */}
+              <Route path="mentorship" element={<AdminMentorshipManagement />} />
+              <Route path="profile" element={<AdminProfile />} />
+              <Route path="mentorships/:id" element={<MentorshipDetailPage />} />
+              <Route path="programs" element={<ProgramManagement />} />
+              <Route path="departments" element={<DepartmentsManagement />} />
+            </Route>
+
+            {/* ==================== HR ROUTES ==================== */}
+            <Route path="/hr" element={<HRLayout />}>
+              <Route index element={<HRDashboard />} />
+              <Route path="users" element={<HRUsers />} />
+              <Route path='onboarding-management' element={<HROnboardingModule />} />
+              <Route path='mentorship' element={<HRMentorshipManagement />} />
+            </Route>
+
+            {/* ==================== MENTOR ROUTES ==================== */}
+            <Route path="/mentor" element={<MentorLayout />}>
+              {/* <Route index element={<MentorDashboard />} /> */}
+              {/* Add more mentor routes here */}
+            </Route>
+
+            {/* ==================== MENTEE ROUTES ==================== */}
+            <Route path="/mentee" element={<MenteeLayout />}>
+              {/* <Route index element={<MenteeDashboard />} /> */}
+              {/* Add more mentee routes here */}
+            </Route>
+            
+            {/* Catch all - redirect to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+          
+          <Toaster />
+        </AuthProvider>
+      </Router>
+    </div>
+  );
+}
+
+export default App;
