@@ -62,7 +62,7 @@ export default function MenteeLayout() {
     );
   }
 
-  if (!isAuthenticated || !user || user.role !== 'admin') {
+  if (!isAuthenticated || !user || user.role !== 'mentee') {
     return <Navigate to="/login" replace />;
   }
 
@@ -72,19 +72,16 @@ export default function MenteeLayout() {
   };
 
   const navigationItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
-    { icon: Users, label: "User Management", path: "/admin/users" },
-    { icon: GraduationCap, label: "Onboarding Management", path: "/admin/onboarding-management" },
-    { icon: Users, label: "Programs", path: "/admin/programs" },
-    { icon: Users, label: "Mentorship", path: "/admin/mentorship" },
-    { icon: MessageSquare, label: "Communication", path: "/admin/communication" },
-    { icon: Target, label: "Skills & Competencies", path: "/admin/skills" },
-    { icon: Star, label: "Feedback", path: "/admin/feedback" },
-    { icon: BookOpen, label: "Knowledge Base", path: "/admin/knowledge" },
-    { icon: Bot, label: "AI Assistant", path: "/admin/chatbot" },
-    { icon: BarChart3, label: "Analytics", path: "/admin/analytics" },
-    { icon: FileText, label: "Reports", path: "/admin/reports" },
-    { icon: Globe, label: "Integrations", path: "/admin/integrations" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/mentee" },
+    { icon: GraduationCap, label: "Onboarding", path: "/mentee/onboarding-management" },
+    { icon: Users, label: "Mentorship", path: "/mentee/mentorship" },
+    { icon: MessageSquare, label: "Communication", path: "/mentee/communication" },
+    { icon: Target, label: "Skills & Competencies", path: "/mentee/skills" },
+    { icon: Star, label: "Feedback", path: "/mentee/feedback" },
+    { icon: BookOpen, label: "Knowledge Base", path: "/mentee/knowledge" },
+    { icon: Bot, label: "AI Assistant", path: "/mentee/chatbot" },
+    { icon: BarChart3, label: "Analytics", path: "/mentee/analytics" },
+    { icon: FileText, label: "Reports", path: "/mentee/reports" },
   ];
 
   const quickActions = [

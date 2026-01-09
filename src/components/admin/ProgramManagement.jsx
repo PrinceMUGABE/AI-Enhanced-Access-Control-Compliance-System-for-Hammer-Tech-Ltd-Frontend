@@ -1,1260 +1,1507 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Search, Filter, ChevronLeft, ChevronRight, Plus,
-  Edit, Trash2, Eye, BookOpen, Building, Target,
-  MoreVertical, Download, RefreshCw, SortAsc, SortDesc,
-  BarChart3, PieChartIcon, TrendingUp, Calendar, Clock,
-  Users, Star, CheckCircle, PauseCircle, Archive, FileText,
-  ExternalLink, Copy, EyeOff, Eye as EyeIcon, X, Check,
-  ArrowUpDown, FilterX, DownloadCloud, Upload, Settings,
-  Hash, Briefcase, Tag, Globe, Lock, Unlock, Zap,
-  AlertCircle, Info, HelpCircle, Award, Trophy, Medal
-} from 'lucide-react';
 
 const BASE_URL = "http://127.0.0.1:8000";
 
-// Helper functions (you'll need to implement these)
-const getStatusBadgeProps = (status) => {
-  switch(status) {
-    case 'active': return { className: 'bg-green-100 text-green-800' };
-    case 'inactive': return { className: 'bg-yellow-100 text-yellow-800' };
-    case 'archived': return { className: 'bg-gray-100 text-gray-800' };
-    default: return { className: 'bg-gray-100 text-gray-800' };
-  }
-};
+// Simple UI Components
+const Card = ({ children, className = '' }) => (
+  <div className={`border rounded-lg shadow-sm bg-white ${className}`}>{children}</div>
+);
 
-const getStatusText = (status) => {
-  switch(status) {
-    case 'active': return 'Active';
-    case 'inactive': return 'Inactive';
-    case 'archived': return 'Archived';
-    default: return status;
-  }
-};
+const CardContent = ({ children, className = '' }) => (
+  <div className={`p-6 ${className}`}>{children}</div>
+);
 
-const calculateProgramStats = (programs) => {
-  return {
-    totalPrograms: programs.length,
-    activePrograms: programs.filter(p => p.status === 'active').length,
-    archivedPrograms: programs.filter(p => p.status === 'archived').length,
-    totalMentorships: programs.reduce((sum, p) => sum + (p.active_mentorships || 0), 0),
-    averageSessions: programs.length > 0 
-      ? programs.reduce((sum, p) => sum + (p.total_sessions || 0), 0) / programs.length 
-      : 0,
-    averageDuration: programs.length > 0 
-      ? programs.reduce((sum, p) => sum + (p.duration_days || 0), 0) / programs.length 
-      : 0,
-    departmentStats: []
+const CardHeader = ({ children, className = '' }) => (
+  <div className={`border-b p-6 ${className}`}>{children}</div>
+);
+
+const CardTitle = ({ children, className = '' }) => (
+  <h2 className={`text-2xl font-bold ${className}`}>{children}</h2>
+);
+
+const CardDescription = ({ children, className = '' }) => (
+  <p className={`text-gray-600 ${className}`}>{children}</p>
+);
+
+const Button = ({ children, className = '', variant = 'default', size = 'default', onClick, disabled }) => {
+  const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
+
+  const variants = {
+    default: 'bg-blue-600 text-white hover:bg-blue-700',
+    outline: 'border border-gray-300 bg-transparent hover:bg-gray-100',
+    ghost: 'hover:bg-gray-100 hover:text-gray-900',
+    destructive: 'bg-red-600 text-white hover:bg-red-700',
+    success: 'bg-green-600 text-white hover:bg-green-700',
   };
+
+  const sizes = {
+    default: 'h-10 py-2 px-4',
+    sm: 'h-8 px-3 text-sm',
+    lg: 'h-12 px-8 text-base',
+  };
+
+  return (
+    <button
+      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
 };
 
-const filterPrograms = (programs, filters) => {
-  return programs.filter(program => {
-    const matchesSearch = !filters.search || 
-      program.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-      program.description.toLowerCase().includes(filters.search.toLowerCase()) ||
-      program.department.toLowerCase().includes(filters.search.toLowerCase());
-    
-    const matchesStatus = filters.status === 'all' || program.status === filters.status;
-    const matchesDepartment = filters.department === 'all' || program.department === filters.department;
-    
-    return matchesSearch && matchesStatus && matchesDepartment;
-  });
+const Input = ({ value, onChange, placeholder, className = '', type = 'text' }) => (
+  <input
+    type={type}
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    className={`flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${className}`}
+  />
+);
+
+const Label = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="text-sm font-medium">
+    {children}
+  </label>
+);
+
+const Select = ({ value, onValueChange, children, className = '' }) => (
+  <select
+    value={value}
+    onChange={(e) => onValueChange(e.target.value)}
+    className={`flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ${className}`}
+  >
+    {children}
+  </select>
+);
+
+const SelectTrigger = ({ children }) => children;
+const SelectValue = ({ placeholder }) => placeholder;
+const SelectContent = ({ children }) => children;
+
+const SelectItem = ({ value, children }) => (
+  <option value={value}>{children}</option>
+);
+
+const Dialog = ({ open, onOpenChange, children }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
+      <div className="relative z-50 bg-white rounded-lg shadow-lg mx-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {children}
+      </div>
+    </div>
+  );
 };
 
-const sortPrograms = (programs, sortBy, sortOrder) => {
-  return [...programs].sort((a, b) => {
-    let aValue = a[sortBy];
-    let bValue = b[sortBy];
-    
-    if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-    if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-    
-    if (sortOrder === 'asc') {
-      return aValue > bValue ? 1 : -1;
-    } else {
-      return aValue < bValue ? 1 : -1;
+const DialogContent = ({ children }) => children;
+const DialogHeader = ({ children }) => (
+  <div className="border-b p-6">{children}</div>
+);
+const DialogTitle = ({ children }) => (
+  <h3 className="text-lg font-semibold">{children}</h3>
+);
+const DialogDescription = ({ children }) => (
+  <p className="text-sm text-gray-600">{children}</p>
+);
+const DialogFooter = ({ children }) => (
+  <div className="border-t p-6">{children}</div>
+);
+
+const Badge = ({ children, variant = 'default', className = '' }) => {
+  const variants = {
+    default: 'bg-blue-100 text-blue-800',
+    secondary: 'bg-gray-100 text-gray-800',
+    outline: 'border border-gray-300',
+    destructive: 'bg-red-100 text-red-800',
+    success: 'bg-green-100 text-green-800',
+    warning: 'bg-yellow-100 text-yellow-800',
+  };
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variants[variant]} ${className}`}>
+      {children}
+    </span>
+  );
+};
+
+const Progress = ({ value, className = '' }) => (
+  <div className={`w-full bg-gray-200 rounded-full h-2 ${className}`}>
+    <div
+      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+      style={{ width: `${value}%` }}
+    />
+  </div>
+);
+
+const Tabs = ({ value, onValueChange, children }) => (
+  <div>{children}</div>
+);
+
+const TabsList = ({ children, className = '' }) => (
+  <div className={`inline-flex h-10 items-center justify-center rounded-md bg-gray-100 p-1 ${className}`}>
+    {children}
+  </div>
+);
+
+const TabsTrigger = ({ value, children, onClick, className = '' }) => (
+  <button
+    onClick={() => onClick(value)}
+    className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all ${className}`}
+  >
+    {children}
+  </button>
+);
+
+const TabsContent = ({ value, children }) => (
+  <div className="mt-4">{children}</div>
+);
+
+const Alert = ({ children, variant = 'destructive', className = '' }) => (
+  <div className={`p-4 rounded-md ${variant === 'destructive' ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'} ${className}`}>
+    {children}
+  </div>
+);
+
+const AlertDescription = ({ children }) => (
+  <div className="text-sm">{children}</div>
+);
+
+const Textarea = ({ value, onChange, placeholder, rows = 4, className = '' }) => (
+  <textarea
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    rows={rows}
+    className={`flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${className}`}
+  />
+);
+
+const Table = ({ children }) => (
+  <div className="w-full overflow-x-auto">
+    <table className="w-full">{children}</table>
+  </div>
+);
+
+const TableHeader = ({ children }) => <thead className="bg-gray-50">{children}</thead>;
+const TableBody = ({ children }) => <tbody>{children}</tbody>;
+const TableRow = ({ children }) => <tr className="border-b hover:bg-gray-50 transition-colors">{children}</tr>;
+const TableHead = ({ children, className = '' }) => <th className={`text-left p-3 font-medium text-gray-700 ${className}`}>{children}</th>;
+const TableCell = ({ children, className = '' }) => <td className={`p-3 ${className}`}>{children}</td>;
+
+// Icons
+const CheckCircle = () => <span>✓</span>;
+const XCircle = () => <span>✗</span>;
+const Edit = () => <span>✏️</span>;
+const Trash = () => <span>🗑️</span>;
+const Plus = () => <span>➕</span>;
+const Eye = () => <span>👁️</span>;
+const Filter = () => <span>🔍</span>;
+const Sort = () => <span>↕️</span>;
+const ChevronUp = () => <span>↑</span>;
+const ChevronDown = () => <span>↓</span>;
+const Loader2 = () => <span className="animate-spin">⟳</span>;
+const FileText = () => <span>📄</span>;
+const Users = () => <span>👥</span>;
+const Building = () => <span>🏢</span>;
+const Clock = () => <span>⏰</span>;
+const BookOpen = () => <span>📖</span>;
+const Target = () => <span>🎯</span>;
+const TrendingUp = () => <span>📈</span>;
+const AlertCircle = () => <span>⚠️</span>;
+const CheckSquare = () => <span>✅</span>;
+const XSquare = () => <span>❌</span>;
+const SearchIcon = () => <span>🔍</span>;
+
+// Pagination Component
+const Pagination = ({ currentPage, totalPages, onPageChange, pageSize, onPageSizeChange }) => {
+  const pageSizes = [5, 10, 30, 50, 100];
+
+  return (
+    <div className="flex items-center justify-between border-t px-6 py-4">
+      <div className="flex items-center space-x-2">
+        <span className="text-sm text-gray-700">Show</span>
+        <Select value={pageSize} onValueChange={onPageSizeChange} className="w-20">
+          {pageSizes.map(size => (
+            <SelectItem key={size} value={size}>{size}</SelectItem>
+          ))}
+        </Select>
+        <span className="text-sm text-gray-700">per page</span>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <span className="text-sm text-gray-700">
+          Page {currentPage} of {totalPages}
+        </span>
+        <div className="flex space-x-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pageNum;
+            if (totalPages <= 5) {
+              pageNum = i + 1;
+            } else if (currentPage <= 3) {
+              pageNum = i + 1;
+            } else if (currentPage >= totalPages - 2) {
+              pageNum = totalPages - 4 + i;
+            } else {
+              pageNum = currentPage - 2 + i;
+            }
+
+            return (
+              <Button
+                key={pageNum}
+                size="sm"
+                variant={currentPage === pageNum ? "default" : "outline"}
+                onClick={() => onPageChange(pageNum)}
+              >
+                {pageNum}
+              </Button>
+            );
+          })}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Module Status Badge Component
+const ModuleStatusBadge = ({ status }) => {
+  const getStatusConfig = (status) => {
+    switch (status) {
+      case 'active':
+        return { variant: 'success', label: 'Active', icon: '✓' };
+      case 'inactive':
+        return { variant: 'destructive', label: 'Inactive', icon: '✗' };
+      case 'draft':
+        return { variant: 'outline', label: 'Draft', icon: '📝' };
+      default:
+        return { variant: 'secondary', label: status, icon: '?' };
     }
-  });
+  };
+
+  const config = getStatusConfig(status);
+  return <Badge variant={config.variant}><span className="mr-1">{config.icon}</span>{config.label}</Badge>;
 };
 
-const getProgramMetrics = (program) => {
-  return [
-    { label: 'Sessions', value: program.total_sessions || 0 },
-    { label: 'Active', value: program.active_mentorships || 0 },
-    { label: 'Rate', value: `${program.completion_rate || 0}%` },
-    { label: 'Duration', value: `${program.duration_days || 0} days` }
-  ];
+// Module Type Badge Component
+const ModuleTypeBadge = ({ type }) => {
+  const getTypeConfig = (type) => {
+    switch (type) {
+      case 'core':
+        return { variant: 'default', label: 'Core', icon: '★' };
+      case 'department':
+        return { variant: 'secondary', label: 'Department', icon: '🏢' };
+      default:
+        return { variant: 'outline', label: type, icon: '?' };
+    }
+  };
+
+  const config = getTypeConfig(type);
+  return <Badge variant={config.variant}><span className="mr-1">{config.icon}</span>{config.label}</Badge>;
 };
 
-export default function ProgramManagement() {
+export default function OnboardingProgramManagement() {
   const navigate = useNavigate();
-
-  // State management
+  const [userRole, setUserRole] = useState('');
+  const [userId, setUserId] = useState('');
+  const [activeTab, setActiveTab] = useState('modules');
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [selectedPrograms, setSelectedPrograms] = useState(new Set());
-  const [viewMode, setViewMode] = useState('grid');
+  const [error, setError] = useState('');
 
-  // Data states
-  const [programs, setPrograms] = useState([]);
-  const [sessionTemplates, setSessionTemplates] = useState([]);
-
-  const departmentsList = [
-    "Software Development", "Frontend Development", "Backend Development",
-    "Mobile Development", "Data Science", "Cybersecurity", "Cloud & DevOps",
-    "UI/UX Design", "Project Management", "Business Development",
-    "HR & Recruitment", "Digital Marketing", "IT Support",
-    "Quality Assurance", "Product Management"
-  ];
+  // Modules state
+  const [modules, setModules] = useState([]);
+  const [filteredModules, setFilteredModules] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   // Filter states
-  const [filters, setFilters] = useState({
-    search: '',
-    status: 'all',
-    department: 'all',
-    hasSessions: false,
-    minSessions: 0,
-    maxSessions: 0
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [sortField, setSortField] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
 
-  // Dialog states
-  const [showCreateProgram, setShowCreateProgram] = useState(false);
-  const [showEditProgram, setShowEditProgram] = useState(false);
-  const [showViewProgram, setShowViewProgram] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const [totalItems, setTotalItems] = useState(0);
+
+  // Modal states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedModule, setSelectedModule] = useState(null);
 
   // Form states
-  const [programForm, setProgramForm] = useState({
-    name: '',
+  const [moduleForm, setModuleForm] = useState({
+    title: '',
     description: '',
-    department: '',
-    status: 'active',
-    session_template_ids: [],
-    objectives: [],
-    prerequisites: [],
-    tags: [],
-    is_required: false,
-    estimated_hours: 0,
-    category: ''
+    module_type: 'core',
+    department_ids: [],
+    order: 0,
+    is_required: true,
+    duration_minutes: 30,
+    content: [],
+    resources: [],
+    is_active: true
   });
 
-  const [currentTag, setCurrentTag] = useState('');
-  const [currentObjective, setCurrentObjective] = useState('');
-  const [currentPrerequisite, setCurrentPrerequisite] = useState('');
-  const [selectedProgram, setSelectedProgram] = useState(null);
-  const [programSessions, setProgramSessions] = useState([]);
-  const [formStep, setFormStep] = useState(1);
+  // Summary statistics
+  const [summaryStats, setSummaryStats] = useState({
+    total_modules: 0,
+    active_modules: 0,
+    core_modules: 0,
+    department_modules: 0,
+    total_departments: 0,
+    avg_duration: 0
+  });
 
-  // Calculate derived data
-  const stats = useMemo(() => calculateProgramStats(programs || []), [programs]);
+  console.log("Logged in user token:", localStorage.getItem('access_token'));
 
-  const filteredPrograms = useMemo(() => {
-    let filtered = filterPrograms(programs || [], filters);
-    return sortPrograms(filtered, sortBy, sortOrder);
-  }, [programs, filters, sortBy, sortOrder]);
+  const getAuthToken = () => {
+    return localStorage.getItem('access_token');
+  };
 
-  const totalPages = Math.ceil(filteredPrograms.length / itemsPerPage);
-  const paginatedPrograms = filteredPrograms.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const getUserInfo = () => {
+    try {
+      // Get user data from localStorage (as stored in login page)
+      const userStr = localStorage.getItem('user');
 
-  // Fetch data
-  const fetchData = async () => {
+      if (userStr) {
+        const userData = JSON.parse(userStr);
+        setUserRole(userData.role || '');
+        setUserId(userData.id || '');
+        return {
+          role: userData.role,
+          userId: userData.id,
+          fullName: userData.full_name,
+          email: userData.email,
+          workEmail: userData.work_mail_address,
+          department: userData.department,
+          phoneNumber: userData.phone_number,
+          avatar: userData.avatar
+        };
+      }
+    } catch (error) {
+      console.error('Error retrieving user info:', error);
+    }
+    return { role: '', userId: '' };
+  };
+
+  // Fetch all modules
+  const fetchModules = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('access_token');
-      
-      const [programsResponse] = await Promise.all([
-        fetch(`${BASE_URL}/mentorship-programs/`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          }
-        })
-      ]);
+      const token = getAuthToken();
+      if (!token) {
+        navigate('/login');
+        return;
+      }
 
-      const programsData = await programsResponse.json();
-      setPrograms(Array.isArray(programsData) ? programsData : []);
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Fetch modules
+      const modulesResponse = await fetch(`${BASE_URL}/onboarding/modules/`, { headers });
+      if (modulesResponse.ok) {
+        const modulesData = await modulesResponse.json();
+
+        // Transform data to include department_ids
+        const transformedModules = modulesData.map(module => ({
+          ...module,
+          department_ids: module.departments?.map(dept => dept.id) || []
+        }));
+
+        setModules(transformedModules);
+        setTotalItems(transformedModules.length);
+
+        // Calculate summary statistics
+        calculateSummaryStats(transformedModules);
+      }
+
+      // Fetch departments
+      const departmentsResponse = await fetch(`${BASE_URL}/departments/all/`, { headers });
+      if (departmentsResponse.ok) {
+        const departmentsData = await departmentsResponse.json();
+        setDepartments(departmentsData.data || []);
+      }
 
     } catch (error) {
       console.error('Error fetching data:', error);
-      setPrograms([]);
+      setError("Failed to load data. Please try again.");
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchData();
+  // Calculate summary statistics
+  const calculateSummaryStats = (modulesData) => {
+    const stats = {
+      total_modules: modulesData.length,
+      active_modules: modulesData.filter(m => m.is_active).length,
+      core_modules: modulesData.filter(m => m.module_type === 'core').length,
+      department_modules: modulesData.filter(m => m.module_type === 'department').length,
+      total_departments: new Set(modulesData.flatMap(m => m.departments?.map(d => d.id) || [])).size,
+      avg_duration: modulesData.reduce((sum, m) => sum + (m.duration_minutes || 0), 0) / modulesData.length || 0
+    };
+    setSummaryStats(stats);
   };
 
-  const handleCreateProgram = async () => {
+  // Apply filters and sorting
+  useEffect(() => {
+    let filtered = [...modules];
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(module =>
+        module.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        module.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(module =>
+        statusFilter === 'active' ? module.is_active : !module.is_active
+      );
+    }
+
+    // Apply type filter
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(module => module.module_type === typeFilter);
+    }
+
+    // Apply department filter
+    if (departmentFilter !== 'all') {
+      filtered = filtered.filter(module =>
+        module.module_type === 'core' ||
+        module.departments?.some(dept => dept.id.toString() === departmentFilter)
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortField) {
+        case 'title':
+          aValue = a.title.toLowerCase();
+          bValue = b.title.toLowerCase();
+          break;
+        case 'created_at':
+          aValue = new Date(a.created_at);
+          bValue = new Date(b.created_at);
+          break;
+        case 'duration_minutes':
+          aValue = a.duration_minutes || 0;
+          bValue = b.duration_minutes || 0;
+          break;
+        case 'order':
+          aValue = a.order || 0;
+          bValue = b.order || 0;
+          break;
+        default:
+          aValue = a[sortField];
+          bValue = b[sortField];
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setTotalItems(filtered.length);
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setFilteredModules(filtered.slice(startIndex, endIndex));
+  }, [modules, searchTerm, statusFilter, typeFilter, departmentFilter, sortField, sortOrder, currentPage, pageSize]);
+
+  // Handle page change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, typeFilter, departmentFilter, pageSize]);
+
+  // Handle sort
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  // Sort indicator component
+  const SortIndicator = ({ field }) => {
+    if (sortField !== field) return null;
+    return sortOrder === 'asc' ? <ChevronUp /> : <ChevronDown />;
+  };
+
+  // Create module
+  const createModule = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      
-      const response = await fetch(`${BASE_URL}/mentorship-programs/`, {
+      const token = getAuthToken();
+
+      // Prepare the data according to backend expectations
+      const requestData = {
+        title: moduleForm.title,
+        description: moduleForm.description,
+        module_type: moduleForm.module_type,
+        order: moduleForm.order,
+        is_required: moduleForm.is_required,
+        duration_minutes: moduleForm.duration_minutes,
+        content: moduleForm.content,
+        resources: moduleForm.resources,
+        is_active: moduleForm.is_active
+      };
+
+      // Only add departments if it's a department module
+      if (moduleForm.module_type === 'department' && moduleForm.department_ids.length > 0) {
+        requestData.departments = moduleForm.department_ids;
+      }
+
+      const response = await fetch(`${BASE_URL}/onboarding/modules/create/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(programForm)
+        body: JSON.stringify(requestData)
       });
 
       if (response.ok) {
-        alert('Program created successfully');
-        setShowCreateProgram(false);
-        fetchData();
+        const newModule = await response.json();
+
+        // Transform the response to match frontend structure
+        const transformedModule = {
+          ...newModule,
+          department_ids: newModule.departments?.map(dept => dept.id) || []
+        };
+
+        setModules([...modules, transformedModule]);
+        setShowCreateModal(false);
+        resetModuleForm();
+        alert('Module created successfully!');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || JSON.stringify(error) || 'Failed to create module');
       }
     } catch (error) {
-      alert('Failed to create program');
+      alert(`Error: ${error.message}`);
     }
   };
 
-  const handleEditProgram = async () => {
-    if (!selectedProgram) return;
-
+  // Update module
+  const updateModule = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      
-      const response = await fetch(`${BASE_URL}/mentorship-programs/${selectedProgram.id}/`, {
+      const token = getAuthToken();
+
+      // Prepare the data
+      const requestData = {
+        title: moduleForm.title,
+        description: moduleForm.description,
+        module_type: moduleForm.module_type,
+        order: moduleForm.order,
+        is_required: moduleForm.is_required,
+        duration_minutes: moduleForm.duration_minutes,
+        content: moduleForm.content,
+        resources: moduleForm.resources,
+        is_active: moduleForm.is_active
+      };
+
+      // Handle department_ids based on module type
+      if (moduleForm.module_type === 'department') {
+        requestData.department_ids = moduleForm.department_ids;
+      } else {
+        requestData.department_ids = [];
+      }
+
+      const response = await fetch(`${BASE_URL}/onboarding/modules/${selectedModule.id}/update/`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(programForm)
+        body: JSON.stringify(requestData)
       });
 
       if (response.ok) {
-        alert('Program updated successfully');
-        setShowEditProgram(false);
-        fetchData();
+        const updatedModule = await response.json();
+
+        // Transform the response
+        const transformedModule = {
+          ...updatedModule,
+          department_ids: updatedModule.departments?.map(dept => dept.id) || []
+        };
+
+        setModules(modules.map(m => m.id === selectedModule.id ? transformedModule : m));
+        setShowEditModal(false);
+        resetModuleForm();
+        setSelectedModule(null);
+        alert('Module updated successfully!');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || JSON.stringify(error) || 'Failed to update module');
       }
     } catch (error) {
-      alert('Failed to update program');
+      alert(`Error: ${error.message}`);
     }
   };
 
-  const handleDeleteProgram = async (programId) => {
+  // Delete module
+  const deleteModule = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      
-      const response = await fetch(`${BASE_URL}/mentorship-programs/${programId}/`, {
+      const token = getAuthToken();
+      const response = await fetch(`${BASE_URL}/onboarding/modules/${selectedModule.id}/delete/`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
       });
 
       if (response.ok) {
-        alert('Program deleted successfully');
-        setShowDeleteConfirm(false);
-        fetchData();
+        setModules(modules.filter(m => m.id !== selectedModule.id));
+        setShowDeleteModal(false);
+        setSelectedModule(null);
+        alert('Module deleted successfully!');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete module');
       }
     } catch (error) {
-      alert('Failed to delete program');
+      alert(`Error: ${error.message}`);
     }
   };
 
-  const resetForm = () => {
-    setProgramForm({
-      name: '',
+  // Assign module to departments
+  const assignModuleToDepartments = async () => {
+    try {
+      const token = getAuthToken();
+      const departmentIds = moduleForm.department_ids;
+
+      const response = await fetch(`${BASE_URL}/onboarding/modules/${selectedModule.id}/department-assign/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ department_ids: departmentIds })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        // Refresh modules to get updated department assignments
+        fetchModules();
+        setShowAssignModal(false);
+        resetModuleForm();
+        alert(`Module assigned to ${result.assigned_count} mentees across ${result.departments_assigned.length} departments`);
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to assign module');
+      }
+    } catch (error) {
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+
+  const handleModuleTypeChange = (type) => {
+    if (type === 'core') {
+      // Clear departments when switching to core
+      setModuleForm({
+        ...moduleForm,
+        module_type: type,
+        department_ids: []
+      });
+    } else {
+      setModuleForm({
+        ...moduleForm,
+        module_type: type
+      });
+    }
+  };
+
+  // Reset module form
+  const resetModuleForm = () => {
+    setModuleForm({
+      title: '',
       description: '',
-      department: '',
-      status: 'active',
-      session_template_ids: [],
-      objectives: [],
-      prerequisites: [],
-      tags: [],
-      is_required: false,
-      estimated_hours: 0,
-      category: ''
-    });
-    setCurrentTag('');
-    setCurrentObjective('');
-    setCurrentPrerequisite('');
-    setFormStep(1);
-  };
-
-  const openEditModal = (program) => {
-    setSelectedProgram(program);
-    setProgramForm({
-      name: program.name,
-      description: program.description,
-      department: program.department,
-      status: program.status,
-      session_template_ids: [],
-      objectives: program.objectives || [],
-      prerequisites: program.prerequisites || [],
-      tags: [],
-      is_required: false,
-      estimated_hours: 0,
-      category: ''
-    });
-    setShowEditProgram(true);
-  };
-
-  const openViewModal = (program) => {
-    setSelectedProgram(program);
-    setShowViewProgram(true);
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedPrograms.size === paginatedPrograms.length) {
-      setSelectedPrograms(new Set());
-    } else {
-      const allIds = new Set(paginatedPrograms.map(p => p.id));
-      setSelectedPrograms(allIds);
-    }
-  };
-
-  const toggleSelectProgram = (programId) => {
-    const newSelected = new Set(selectedPrograms);
-    if (newSelected.has(programId)) {
-      newSelected.delete(programId);
-    } else {
-      newSelected.add(programId);
-    }
-    setSelectedPrograms(newSelected);
-  };
-
-  const addTag = () => {
-    if (currentTag.trim()) {
-      setProgramForm({
-        ...programForm,
-        tags: [...programForm.tags, currentTag.trim()]
-      });
-      setCurrentTag('');
-    }
-  };
-
-  const removeTag = (tagToRemove) => {
-    setProgramForm({
-      ...programForm,
-      tags: programForm.tags.filter(tag => tag !== tagToRemove)
+      module_type: 'core',
+      department_ids: [],
+      order: 0,
+      is_required: true,
+      duration_minutes: 30,
+      content: [],
+      resources: [],
+      is_active: true
     });
   };
 
-  const addObjective = () => {
-    if (currentObjective.trim()) {
-      setProgramForm({
-        ...programForm,
-        objectives: [...programForm.objectives, currentObjective.trim()]
-      });
-      setCurrentObjective('');
-    }
-  };
-
-  const removeObjective = (objectiveToRemove) => {
-    setProgramForm({
-      ...programForm,
-      objectives: programForm.objectives.filter(obj => obj !== objectiveToRemove)
+  // Initialize form for edit
+  const initEditForm = (module) => {
+    setModuleForm({
+      title: module.title,
+      description: module.description,
+      module_type: module.module_type,
+      department_ids: module.departments?.map(d => d.id) || [],
+      order: module.order || 0,
+      is_required: module.is_required,
+      duration_minutes: module.duration_minutes || 30,
+      content: module.content || [],
+      resources: module.resources || [],
+      is_active: module.is_active
     });
   };
 
-  const clearFilters = () => {
-    setFilters({
-      search: '',
-      status: 'all',
-      department: 'all',
-      hasSessions: false,
-      minSessions: 0,
-      maxSessions: 0
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
-    setCurrentPage(1);
   };
 
-  const handleSort = (column) => {
-    if (sortBy === column) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(column);
-      setSortOrder('desc');
+  // Initialize on component mount
+  useEffect(() => {
+    const userInfo = getUserInfo();
+    if (userInfo.role !== 'admin') {
+      setError('Only administrators can access this page');
+      setLoading(false);
+      return;
     }
-  };
+    fetchModules();
+  }, []);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[70vh]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading program data...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 />
+        <span className="ml-2 text-gray-600">Loading onboarding programs...</span>
+      </div>
+    );
+  }
+
+  if (error && !userRole) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Program Management</h1>
-          <p className="text-gray-600">
-            Create, manage, and monitor mentorship programs across departments
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Onboarding Program Management
+          </h1>
+          <p className="text-gray-600">Manage onboarding programs and their department assignments</p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-
-          <button
-            onClick={() => setShowCreateProgram(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-          >
-            <Plus className="size-4" />
-            New Program
-          </button>
-
-          {selectedPrograms.size > 0 && (
-            <button
-              className="px-4 py-2 border border-gray-300 bg-gray-100 rounded-md hover:bg-gray-200 flex items-center gap-2"
-            >
-              <Check className="size-4" />
-              {selectedPrograms.size} Selected
-            </button>
-          )}
-        </div>
+        <Button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-700">
+          <Plus />
+          <span className="ml-2">Create New Program</span>
+        </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { title: 'Total Programs', value: stats.totalPrograms, icon: BookOpen, color: 'blue' },
-          { title: 'Active Programs', value: stats.activePrograms, icon: CheckCircle, color: 'green' },
-          { title: 'Archived', value: stats.archivedPrograms, icon: Archive, color: 'gray' },
-          { title: 'Active Mentorships', value: stats.totalMentorships, icon: Users, color: 'purple' }
-        ].map((stat, index) => (
-          <div key={index} className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-            <div className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                </div>
-                <div className={`p-3 bg-${stat.color}-100 rounded-full`}>
-                  <stat.icon className={`size-6 text-${stat.color}-600`} />
-                </div>
+      {/* Summary Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Programs</p>
+                <h3 className="text-2xl font-bold text-gray-900">{summaryStats.total_modules}</h3>
               </div>
+              <FileText className="text-blue-600" />
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Main Content */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-        <div className="p-6 border-b">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Programs</h2>
-              <p className="text-gray-600">
-                {filteredPrograms.length} programs found
-                {filters.search && ` matching "${filters.search}"`}
+            <div className="mt-2">
+              <p className="text-xs text-gray-600">
+                {summaryStats.core_modules} core • {summaryStats.department_modules} department
               </p>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="flex items-center gap-4">
-              {/* View Toggle */}
-              <div className="flex border rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`px-3 py-2 ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-                >
-                  <div className="grid grid-cols-2 gap-1">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="w-1.5 h-1.5 bg-current" />
-                    ))}
-                  </div>
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-                >
-                  <div className="flex flex-col gap-1">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="w-4 h-1 bg-current" />
-                    ))}
-                  </div>
-                </button>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Active Programs</p>
+                <h3 className="text-2xl font-bold text-gray-900">{summaryStats.active_modules}</h3>
               </div>
+              <CheckSquare className="text-green-600" />
+            </div>
+            <div className="mt-2">
+              <Progress value={(summaryStats.active_modules / summaryStats.total_modules) * 100} />
+              <p className="text-xs text-gray-600 mt-1">
+                {((summaryStats.active_modules / summaryStats.total_modules) * 100).toFixed(1)}% active
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-              <button
-                onClick={clearFilters}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2"
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Departments Covered</p>
+                <h3 className="text-2xl font-bold text-gray-900">{summaryStats.total_departments}</h3>
+              </div>
+              <Building className="text-purple-600" />
+            </div>
+            <div className="mt-2">
+              <p className="text-xs text-gray-600">
+                Out of {departments.length} total departments
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Avg. Duration</p>
+                <h3 className="text-2xl font-bold text-gray-900">{Math.round(summaryStats.avg_duration)} min</h3>
+              </div>
+              <Clock className="text-yellow-600" />
+            </div>
+            <div className="mt-2">
+              <p className="text-xs text-gray-600">
+                Estimated completion time
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters and Search */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-2">
+              <div className="relative">
+                <SearchIcon className="absolute left-3 top-3 text-gray-400" />
+                <Input
+                  placeholder="Search programs by title or description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="core">Core</SelectItem>
+                <SelectItem value="department">Department</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map(dept => (
+                  <SelectItem key={dept.id} value={dept.id.toString()}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Showing {filteredModules.length} of {totalItems} programs
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600">Sort by:</span>
+              <Select value={sortField} onValueChange={setSortField} className="w-40">
+                <SelectItem value="created_at">Date Created</SelectItem>
+                <SelectItem value="title">Title</SelectItem>
+                <SelectItem value="order">Order</SelectItem>
+                <SelectItem value="duration_minutes">Duration</SelectItem>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
               >
-                <FilterX className="size-4" />
-                Clear Filters
-              </button>
+                {sortOrder === 'asc' ? <ChevronUp /> : <ChevronDown />}
+              </Button>
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="p-6">
-          {/* Search and Filters */}
-          <div className="mb-6 space-y-4">
-            <div className="relative">
-              <Search className="size-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                placeholder="Search programs by name, description, or department..."
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      {/* Programs Table */}
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">#</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('title')}>
+                <div className="flex items-center">
+                  Program Title
+                  <SortIndicator field="title" />
+                </div>
+              </TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Departments</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('duration_minutes')}>
+                <div className="flex items-center">
+                  Duration
+                  <SortIndicator field="duration_minutes" />
+                </div>
+              </TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('created_at')}>
+                <div className="flex items-center">
+                  Created
+                  <SortIndicator field="created_at" />
+                </div>
+              </TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredModules.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8">
+                  <div className="text-center">
+                    <FileText className="text-4xl text-gray-400 mx-auto mb-2" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No programs found</h3>
+                    <p className="text-gray-500">
+                      {searchTerm || statusFilter !== 'all' || typeFilter !== 'all' || departmentFilter !== 'all'
+                        ? 'Try adjusting your filters'
+                        : 'Create your first onboarding program'}
+                    </p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredModules.map((module, index) => (
+                <TableRow key={module.id}>
+                  <TableCell>{(currentPage - 1) * pageSize + index + 1}</TableCell>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium text-gray-900">{module.title}</div>
+                      <div className="text-sm text-gray-500 truncate max-w-xs">
+                        {module.description.substring(0, 60)}...
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <ModuleTypeBadge type={module.module_type} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="max-w-xs">
+                      {module.module_type === 'core' ? (
+                        <Badge variant="default">All Departments</Badge>
+                      ) : module.departments?.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {module.departments.slice(0, 2).map(dept => (
+                            <Badge key={dept.id} variant="outline">{dept.name}</Badge>
+                          ))}
+                          {module.departments.length > 2 && (
+                            <Badge variant="secondary">+{module.departments.length - 2} more</Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="destructive">No departments</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center">
+                      <Clock />
+                      <span className="ml-1">{module.duration_minutes} min</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {module.is_active ? (
+                      <Badge variant="success">Active</Badge>
+                    ) : (
+                      <Badge variant="destructive">Inactive</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm text-gray-500">
+                      {formatDate(module.created_at)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedModule(module);
+                          setShowAssignModal(true);
+                        }}
+                        title="Assign to departments"
+                      >
+                        <Users />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedModule(module);
+                          initEditForm(module);
+                          setShowEditModal(true);
+                        }}
+                        title="Edit program"
+                      >
+                        <Edit />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          setSelectedModule(module);
+                          setShowDeleteModal(true);
+                        }}
+                        title="Delete program"
+                      >
+                        <Trash />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        {/* Pagination */}
+        {totalItems > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(totalItems / pageSize)}
+            onPageChange={setCurrentPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+          />
+        )}
+      </Card>
+
+      {/* Create Program Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Onboarding Program</DialogTitle>
+            <DialogDescription>
+              Add a new onboarding program. Required fields are marked with *
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Program Title *</Label>
+              <Input
+                id="title"
+                value={moduleForm.title}
+                onChange={(e) => setModuleForm({ ...moduleForm, title: e.target.value })}
+                placeholder="e.g., Company Culture Orientation"
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={filters.status}
-                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="archived">Archived</option>
-              </select>
-
-              <select
-                value={filters.department}
-                onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Departments</option>
-                {departmentsList.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                value={moduleForm.description}
+                onChange={(e) => setModuleForm({ ...moduleForm, description: e.target.value })}
+                placeholder="Describe the program content and objectives..."
+                rows={3}
+              />
             </div>
-          </div>
 
-          {/* Program List/Grid */}
-          {filteredPrograms.length === 0 ? (
-            <div className="text-center py-12">
-              <BookOpen className="size-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Programs Found</h3>
-              <p className="text-gray-600 mb-6">
-                Try adjusting your search or filters
-              </p>
-              <button 
-                onClick={() => setShowCreateProgram(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2 mx-auto"
-              >
-                <Plus className="size-4" />
-                Create Your First Program
-              </button>
-            </div>
-          ) : viewMode === 'grid' ? (
-            // Grid View
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedPrograms.map((program) => {
-                const badgeProps = getStatusBadgeProps(program.status);
-                const metrics = getProgramMetrics(program);
-
-                return (
-                  <div key={program.id} className="bg-white border border-gray-200 rounded-lg hover:shadow-lg transition-shadow">
-                    <div className="p-6">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-bold text-gray-900 truncate">{program.name}</h3>
-                          <p className="text-gray-600 flex items-center gap-2 mt-1">
-                            <Building className="size-3" />
-                            {program.department}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            className="rounded border-gray-300"
-                            checked={selectedPrograms.has(program.id)}
-                            onChange={() => toggleSelectProgram(program.id)}
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-2">
-                        <span className={`px-2 py-1 text-xs rounded-full ${badgeProps.className}`}>
-                          {getStatusText(program.status)}
-                        </span>
-                      </div>
-
-                      <p className="text-sm text-gray-600 mt-4 line-clamp-2">
-                        {program.description}
-                      </p>
-
-                      {/* Metrics */}
-                      <div className="grid grid-cols-2 gap-3 mt-4">
-                        {metrics.map((metric, index) => (
-                          <div key={index} className="text-center p-2 bg-gray-50 rounded">
-                            <div className="text-xs text-gray-500">{metric.label}</div>
-                            <div className="text-lg font-bold text-gray-900">{metric.value}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex justify-between mt-6 pt-4 border-t">
-                        <button
-                          onClick={() => openViewModal(program)}
-                          className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2 text-sm"
-                        >
-                          <EyeIcon className="size-4" />
-                          View
-                        </button>
-                        <button
-                          onClick={() => openEditModal(program)}
-                          className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2 text-sm"
-                        >
-                          <Edit className="size-4" />
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            // Table View
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="py-3 px-4 text-left w-12">
-                        <input
-                          type="checkbox"
-                          className="rounded border-gray-300"
-                          checked={selectedPrograms.size === paginatedPrograms.length && paginatedPrograms.length > 0}
-                          onChange={toggleSelectAll}
-                        />
-                      </th>
-                      <th 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                        onClick={() => handleSort('name')}
-                      >
-                        <div className="flex items-center gap-1">
-                          Name
-                          {sortBy === 'name' && (
-                            sortOrder === 'asc' ? <SortAsc className="size-4" /> : <SortDesc className="size-4" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                        onClick={() => handleSort('department')}
-                      >
-                        <div className="flex items-center gap-1">
-                          Department
-                          {sortBy === 'department' && (
-                            sortOrder === 'asc' ? <SortAsc className="size-4" /> : <SortDesc className="size-4" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                        onClick={() => handleSort('status')}
-                      >
-                        <div className="flex items-center gap-1">
-                          Status
-                          {sortBy === 'status' && (
-                            sortOrder === 'asc' ? <SortAsc className="size-4" /> : <SortDesc className="size-4" />
-                          )}
-                        </div>
-                      </th>
-                      <th className="py-3 px-4 text-left font-medium text-gray-900">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedPrograms.map((program) => {
-                      const badgeProps = getStatusBadgeProps(program.status);
-
-                      return (
-                        <tr key={program.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3 px-4">
-                            <input
-                              type="checkbox"
-                              className="rounded border-gray-300"
-                              checked={selectedPrograms.has(program.id)}
-                              onChange={() => toggleSelectProgram(program.id)}
-                            />
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex flex-col">
-                              <span className="font-medium text-gray-900">{program.name}</span>
-                              <span className="text-sm text-gray-500 truncate max-w-xs">
-                                {program.description}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <Building className="size-4 text-gray-400" />
-                              <span>{program.department}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 text-xs rounded-full ${badgeProps.className}`}>
-                              {getStatusText(program.status)}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => openViewModal(program)}
-                                className="p-1 hover:bg-gray-100 rounded"
-                                title="View Details"
-                              >
-                                <EyeIcon className="size-4" />
-                              </button>
-                              <button
-                                onClick={() => openEditModal(program)}
-                                className="p-1 hover:bg-gray-100 rounded"
-                                title="Edit Program"
-                              >
-                                <Edit className="size-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setSelectedProgram(program);
-                                  setShowDeleteConfirm(true);
-                                }}
-                                className="p-1 hover:bg-red-50 text-red-600 rounded"
-                                title="Delete Program"
-                              >
-                                <Trash2 className="size-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="module_type">Program Type *</Label>
+                <Select
+                  value={moduleForm.module_type}
+                  onValueChange={handleModuleTypeChange}
+                >
+                  <SelectItem value="core">Core (All Departments)</SelectItem>
+                  <SelectItem value="department">Department-Specific</SelectItem>
+                </Select>
               </div>
 
-              {/* Pagination */}
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 pt-6 border-t">
-                <div className="text-sm text-gray-600">
-                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredPrograms.length)} of {filteredPrograms.length} programs
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className={`px-3 py-1 border rounded-md text-sm ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
-                  >
-                    <ChevronLeft className="size-4" />
-                    Previous
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNumber = i + 1;
-                      if (totalPages > 5 && currentPage > 3) {
-                        pageNumber = currentPage - 2 + i;
-                      }
-                      if (pageNumber > totalPages) return null;
-                      
-                      return (
-                        <button
-                          key={pageNumber}
-                          onClick={() => setCurrentPage(pageNumber)}
-                          className={`w-8 h-8 rounded-md text-sm ${currentPage === pageNumber ? 'bg-blue-600 text-white' : 'border hover:bg-gray-50'}`}
-                        >
-                          {pageNumber}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className={`px-3 py-1 border rounded-md text-sm ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
-                  >
-                    Next
-                    <ChevronRight className="size-4" />
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Create Program Modal */}
-      {showCreateProgram && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">Create New Program</h2>
-              <p className="text-gray-600">
-                Define a new mentorship program with objectives and session templates
-              </p>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Form Steps Navigation */}
-              <div className="flex border-b">
-                {[1, 2, 3].map((step) => (
-                  <button
-                    key={step}
-                    onClick={() => setFormStep(step)}
-                    className={`px-4 py-3 font-medium border-b-2 ${formStep === step ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                  >
-                    Step {step}
-                  </button>
-                ))}
-              </div>
-
-              {/* Step 1: Basic Information */}
-              {formStep === 1 && (
-                <div className="space-y-6">
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Program Name *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g., Leadership Development Program"
-                          value={programForm.name}
-                          onChange={(e) => setProgramForm({ ...programForm, name: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Department *
-                        </label>
-                        <select
-                          value={programForm.department}
-                          onChange={(e) => setProgramForm({ ...programForm, department: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">Select department</option>
-                          {departmentsList.map(dept => (
-                            <option key={dept} value={dept}>{dept}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Status *
-                        </label>
-                        <select
-                          value={programForm.status}
-                          onChange={(e) => setProgramForm({ ...programForm, status: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Description *
-                    </label>
-                    <textarea
-                      placeholder="Describe the program objectives, target audience, and benefits..."
-                      value={programForm.description}
-                      onChange={(e) => setProgramForm({ ...programForm, description: e.target.value })}
-                      rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Step 2: Objectives */}
-              {formStep === 2 && (
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Objectives *
-                    </label>
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Add a learning objective"
-                          value={currentObjective}
-                          onChange={(e) => setCurrentObjective(e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={addObjective}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                        >
-                          Add
-                        </button>
-                      </div>
-                      {programForm.objectives.length > 0 && (
-                        <div className="space-y-2">
-                          {programForm.objectives.map((objective, index) => (
-                            <div key={index} className="flex items-start gap-2 p-3 bg-gray-50 rounded">
-                              <Check className="size-4 text-green-600 mt-0.5" />
-                              <span className="flex-1">{objective}</span>
-                              <button
-                                type="button"
-                                onClick={() => removeObjective(objective)}
-                                className="p-1 hover:bg-gray-200 rounded"
-                              >
-                                <X className="size-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Review */}
-              {formStep === 3 && (
-                <div className="space-y-6">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="font-medium text-gray-900 mb-3">Program Summary</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Name:</span>
-                        <span className="font-medium">{programForm.name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Department:</span>
-                        <span className="font-medium">{programForm.department}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Objectives:</span>
-                        <span className="font-medium">{programForm.objectives.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Status:</span>
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeProps(programForm.status).className}`}>
-                          {getStatusText(programForm.status)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Form Navigation Buttons */}
-              <div className="flex justify-between pt-4 border-t">
-                {formStep > 1 ? (
-                  <button
-                    onClick={() => setFormStep(formStep - 1)}
-                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    Back
-                  </button>
-                ) : (
-                  <div></div>
-                )}
-                
-                {formStep < 3 ? (
-                  <button
-                    onClick={() => setFormStep(formStep + 1)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Continue
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleCreateProgram}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Create Program
-                  </button>
-                )}
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration (minutes) *</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  value={moduleForm.duration_minutes}
+                  onChange={(e) => setModuleForm({ ...moduleForm, duration_minutes: parseInt(e.target.value) || 0 })}
+                  min="1"
+                  max="480"
+                />
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Edit Program Modal */}
-      {showEditProgram && selectedProgram && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">Edit Program</h2>
-              <p className="text-gray-600">Update program details and configuration</p>
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Program Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={programForm.name}
-                      onChange={(e) => setProgramForm({ ...programForm, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Department *
-                    </label>
-                    <select
-                      value={programForm.department}
-                      onChange={(e) => setProgramForm({ ...programForm, department: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select department</option>
-                      {departmentsList.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
-                  </div>
+            {moduleForm.module_type === 'department' && (
+              <div className="space-y-2">
+                <Label>Assign to Departments *</Label>
+                <div className="border rounded-md p-3 max-h-60 overflow-y-auto">
+                  {departments.map(dept => (
+                    <div key={dept.id} className="flex items-center space-x-2 mb-2">
+                      <input
+                        type="checkbox"
+                        id={`dept-${dept.id}`}
+                        checked={moduleForm.department_ids.includes(dept.id)}
+                        onChange={(e) => {
+                          const newDeptIds = e.target.checked
+                            ? [...moduleForm.department_ids, dept.id]
+                            : moduleForm.department_ids.filter(id => id !== dept.id);
+                          setModuleForm({ ...moduleForm, department_ids: newDeptIds });
+                        }}
+                        className="rounded"
+                      />
+                      <label htmlFor={`dept-${dept.id}`} className="text-sm">
+                        {dept.name} {dept.status === 'inactive' && <span className="text-red-500">(Inactive)</span>}
+                      </label>
+                    </div>
+                  ))}
                 </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Status *
-                    </label>
-                    <select
-                      value={programForm.status}
-                      onChange={(e) => setProgramForm({ ...programForm, status: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="archived">Archived</option>
-                    </select>
-                  </div>
-                </div>
+                <p className="text-xs text-gray-500">
+                  Selected: {moduleForm.department_ids.length} departments
+                </p>
               </div>
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Description *
-                </label>
-                <textarea
-                  value={programForm.description}
-                  onChange={(e) => setProgramForm({ ...programForm, description: e.target.value })}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="order">Display Order</Label>
+                <Input
+                  id="order"
+                  type="number"
+                  value={moduleForm.order}
+                  onChange={(e) => setModuleForm({ ...moduleForm, order: parseInt(e.target.value) || 0 })}
+                  min="0"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Objectives *
-                </label>
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Add a learning objective"
-                      value={currentObjective}
-                      onChange={(e) => setCurrentObjective(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={addObjective}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {programForm.objectives.length > 0 && (
-                    <div className="space-y-2">
-                      {programForm.objectives.map((objective, index) => (
-                        <div key={index} className="flex items-start gap-2 p-3 bg-gray-50 rounded">
-                          <Check className="size-4 text-green-600 mt-0.5" />
-                          <span className="flex-1">{objective}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeObjective(objective)}
-                            className="p-1 hover:bg-gray-200 rounded"
-                          >
-                            <X className="size-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="is_active">Status</Label>
+                <Select
+                  value={moduleForm.is_active ? 'active' : 'inactive'}
+                  onValueChange={(value) => setModuleForm({ ...moduleForm, is_active: value === 'active' })}
+                >
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </Select>
               </div>
             </div>
 
-            <div className="p-6 border-t flex justify-end gap-2">
-              <button
-                onClick={() => setShowEditProgram(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEditProgram}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Save Changes
-              </button>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="is_required"
+                  checked={moduleForm.is_required}
+                  onChange={(e) => setModuleForm({ ...moduleForm, is_required: e.target.checked })}
+                  className="rounded"
+                />
+                <label htmlFor="is_required" className="text-sm">
+                  Required completion for all assigned mentees
+                </label>
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* View Program Modal */}
-      {showViewProgram && selectedProgram && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">Program Details</h2>
-              <p className="text-gray-600">
-                {selectedProgram.name} - {selectedProgram.department}
-              </p>
+          <DialogFooter>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetModuleForm();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={createModule}
+                disabled={!moduleForm.title || !moduleForm.description || (moduleForm.module_type === 'department' && moduleForm.department_ids.length === 0)}
+              >
+                Create Program
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Program Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Onboarding Program</DialogTitle>
+            <DialogDescription>
+              Update program details for {selectedModule?.title}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-6 space-y-4">
+            {/* Same form fields as create modal */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Program Title *</Label>
+              <Input
+                id="edit-title"
+                value={moduleForm.title}
+                onChange={(e) => setModuleForm({ ...moduleForm, title: e.target.value })}
+              />
             </div>
 
-            <div className="p-6 space-y-6">
-              {/* Program Header */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">{selectedProgram.name}</h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeProps(selectedProgram.status).className}`}>
-                      {getStatusText(selectedProgram.status)}
-                    </span>
-                    <span className="px-2 py-1 text-xs border border-gray-300 rounded-full flex items-center gap-1">
-                      <Building className="size-3" />
-                      {selectedProgram.department}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => openEditModal(selectedProgram)}
-                    className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2 text-sm"
-                  >
-                    <Edit className="size-4" />
-                    Edit
-                  </button>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description *</Label>
+              <Textarea
+                id="edit-description"
+                value={moduleForm.description}
+                onChange={(e) => setModuleForm({ ...moduleForm, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-type">Program Type *</Label>
+                <Select
+                  value={moduleForm.module_type}
+                  onValueChange={(value) => setModuleForm({ ...moduleForm, module_type: value })}
+                >
+                  <SelectItem value="core">Core (All Departments)</SelectItem>
+                  <SelectItem value="department">Department-Specific</SelectItem>
+                </Select>
               </div>
 
-              {/* Description */}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Description</h4>
-                <p className="text-gray-700">{selectedProgram.description}</p>
+              <div className="space-y-2">
+                <Label htmlFor="edit-duration">Duration (minutes) *</Label>
+                <Input
+                  id="edit-duration"
+                  type="number"
+                  value={moduleForm.duration_minutes}
+                  onChange={(e) => setModuleForm({ ...moduleForm, duration_minutes: parseInt(e.target.value) || 0 })}
+                  min="1"
+                  max="480"
+                />
               </div>
+            </div>
 
-              {/* Metrics */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {getProgramMetrics(selectedProgram).map((metric, index) => (
-                  <div key={index} className="bg-gray-50 p-4 rounded text-center">
-                    <div className="text-2xl font-bold text-gray-900">{metric.value}</div>
-                    <div className="text-sm text-gray-600 mt-1">{metric.label}</div>
+            {moduleForm.module_type === 'department' && (
+              <div className="space-y-2">
+                <Label>Assign to Departments *</Label>
+                <div className="border rounded-md p-3 max-h-60 overflow-y-auto">
+                  {departments.map(dept => (
+                    <div key={dept.id} className="flex items-center space-x-2 mb-2">
+                      <input
+                        type="checkbox"
+                        id={`edit-dept-${dept.id}`}
+                        checked={moduleForm.department_ids.includes(dept.id)}
+                        onChange={(e) => {
+                          const newDeptIds = e.target.checked
+                            ? [...moduleForm.department_ids, dept.id]
+                            : moduleForm.department_ids.filter(id => id !== dept.id);
+                          setModuleForm({ ...moduleForm, department_ids: newDeptIds });
+                        }}
+                        className="rounded"
+                      />
+                      <label htmlFor={`edit-dept-${dept.id}`} className="text-sm">
+                        {dept.name} {dept.status === 'inactive' && <span className="text-red-500">(Inactive)</span>}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowEditModal(false);
+                  resetModuleForm();
+                  setSelectedModule(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={updateModule}
+                disabled={!moduleForm.title || !moduleForm.description}
+              >
+                Update Program
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Program</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{selectedModule?.title}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-6">
+            <Alert variant="destructive">
+              <AlertDescription>
+                Warning: Deleting this program will remove it from all assigned mentees' progress.
+                This action is permanent and cannot be reversed.
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setSelectedModule(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={deleteModule}
+              >
+                Delete Program
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign to Departments Modal */}
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Program to Departments</DialogTitle>
+            <DialogDescription>
+              Assign "{selectedModule?.title}" to departments to make it available for their mentees
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-6 space-y-4">
+            <div className="space-y-2">
+              <Label>Select Departments</Label>
+              <div className="border rounded-md p-3 max-h-60 overflow-y-auto">
+                {departments.map(dept => (
+                  <div key={dept.id} className="flex items-center space-x-2 mb-2">
+                    <input
+                      type="checkbox"
+                      id={`assign-dept-${dept.id}`}
+                      checked={moduleForm.department_ids.includes(dept.id)}
+                      onChange={(e) => {
+                        const newDeptIds = e.target.checked
+                          ? [...moduleForm.department_ids, dept.id]
+                          : moduleForm.department_ids.filter(id => id !== dept.id);
+                        setModuleForm({ ...moduleForm, department_ids: newDeptIds });
+                      }}
+                      className="rounded"
+                    />
+                    <label htmlFor={`assign-dept-${dept.id}`} className="text-sm">
+                      {dept.name} {dept.status === 'inactive' && <span className="text-red-500">(Inactive)</span>}
+                    </label>
                   </div>
                 ))}
               </div>
-
-              {/* Objectives */}
-              {selectedProgram.objectives && selectedProgram.objectives.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">Objectives</h4>
-                  <div className="space-y-2">
-                    {selectedProgram.objectives.map((objective, index) => (
-                      <div key={index} className="flex items-start gap-2 p-3 bg-blue-50 rounded">
-                        <Target className="size-4 text-blue-600 mt-0.5" />
-                        <span className="flex-1">{objective}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 border-t flex justify-end gap-2">
-              <button
-                onClick={() => setShowViewProgram(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && selectedProgram && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">Delete Program</h2>
-              <p className="text-gray-600">
-                Are you sure you want to delete "{selectedProgram.name}"?
+              <p className="text-xs text-gray-500">
+                Selected: {moduleForm.department_ids.length} departments
               </p>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="size-5 text-red-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-red-800">Warning</h4>
-                    <p className="text-sm text-red-600 mt-1">
-                      This action cannot be undone. This will permanently delete the program.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <Alert>
+              <AlertDescription>
+                This will assign the program to all approved mentees in the selected departments.
+                Existing assignments will not be duplicated.
+              </AlertDescription>
+            </Alert>
+          </div>
 
-            <div className="p-6 border-t flex justify-end gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+          <DialogFooter>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAssignModal(false);
+                  resetModuleForm();
+                  setSelectedModule(null);
+                }}
               >
                 Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteProgram(selectedProgram.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              </Button>
+              <Button
+                onClick={assignModuleToDepartments}
+                disabled={moduleForm.department_ids.length === 0}
               >
-                Delete Program
-              </button>
+                Assign to Selected Departments
+              </Button>
             </div>
-          </div>
-        </div>
-      )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

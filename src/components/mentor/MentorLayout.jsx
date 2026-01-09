@@ -62,7 +62,7 @@ export default function MentorLayout() {
     );
   }
 
-  if (!isAuthenticated || !user || user.role !== 'admin') {
+  if (!isAuthenticated || !user || user.role !== 'mentor') {
     return <Navigate to="/login" replace />;
   }
 
@@ -72,10 +72,8 @@ export default function MentorLayout() {
   };
 
   const navigationItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
-    { icon: Users, label: "User Management", path: "/admin/users" },
-    { icon: GraduationCap, label: "Onboarding Management", path: "/admin/onboarding-management" },
-    { icon: Users, label: "Programs", path: "/admin/programs" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/mentor" },
+    { icon: Users, label: "Programs", path: "/mentor/programs" },
     { icon: Users, label: "Mentorship", path: "/admin/mentorship" },
     { icon: MessageSquare, label: "Communication", path: "/admin/communication" },
     { icon: Target, label: "Skills & Competencies", path: "/admin/skills" },

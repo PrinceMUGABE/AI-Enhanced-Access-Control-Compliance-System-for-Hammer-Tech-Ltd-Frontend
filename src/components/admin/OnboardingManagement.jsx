@@ -212,10 +212,10 @@ export default function OnboardingManagement() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Onboarding Management</h1>
           <p className="text-gray-600">Manage onboarding modules, track mentee progress, and monitor deadlines</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
+        {/* <Button className="bg-blue-600 hover:bg-blue-700">
           <Plus />
           <span className="ml-2">Create Module</span>
-        </Button>
+        </Button> */}
       </div>
 
       {/* Statistics */}
@@ -274,7 +274,8 @@ export default function OnboardingManagement() {
             onClick={() => setActiveTab('mentees')}
           >
             <Users />
-            <span className="ml-2">Mentees ({menteesSummary.length})</span>
+            {/* <span className="ml-2">Mentees ({menteesSummary.length})</span> */}
+            <span className="ml-2">Mentees</span>
           </button>
         </div>
       </div>

@@ -25,7 +25,7 @@ import AdminOnboardingManagement from './components/admin/OnboardingManagement';
 import AdminProfile from './components/admin/UserProfile';
 import AdminMentorshipManagement from './components/admin/MentorshipManagement';
 import MentorshipDetailPage from './components/admin/MentorshipDetailPage';
-import ProgramManagement from './components/admin/ProgramManagement';
+import OnboardingProgramManagement from './components/admin/ProgramManagement';
 import DepartmentsManagement from './components/admin/ManageDepartments';
 
 // HR Pages
@@ -34,6 +34,15 @@ import HRUsers from './components/hr/UserManagement';
 import HROnboardingModule from './components/hr/ManageOnboardings';
 import HRMentorshipManagement from './components/hr/MentorshipManagement';
 
+// Mentee Pages
+import MenteeDashboard from './components/mentee/MenteeDashboard';
+import MenteeOnboardingDashboard from './components/mentee/MyOnboardings';
+import MenteeMentorshipDashboard from './components/mentee/ManageMentorship';
+
+// Mentor Pages
+import MentorDashboard from './components/mentor/MentorDashboard';
+import MentorMentorshipDashboard from './components/mentor/ManageMentorships';
+
 // Context Providers
 import { AuthProvider } from './context/AuthContext';
 
@@ -41,9 +50,6 @@ import { AuthProvider } from './context/AuthContext';
 const Toaster = () => {
   const [toasts, setToasts] = useState([]);
 
-  // You can add toast functions here that can be called from other components
-  // For now, this is a simple placeholder that doesn't show anything
-  // To make it functional, you'd need a toast context or global state management
 
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2">
@@ -120,7 +126,7 @@ function App() {
               <Route path="mentorship" element={<AdminMentorshipManagement />} />
               <Route path="profile" element={<AdminProfile />} />
               <Route path="mentorships/:id" element={<MentorshipDetailPage />} />
-              <Route path="programs" element={<ProgramManagement />} />
+              <Route path="programs" element={<OnboardingProgramManagement />} />
               <Route path="departments" element={<DepartmentsManagement />} />
             </Route>
 
@@ -134,13 +140,17 @@ function App() {
 
             {/* ==================== MENTOR ROUTES ==================== */}
             <Route path="/mentor" element={<MentorLayout />}>
-              {/* <Route index element={<MentorDashboard />} /> */}
+              <Route index element={<MentorMentorshipDashboard />} />
+  
               {/* Add more mentor routes here */}
             </Route>
 
             {/* ==================== MENTEE ROUTES ==================== */}
             <Route path="/mentee" element={<MenteeLayout />}>
-              {/* <Route index element={<MenteeDashboard />} /> */}
+              <Route index element={<MenteeDashboard />} />
+              <Route path="dashboard" element={<MenteeDashboard />} />
+              <Route path="onboarding-management" element={<MenteeOnboardingDashboard />} />
+              <Route path="mentorship" element={<MenteeMentorshipDashboard />} />
               {/* Add more mentee routes here */}
             </Route>
             
