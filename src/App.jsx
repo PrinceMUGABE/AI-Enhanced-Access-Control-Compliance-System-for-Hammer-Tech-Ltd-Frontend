@@ -27,6 +27,7 @@ import AdminMentorshipManagement from './components/admin/MentorshipManagement';
 import MentorshipDetailPage from './components/admin/MentorshipDetailPage';
 import OnboardingProgramManagement from './components/admin/ProgramManagement';
 import DepartmentsManagement from './components/admin/ManageDepartments';
+import AdminChatManagement from './components/admin/CommunicationCenter';
 
 // HR Pages
 import HRDashboard from './components/hr/HRDashboard';
@@ -38,6 +39,7 @@ import HRMentorshipManagement from './components/hr/MentorshipManagement';
 import MenteeDashboard from './components/mentee/MenteeDashboard';
 import MenteeOnboardingDashboard from './components/mentee/MyOnboardings';
 import MenteeMentorshipDashboard from './components/mentee/ManageMentorship';
+import MenteeChatManagement from './components/mentee/My_Communications';
 
 // Mentor Pages
 import MentorDashboard from './components/mentor/MentorDashboard';
@@ -128,6 +130,7 @@ function App() {
               <Route path="mentorships/:id" element={<MentorshipDetailPage />} />
               <Route path="programs" element={<OnboardingProgramManagement />} />
               <Route path="departments" element={<DepartmentsManagement />} />
+              <Route path="communication-center" element={<AdminChatManagement />} />
             </Route>
 
             {/* ==================== HR ROUTES ==================== */}
@@ -151,6 +154,7 @@ function App() {
               <Route path="dashboard" element={<MenteeDashboard />} />
               <Route path="onboarding-management" element={<MenteeOnboardingDashboard />} />
               <Route path="mentorship" element={<MenteeMentorshipDashboard />} />
+              <Route path="communication" element={<MenteeChatManagement />} />
               {/* Add more mentee routes here */}
             </Route>
             

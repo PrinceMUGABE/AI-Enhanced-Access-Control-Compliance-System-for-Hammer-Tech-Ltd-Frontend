@@ -78,7 +78,7 @@ export default function AdminLayout() {
     { icon: GraduationCap, label: "Onboarding Management", path: "/admin/onboarding-management" },
     { icon: Users, label: "Programs", path: "/admin/programs" },
     { icon: Users, label: "Mentorship", path: "/admin/mentorship" },
-    { icon: MessageSquare, label: "Communication", path: "/admin/communication" },
+    { icon: MessageSquare, label: "Communication", path: "/admin/communication-center" },
     { icon: Target, label: "Skills & Competencies", path: "/admin/skills" },
     { icon: Star, label: "Feedback", path: "/admin/feedback" },
     { icon: BookOpen, label: "Knowledge Base", path: "/admin/knowledge" },
