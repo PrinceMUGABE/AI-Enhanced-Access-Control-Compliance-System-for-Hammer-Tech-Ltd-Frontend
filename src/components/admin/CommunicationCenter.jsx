@@ -1,5 +1,5 @@
-// AdminChatManagement.jsx - Complete Version with Enhanced Modals and Fixed Call Participant Counter
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+// AdminChatManagement.jsx - Complete Updated Version with Chat During Calls and "You" Typing
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
 // API functions
 const fetchAPI = async (endpoint, method = 'GET', data = null, isFormData = false) => {
@@ -271,337 +271,7 @@ const getChatTypeBadge = (chatType) => {
   }
 };
 
-// WhatsApp-style Audio Recorder Component
-const AudioRecorder = ({ onRecordingComplete, onCancel }) => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [audioChunks, setAudioChunks] = useState([]);
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [audioBlob, setAudioBlob] = useState(null);
-  const [showCancelButton, setShowCancelButton] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const timerRef = useRef(null);
-  const audioRef = useRef(null);
-  const mediaStreamRef = useRef(null);
-
-  const formatDuration = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 44100
-        }
-      });
-      
-      mediaStreamRef.current = stream;
-      
-      const options = {
-        mimeType: 'audio/webm;codecs=opus',
-        audioBitsPerSecond: 128000
-      };
-      
-      let recorder;
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        recorder = new MediaRecorder(stream, options);
-      } else {
-        recorder = new MediaRecorder(stream);
-      }
-
-      const chunks = [];
-      
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-
-      recorder.onstop = () => {
-        if (chunks.length > 0) {
-          const audioBlob = new Blob(chunks, { 
-            type: recorder.mimeType || 'audio/webm'
-          });
-          const audioUrl = URL.createObjectURL(audioBlob);
-          
-          setAudioBlob(audioBlob);
-          setAudioUrl(audioUrl);
-          setAudioChunks(chunks);
-        }
-        
-        // Stop all tracks
-        if (mediaStreamRef.current) {
-          mediaStreamRef.current.getTracks().forEach(track => track.stop());
-          mediaStreamRef.current = null;
-        }
-      };
-
-      recorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event.error);
-        stopRecording();
-      };
-
-      recorder.start(100);
-      setMediaRecorder(recorder);
-      setIsRecording(true);
-      setShowCancelButton(true);
-
-      // Start timer
-      let seconds = 0;
-      if (timerRef.current) clearInterval(timerRef.current);
-      
-      timerRef.current = setInterval(() => {
-        seconds++;
-        setRecordingTime(seconds);
-        
-        // Auto-stop after 10 minutes
-        if (seconds >= 600) {
-          stopRecording();
-        }
-      }, 1000);
-
-    } catch (error) {
-      console.error('Error accessing microphone:', error);
-      alert('Could not access microphone. Please check permissions.');
-      onCancel();
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorder && isRecording) {
-      mediaRecorder.stop();
-      setIsRecording(false);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-  };
-
-  const handleSendRecording = () => {
-    if (audioBlob) {
-      onRecordingComplete(audioBlob);
-      resetRecorder();
-    }
-  };
-
-  const handleCancelRecording = () => {
-    stopRecording();
-    resetRecorder();
-    onCancel();
-  };
-
-  const resetRecorder = () => {
-    setAudioBlob(null);
-    setAudioUrl(null);
-    setAudioChunks([]);
-    setRecordingTime(0);
-    setShowCancelButton(false);
-    setIsPlaying(false);
-    
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-  };
-
-  const handlePlayback = () => {
-    if (audioRef.current) {
-      if (audioRef.current.paused) {
-        audioRef.current.play();
-        setIsPlaying(true);
-      } else {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
-  }, []);
-
-  return (
-    <div className="relative">
-      {!audioUrl ? (
-        <div className="flex items-center justify-between p-3 bg-gray-100 rounded-lg">
-          <div className="flex items-center gap-4">
-            {isRecording ? (
-              <>
-                <div className="relative">
-                  <button
-                    onClick={stopRecording}
-                    onTouchStart={stopRecording}
-                    className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                  >
-                    <div className="w-6 h-6 bg-white rounded"></div>
-                  </button>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-ping"></div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className="flex space-x-1">
-                    <div className="w-1 h-3 bg-red-500 animate-audio-wave"></div>
-                    <div className="w-1 h-5 bg-red-500 animate-audio-wave animation-delay-100"></div>
-                    <div className="w-1 h-4 bg-red-500 animate-audio-wave animation-delay-200"></div>
-                    <div className="w-1 h-6 bg-red-500 animate-audio-wave animation-delay-300"></div>
-                    <div className="w-1 h-3 bg-red-500 animate-audio-wave animation-delay-400"></div>
-                  </div>
-                  <span className="font-mono text-red-600 font-medium">{formatDuration(recordingTime)}</span>
-                </div>
-              </>
-            ) : (
-              <button
-                onClick={startRecording}
-                className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors"
-              >
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                </svg>
-              </button>
-            )}
-            
-            {showCancelButton && isRecording && (
-              <button
-                onClick={handleCancelRecording}
-                className="text-gray-600 hover:text-red-600 text-sm flex items-center gap-1 ml-4"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span>Cancel</span>
-              </button>
-            )}
-          </div>
-          
-          {isRecording && (
-            <div className="text-xs text-gray-500">
-              Tap to stop • Slide to cancel
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <div className="flex items-center gap-4 flex-1">
-            <button
-              onClick={handlePlayback}
-              className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors flex-shrink-0"
-            >
-              {isPlaying ? (
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              ) : (
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                </svg>
-              )}
-            </button>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-900">Voice message</span>
-                <span className="text-xs text-gray-500 font-mono">{formatDuration(recordingTime)}</span>
-              </div>
-              
-              <div className="relative">
-                <input
-                  type="range"
-                  min="0"
-                  max={audioRef.current?.duration || recordingTime}
-                  value={audioRef.current?.currentTime || 0}
-                  onChange={(e) => {
-                    if (audioRef.current) {
-                      audioRef.current.currentTime = parseFloat(e.target.value);
-                    }
-                  }}
-                  className="w-full h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600"
-                />
-                <div 
-                  className="absolute top-0 left-0 h-1.5 bg-blue-400 rounded-lg"
-                  style={{ width: `${((audioRef.current?.currentTime || 0) / (audioRef.current?.duration || recordingTime || 1)) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-          
-          <audio
-            ref={audioRef}
-            src={audioUrl}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onEnded={() => setIsPlaying(false)}
-            onTimeUpdate={() => {}}
-            className="hidden"
-          />
-          
-          <div className="flex gap-3 ml-4">
-            <button
-              onClick={handleCancelRecording}
-              className="p-2 text-gray-600 hover:text-red-600"
-              title="Cancel"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            
-            <button
-              onClick={handleSendRecording}
-              className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
-              title="Send"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-      
-      <style jsx>{`
-        @keyframes audio-wave {
-          0%, 100% { height: 6px; }
-          50% { height: 16px; }
-        }
-        .animate-audio-wave {
-          animation: audio-wave 1s ease-in-out infinite;
-        }
-        .animation-delay-100 { animation-delay: 0.1s; }
-        .animation-delay-200 { animation-delay: 0.2s; }
-        .animation-delay-300 { animation-delay: 0.3s; }
-        .animation-delay-400 { animation-delay: 0.4s; }
-      `}</style>
-    </div>
-  );
-};
-
-// Chat Message Component
+// Chat Message Component (Updated to show "You" for own messages)
 const ChatMessage = ({ message, isOwn, onDelete }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -667,7 +337,7 @@ const ChatMessage = ({ message, isOwn, onDelete }) => {
       <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isOwn ? 'bg-blue-100 rounded-br-none' : 'bg-gray-100 rounded-bl-none'}`}>
         <div className="flex items-center justify-between mb-1">
           <span className={`text-sm font-medium ${isOwn ? 'text-blue-800' : 'text-gray-800'}`}>
-            {message.sender?.full_name || 'Unknown'}
+            {isOwn ? 'You' : message.sender?.full_name || 'Unknown'}
           </span>
           <span className="text-xs text-gray-500 ml-2">
             {formatTime(message.created_at)}
@@ -1984,7 +1654,7 @@ const FileUploadModal = ({ open, onClose, onUpload, chatRoomId }) => {
   );
 };
 
-// Enhanced Video Call Modal with Fixed Participant Counter
+// Enhanced Video Call Modal with Chat Room Integration
 const VideoCallModal = ({
   open,
   onClose,
@@ -1995,27 +1665,31 @@ const VideoCallModal = ({
   onEndCall,
   onToggleMedia,
   onScreenShare,
-  onSendMessage,
+  onSendCallChatMessage,
   localStream,
   remoteStreams,
   participants = [],
   callDuration = 0,
-  isConnected = false,
   userMediaStates = {},
   screenSharingUser = null,
-  activeSpeaker = null
+  activeSpeaker = null,
+  // New props for chat integration
+  currentChat = null,
+  chatMessages = [],
+  newCallChatMessage = '',
+  onCallChatMessageChange = () => {},
+  typingUsers = [],
+  currentUser = null
 }) => {
   const localVideoRef = useRef(null);
   const [callMessages, setCallMessages] = useState([]);
-  const [newCallMessage, setNewCallMessage] = useState('');
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [showParticipants, setShowParticipants] = useState(true);
-  const [showChat, setShowChat] = useState(false);
+  const [showChat, setShowChat] = useState(true);
   const [layout, setLayout] = useState('grid');
-  const [showNotification, setShowNotification] = useState(null);
-  const [notificationTimeout, setNotificationTimeout] = useState(null);
+  const chatMessagesEndRef = useRef(null);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -2023,30 +1697,12 @@ const VideoCallModal = ({
     }
   }, [localStream]);
 
+  // Scroll to bottom when new chat messages arrive
   useEffect(() => {
-    // Show notification when someone joins
-    if (participants.length > 0 && notificationTimeout === null) {
-      const lastParticipant = participants[participants.length - 1];
-      if (lastParticipant) {
-        showUserNotification(`${lastParticipant.full_name} joined the call`);
-      }
+    if (chatMessagesEndRef.current) {
+      chatMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-
-    return () => {
-      if (notificationTimeout) {
-        clearTimeout(notificationTimeout);
-      }
-    };
-  }, [participants.length]);
-
-  const showUserNotification = (message) => {
-    setShowNotification(message);
-    const timeout = setTimeout(() => {
-      setShowNotification(null);
-      setNotificationTimeout(null);
-    }, 3000);
-    setNotificationTimeout(timeout);
-  };
+  }, [chatMessages]);
 
   const formatDuration = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
@@ -2077,17 +1733,10 @@ const VideoCallModal = ({
     onScreenShare?.(newScreenShareState);
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendCallChatMessage = (e) => {
     e.preventDefault();
-    if (newCallMessage.trim() && onSendMessage) {
-      onSendMessage(newCallMessage);
-      setCallMessages(prev => [...prev, {
-        id: Date.now(),
-        sender: 'You',
-        message: newCallMessage,
-        timestamp: new Date().toLocaleTimeString()
-      }]);
-      setNewCallMessage('');
+    if (newCallChatMessage.trim() && onSendCallChatMessage) {
+      onSendCallChatMessage(newCallChatMessage);
     }
   };
 
@@ -2150,20 +1799,16 @@ const VideoCallModal = ({
             {callData?.call_type === 'audio' ? 'Audio Call' : 'Video Call'}
           </h3>
           <div className="flex items-center gap-3 text-sm">
-            <span className={isConnected ? 'text-green-400' : 'text-yellow-400'}>
-              {isConnected ? '● Connected' : '● Connecting...'}
+            <span className={participants.length > 0 ? 'text-green-400' : 'text-yellow-400'}>
+              ● {participants.length > 0 ? `Connected with ${participants.length} participant${participants.length !== 1 ? 's' : ''}` : 'Waiting for participants...'}
             </span>
             <span>{formatDuration(callDuration)}</span>
             
-            {/* FIXED: Show correct participant count */}
+            {/* Show correct participant count */}
             {totalParticipants === 1 ? (
               <span className="text-yellow-300">Calling... (Waiting for others to join)</span>
             ) : (
               <span>{totalParticipants} participant{totalParticipants !== 1 ? 's' : ''}</span>
-            )}
-            
-            {!isConnected && (
-              <span className="text-yellow-300">Connecting to call...</span>
             )}
           </div>
         </div>
@@ -2191,20 +1836,6 @@ const VideoCallModal = ({
           </button>
         </div>
       </div>
-
-      {/* User Join Notification */}
-      {showNotification && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-20">
-          <div className="bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in-out">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span>{showNotification}</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
       <div className="flex h-screen pt-16 pb-32">
@@ -2363,28 +1994,65 @@ const VideoCallModal = ({
 
             {showChat && (
               <div className="flex-1 flex flex-col">
+                <div className="p-4 border-b border-gray-800">
+                  <h4 className="font-medium text-white">
+                    {currentChat?.name || 'Call Chat'}
+                  </h4>
+                  <p className="text-sm text-gray-400">
+                    {participants.length + 1} people in call
+                  </p>
+                </div>
+                
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {callMessages.map(msg => (
-                    <div key={msg.id} className="bg-gray-800 rounded-lg p-3">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="font-medium text-white">{msg.sender}</span>
-                        <span className="text-gray-400 text-xs">{msg.timestamp}</span>
+                  {/* Show existing chat messages */}
+                  {chatMessages.map(message => {
+                    const isOwn = message.sender?.id === currentUser?.id;
+                    return (
+                      <div 
+                        key={message.id} 
+                        className={`rounded-lg p-3 ${isOwn ? 'bg-blue-900/50' : 'bg-gray-800'}`}
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-medium text-white">
+                            {isOwn ? 'You' : message.sender?.full_name || 'Unknown'}
+                          </span>
+                          <span className="text-gray-400 text-xs">
+                            {formatTime(message.created_at)}
+                          </span>
+                        </div>
+                        {message.content && (
+                          <p className="text-white text-sm">{message.content}</p>
+                        )}
                       </div>
-                      <p className="text-white">{msg.message}</p>
+                    );
+                  })}
+                  
+                  {/* Typing indicators */}
+                  {typingUsers.length > 0 && (
+                    <div className="text-gray-400 text-sm italic p-2">
+                      {typingUsers.map(user => (
+                        <span key={user.id}>
+                          {user.name} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+                        </span>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  
+                  <div ref={chatMessagesEndRef} />
                 </div>
 
                 <div className="p-4 border-t border-gray-800">
-                  <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <form onSubmit={handleSendCallChatMessage} className="flex gap-2">
                     <Input
                       type="text"
-                      value={newCallMessage}
-                      onChange={(e) => setNewCallMessage(e.target.value)}
+                      value={newCallChatMessage}
+                      onChange={(e) => onCallChatMessageChange(e.target.value)}
                       placeholder="Type a message..."
-                      className="flex-1 bg-gray-800 border-gray-700 text-gray-500"
+                      className="flex-1 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                     />
-                    <Button type="submit" size="sm">Send</Button>
+                    <Button type="submit" size="sm" className="bg-blue-600 hover:bg-blue-700">
+                      Send
+                    </Button>
                   </form>
                 </div>
               </div>
@@ -2603,6 +2271,10 @@ export default function AdminChatManagement() {
   const [activeSpeaker, setActiveSpeaker] = useState(null);
   const [connectionError, setConnectionError] = useState('');
 
+  // Call chat states
+  const [callChatMessage, setCallChatMessage] = useState('');
+  const [callChatMessages, setCallChatMessages] = useState([]);
+
   const [showCreateChat, setShowCreateChat] = useState(false);
   const [showManageParticipants, setShowManageParticipants] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
@@ -2620,6 +2292,18 @@ export default function AdminChatManagement() {
   const [departments, setDepartments] = useState([]);
 
   const timerRef = useRef(null);
+
+  // Sync chat messages with call chat messages
+  useEffect(() => {
+    if (isInCall && selectedChat) {
+      // When entering call, load existing messages
+      setCallChatMessages(chatMessages);
+    } else {
+      // When exiting call, clear call chat messages
+      setCallChatMessages([]);
+      setCallChatMessage('');
+    }
+  }, [isInCall, selectedChat, chatMessages]);
 
   const initChatWebSocket = (roomId) => {
     try {
@@ -2666,7 +2350,9 @@ export default function AdminChatManagement() {
         try {
           const data = JSON.parse(event.data);
           handleWebSocketMessage(data);
-        } catch (error) {}
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
       };
 
       setWs(websocket);
@@ -2755,16 +2441,27 @@ export default function AdminChatManagement() {
   const handleIncomingMessage = (data) => {
     const newMessage = {
       id: data.message_id,
-      sender: { full_name: data.sender_name },
+      sender: { 
+        full_name: data.sender_name, 
+        id: data.sender_id 
+      },
       content: data.message,
       created_at: data.timestamp,
       is_own_message: data.sender_id === parseInt(localStorage.getItem('user_id'))
     };
 
     setChatMessages(prev => [...prev, newMessage]);
+    
+    // Also add to call chat messages if we're in a call
+    if (isInCall) {
+      setCallChatMessages(prev => [...prev, newMessage]);
+    }
   };
 
   const handleTypingStatus = (data) => {
+    const currentUserId = parseInt(localStorage.getItem('user_id'));
+    const isCurrentUser = data.user_id === currentUserId;
+    
     setTypingUsers(prev => {
       const existingIndex = prev.findIndex(user => user.id === data.user_id);
 
@@ -2773,14 +2470,14 @@ export default function AdminChatManagement() {
           const updated = [...prev];
           updated[existingIndex] = {
             id: data.user_id,
-            name: data.user_name,
+            name: isCurrentUser ? 'You' : data.user_name || 'User',
             lastTyping: Date.now()
           };
           return updated;
         } else {
           return [...prev, {
             id: data.user_id,
-            name: data.user_name,
+            name: isCurrentUser ? 'You' : data.user_name || 'User',
             lastTyping: Date.now()
           }];
         }
@@ -2867,7 +2564,7 @@ export default function AdminChatManagement() {
   //   }
   // };
 
-  const handleTyping = (isTyping) => {
+  const handleTyping = useCallback((isTyping) => {
     if (ws && ws.readyState === WebSocket.OPEN && selectedChat) {
       ws.send(JSON.stringify({
         type: 'typing',
@@ -2879,8 +2576,9 @@ export default function AdminChatManagement() {
         is_typing: isTyping
       });
     }
-  };
+  }, [ws, selectedChat]);
 
+  // Handle typing for main chat
   useEffect(() => {
     if (newMessage) {
       handleTyping(true);
@@ -2901,8 +2599,32 @@ export default function AdminChatManagement() {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [newMessage]);
+  }, [newMessage, handleTyping]);
 
+  // Handle typing for call chat
+  useEffect(() => {
+    if (isInCall && callChatMessage) {
+      handleTyping(true);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = setTimeout(() => {
+        handleTyping(false);
+      }, 1000);
+    } else if (!callChatMessage) {
+      handleTyping(false);
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [callChatMessage, isInCall, handleTyping]);
+
+  // Clean up typing users who stopped typing
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -2930,6 +2652,34 @@ export default function AdminChatManagement() {
       timerRef.current = null;
     }
     setCallDuration(0);
+  };
+
+  const handleSendCallChatMessage = async (message) => {
+    if (!message.trim() || !selectedChat) return;
+
+    try {
+      // Send via WebSocket
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'chat_message',
+          message: message,
+          message_type: 'text'
+        }));
+      }
+
+      // Also send via API
+      await sendMessage({
+        chat_room_id: selectedChat.id,
+        content: message,
+        message_type: 'text'
+      });
+
+      // Clear input
+      setCallChatMessage('');
+    } catch (error) {
+      console.error('Error sending call chat message:', error);
+      alert(`Failed to send message: ${error.message}`);
+    }
   };
 
   const handleInitiateCall = async (callType = 'video', isConference = false) => {
@@ -3108,42 +2858,48 @@ export default function AdminChatManagement() {
     }
   };
 
-  const handleSendCallMessage = (message) => {
-    if (callWs && callWs.readyState === WebSocket.OPEN) {
-      callWs.send(JSON.stringify({
-        type: 'chat_message',
-        message: message
-      }));
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedChat || sendingMessage) return;
+
+    setSendingMessage(true);
+    try {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'chat_message',
+          message: newMessage,
+          message_type: 'text'
+        }));
+      }
+
+      await sendMessage({
+        chat_room_id: selectedChat.id,
+        content: newMessage,
+        message_type: 'text'
+      });
+
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert(`Failed to send message: ${error.message}`);
+    } finally {
+      setSendingMessage(false);
     }
   };
 
-  const handleRecordingComplete = async (audioBlob) => {
-    try {
-      const audioFile = new File([audioBlob], `recording-${Date.now()}.webm`, {
-        type: 'audio/webm'
-      });
-
-      const formData = new FormData();
-      formData.append('file', audioFile);
-      formData.append('chat_room_id', selectedChat.id);
-      formData.append('message_type', 'file');
-      formData.append('message', 'Voice message');
-
-      const response = await uploadFile(formData);
-      
-      if (response.success) {
-        setShowAudioRecorder(false);
-        
-        if (selectedChat) {
-          const messagesResponse = await getChatMessages(selectedChat.id);
-          if (messagesResponse && Array.isArray(messagesResponse.messages)) {
-            setChatMessages(messagesResponse.messages);
-          }
+  const handleDeleteMessage = async (messageId) => {
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      try {
+        await deleteMessage(messageId);
+        setChatMessages(prev => prev.filter(msg => msg.id !== messageId));
+        // Also remove from call chat messages if in call
+        if (isInCall) {
+          setCallChatMessages(prev => prev.filter(msg => msg.id !== messageId));
         }
+      } catch (error) {
+        console.error('Error deleting message:', error);
+        alert(`Failed to delete message: ${error.message}`);
       }
-    } catch (error) {
-      console.error('Error sending audio recording:', error);
-      alert('Failed to send audio recording');
     }
   };
 
@@ -3222,47 +2978,6 @@ export default function AdminChatManagement() {
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
-    }
-  };
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !selectedChat || sendingMessage) return;
-
-    setSendingMessage(true);
-    try {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'chat_message',
-          message: newMessage,
-          message_type: 'text'
-        }));
-      }
-
-      await sendMessage({
-        chat_room_id: selectedChat.id,
-        content: newMessage,
-        message_type: 'text'
-      });
-
-      setNewMessage('');
-    } catch (error) {
-      console.error('Error sending message:', error);
-      alert(`Failed to send message: ${error.message}`);
-    } finally {
-      setSendingMessage(false);
-    }
-  };
-
-  const handleDeleteMessage = async (messageId) => {
-    if (window.confirm('Are you sure you want to delete this message?')) {
-      try {
-        await deleteMessage(messageId);
-        setChatMessages(prev => prev.filter(msg => msg.id !== messageId));
-      } catch (error) {
-        console.error('Error deleting message:', error);
-        alert(`Failed to delete message: ${error.message}`);
-      }
     }
   };
 
@@ -3359,10 +3074,7 @@ export default function AdminChatManagement() {
 
                   {typingUsers.length > 0 && (
                     <span className="text-blue-600 italic">
-                      {typingUsers.length === 1
-                        ? `${typingUsers[0].name} is typing...`
-                        : `${typingUsers.length} people are typing...`
-                      }
+                      {typingUsers.map(user => user.name).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
                     </span>
                   )}
                 </div>
@@ -3492,17 +3204,6 @@ export default function AdminChatManagement() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowAudioRecorder(!showAudioRecorder)}
-                  className={`p-2 rounded-full transition-colors ${showAudioRecorder ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:text-blue-600 hover:bg-gray-100'}`}
-                  title="Record audio"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                </button>
               </div>
 
               <Input
@@ -3525,15 +3226,6 @@ export default function AdminChatManagement() {
                 )}
               </Button>
             </div>
-
-            {showAudioRecorder && (
-              <div className="mt-2 p-3 border rounded-lg bg-gray-50">
-                <AudioRecorder 
-                  onRecordingComplete={handleRecordingComplete}
-                  onCancel={() => setShowAudioRecorder(false)}
-                />
-              </div>
-            )}
           </form>
         </div>
       </div>
@@ -3775,15 +3467,21 @@ export default function AdminChatManagement() {
         onEndCall={handleEndCall}
         onToggleMedia={handleToggleMedia}
         onScreenShare={handleScreenShare}
-        onSendMessage={handleSendCallMessage}
+        onSendCallChatMessage={handleSendCallChatMessage}
         localStream={localStream}
         remoteStreams={remoteStreams}
         participants={callParticipants}
         callDuration={callDuration}
-        isConnected={isConnected}
         userMediaStates={userMediaStates}
         screenSharingUser={screenSharingUser}
         activeSpeaker={activeSpeaker}
+        // New props for chat integration
+        currentChat={selectedChat}
+        chatMessages={callChatMessages}
+        newCallChatMessage={callChatMessage}
+        onCallChatMessageChange={setCallChatMessage}
+        typingUsers={typingUsers}
+        currentUser={{ id: parseInt(localStorage.getItem('user_id')) }}
       />
 
       <style>{`
@@ -3802,36 +3500,6 @@ export default function AdminChatManagement() {
         }
         .chat-messages-container::-webkit-scrollbar-thumb:hover {
           background: #555;
-        }
-        
-        @keyframes audio-wave {
-          0%, 100% {
-            height: 6px;
-          }
-          50% {
-            height: 16px;
-          }
-        }
-        
-        input[type="range"]::-webkit-slider-thumb {
-          appearance: none;
-          width: 14px;
-          height: 14px;
-          border-radius: 50%;
-          background: #3b82f6;
-          cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 0 2px rgba(0,0,0,0.2);
-        }
-        
-        input[type="range"]::-moz-range-thumb {
-          width: 14px;
-          height: 14px;
-          border-radius: 50%;
-          background: #3b82f6;
-          cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 0 2px rgba(0,0,0,0.2);
         }
       `}</style>
     </div>

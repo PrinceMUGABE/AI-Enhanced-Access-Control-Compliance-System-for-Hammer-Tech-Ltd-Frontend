@@ -1,4 +1,4 @@
-// MentorMenteeChatManagement.jsx - Fixed Complete Version
+// MentorMenteeChatManagement.jsx - Complete Updated Version
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
 // API functions
@@ -334,7 +334,7 @@ const ChatMessage = ({ message, isOwn, onDelete }) => {
       <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isOwn ? 'bg-blue-100 rounded-br-none' : 'bg-gray-100 rounded-bl-none'}`}>
         <div className="flex items-center justify-between mb-1">
           <span className={`text-sm font-medium ${isOwn ? 'text-blue-800' : 'text-gray-800'}`}>
-            {message.sender?.full_name || 'Unknown'}
+            {isOwn ? 'You' : message.sender?.full_name || 'Unknown'}
           </span>
           <span className="text-xs text-gray-500 ml-2">
             {formatTime(message.created_at)}
@@ -507,107 +507,6 @@ const ChatParticipantsModal = ({ chat, open, onClose, onStartChat, currentUser }
     }
   };
 
-  const handleInitiateCall = async (callType = 'video', isConference = false) => {
-    try {
-      console.log('🎬 Starting call initiation process...');
-      console.log('📊 Call details:', {
-        callType,
-        isConference,
-        chatRoomId: selectedChat?.id,
-        chatRoomName: selectedChat?.name
-      });
-
-      if (!selectedChat) {
-        alert('Please select a chat first');
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: callType === 'video',
-        audio: true
-      });
-
-      console.log('✅ Media stream obtained');
-      setLocalStream(stream);
-      setIsInitiator(true);
-
-      let response;
-      const requestPayload = {
-        chat_room_id: selectedChat.id,
-        call_type: callType
-      };
-
-      console.log('📤 Sending call request with payload:', requestPayload);
-
-      if (isConference) {
-        console.log('👥 Initiating conference call...');
-        response = await startConferenceCall(requestPayload);
-      } else {
-        console.log('👤 Initiating one-on-one call...');
-        response = await initiateVideoCall(requestPayload);
-      }
-
-      console.log('📥 API Response:', JSON.stringify(response, null, 2));
-
-      if (response.success) {
-        const callId = response.call?.call_id || response.call_id;
-
-        if (!callId) {
-          console.error('❌ No call_id received in response:', response);
-          throw new Error('No call ID received from server');
-        }
-
-        console.log('🎉 Call initiated successfully!', {
-          callId,
-          callType,
-          isConference
-        });
-
-        setVideoCallData({
-          ...response.call,
-          call_id: callId,
-          call_type: callType,
-          is_conference: isConference,
-          caller_name: 'You'
-        });
-
-        console.log('🌐 Initializing call WebSocket...');
-        initCallWebSocket(callId);
-
-        console.log('⏱️ Starting call timer...');
-        startCallTimer();
-
-        setIsInCall(true);
-        console.log('✅ Call is now active - user is in call');
-
-        // Show notification to user
-        alert(`${isConference ? 'Conference' : 'Video'} call initiated! Waiting for others to join...`);
-
-      } else {
-        console.error('❌ Call initiation failed in API response:', response);
-        stream.getTracks().forEach(track => track.stop());
-        setLocalStream(null);
-        alert(`Failed to start call: ${response.error || response.detail || 'Unknown error'}`);
-      }
-
-    } catch (error) {
-      console.error('❌ Error during call initiation:', error);
-
-      if (error.name === 'NotAllowedError') {
-        console.error('🔒 Permission denied by user');
-        alert('Please allow camera and microphone access to start a call.');
-      } else if (error.name === 'NotFoundError') {
-        console.error('📷 No camera/microphone found');
-        alert('No camera or microphone found. Please check your device.');
-      } else if (error.name === 'NotReadableError') {
-        console.error('⚠️ Camera/microphone is already in use');
-        alert('Camera or microphone is already in use by another application.');
-      } else {
-        alert(`Could not start call: ${error.message}`);
-      }
-    }
-  };
-
   if (!open) return null;
 
   return (
@@ -714,31 +613,6 @@ const ChatParticipantsModal = ({ chat, open, onClose, onStartChat, currentUser }
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          {/* Audio Call Button */}
-                          <button
-                            onClick={() => handleInitiateCall('audio', user.id)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                            title="Start audio call"
-                            disabled={loading}
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                            </svg>
-                          </button>
-
-                          {/* Video Call Button */}
-                          <button
-                            onClick={() => handleInitiateCall('video', user.id)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                            title="Start video call"
-                            disabled={loading}
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-
-                          {/* Chat With Button */}
                           <Button
                             variant="outline"
                             size="sm"
@@ -970,38 +844,40 @@ const IncomingCallModal = ({ open, callData, onAccept, onReject }) => {
   );
 };
 
-// Video Call Modal - Fixed version
+// Video Call Modal - Updated version with chat room integration
 const VideoCallModal = ({
   open,
   onClose,
   videoCallData,
   isInitiator,
-  onAccept,
-  onReject,
   onEndCall,
   onToggleMedia,
   onScreenShare,
-  onSendMessage,
+  onSendCallChatMessage,
   localStream,
   remoteStreams,
   participants = [],
   callDuration = 0,
-  isConnected = false,
   userMediaStates = {},
   screenSharingUser = null,
-  activeSpeaker = null
+  activeSpeaker = null,
+  // New props for chat integration
+  currentChat = null,
+  chatMessages = [],
+  newCallChatMessage = '',
+  onCallChatMessageChange = () => {},
+  typingUsers = [],
+  currentUser = null
 }) => {
   const localVideoRef = useRef(null);
   const remoteVideoRefs = useRef({});
-  const [callMessages, setCallMessages] = useState([]);
-  const [newCallMessage, setNewCallMessage] = useState('');
+  const chatMessagesEndRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [showParticipants, setShowParticipants] = useState(true);
-  const [showChat, setShowChat] = useState(false);
+  const [showChat, setShowChat] = useState(true);
   const [layout, setLayout] = useState('grid');
-  const [showNotification, setShowNotification] = useState(null);
 
   // Setup local video stream
   useEffect(() => {
@@ -1029,6 +905,13 @@ const VideoCallModal = ({
       }
     });
   }, [remoteStreams]);
+
+  // Scroll to bottom when new chat messages arrive
+  useEffect(() => {
+    if (chatMessagesEndRef.current) {
+      chatMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages]);
 
   const formatDuration = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
@@ -1059,17 +942,10 @@ const VideoCallModal = ({
     onScreenShare?.(newScreenShareState);
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendCallChatMessage = (e) => {
     e.preventDefault();
-    if (newCallMessage.trim() && onSendMessage) {
-      onSendMessage(newCallMessage);
-      setCallMessages(prev => [...prev, {
-        id: Date.now(),
-        sender: 'You',
-        message: newCallMessage,
-        timestamp: new Date().toLocaleTimeString()
-      }]);
-      setNewCallMessage('');
+    if (newCallChatMessage.trim() && onSendCallChatMessage) {
+      onSendCallChatMessage(newCallChatMessage);
     }
   };
 
@@ -1302,33 +1178,62 @@ const VideoCallModal = ({
               </div>
             )}
 
-            {/* Call Chat */}
+            {/* Call Chat - Updated to show actual chat room */}
             {showChat && (
               <div className="flex-1 flex flex-col">
+                <div className="p-4 border-b border-gray-800">
+                  <h4 className="font-medium text-white">
+                    {currentChat?.name || 'Call Chat'}
+                  </h4>
+                  <p className="text-sm text-gray-400">
+                    {participants.length + 1} people in call
+                  </p>
+                </div>
+                
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {callMessages.length === 0 ? (
-                    <div className="text-center text-gray-400 py-8">
-                      No messages yet. Start the conversation!
-                    </div>
-                  ) : (
-                    callMessages.map(msg => (
-                      <div key={msg.id} className="bg-gray-800 rounded-lg p-3">
+                  {/* Show existing chat messages */}
+                  {chatMessages.map(message => {
+                    const isOwn = message.sender?.id === currentUser?.id;
+                    return (
+                      <div 
+                        key={message.id} 
+                        className={`rounded-lg p-3 ${isOwn ? 'bg-blue-900/50' : 'bg-gray-800'}`}
+                      >
                         <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium text-white">{msg.sender}</span>
-                          <span className="text-gray-400 text-xs">{msg.timestamp}</span>
+                          <span className="font-medium text-white">
+                            {isOwn ? 'You' : message.sender?.full_name || 'Unknown'}
+                          </span>
+                          <span className="text-gray-400 text-xs">
+                            {formatTime(message.created_at)}
+                          </span>
                         </div>
-                        <p className="text-white">{msg.message}</p>
+                        {message.content && (
+                          <p className="text-white text-sm">{message.content}</p>
+                        )}
                       </div>
-                    ))
+                    );
+                  })}
+                  
+                  {/* Typing indicators */}
+                  {typingUsers.length > 0 && (
+                    <div className="text-gray-400 text-sm italic p-2">
+                      {typingUsers.map(user => (
+                        <span key={user.id}>
+                          {user.name} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+                        </span>
+                      ))}
+                    </div>
                   )}
+                  
+                  <div ref={chatMessagesEndRef} />
                 </div>
 
                 <div className="p-4 border-t border-gray-800">
-                  <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <form onSubmit={handleSendCallChatMessage} className="flex gap-2">
                     <Input
                       type="text"
-                      value={newCallMessage}
-                      onChange={(e) => setNewCallMessage(e.target.value)}
+                      value={newCallChatMessage}
+                      onChange={(e) => onCallChatMessageChange(e.target.value)}
                       placeholder="Type a message..."
                       className="flex-1 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                     />
@@ -1440,6 +1345,9 @@ export default function MentorMenteeChatManagement() {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [userNotificationWs, setUserNotificationWs] = useState(null);
 
+  // Call chat states
+  const [callChatMessage, setCallChatMessage] = useState('');
+  const [callChatMessages, setCallChatMessages] = useState([]);
 
   const [filters, setFilters] = useState({
     search: '',
@@ -1456,6 +1364,18 @@ export default function MentorMenteeChatManagement() {
   useEffect(() => {
     scrollToBottom();
   }, [chatMessages]);
+
+  // Sync chat messages with call chat messages
+  useEffect(() => {
+    if (isInCall && selectedChat) {
+      // When entering call, load existing messages
+      setCallChatMessages(chatMessages);
+    } else {
+      // When exiting call, clear call chat messages
+      setCallChatMessages([]);
+      setCallChatMessage('');
+    }
+  }, [isInCall, selectedChat, chatMessages]);
 
   const initChatWebSocket = (roomId) => {
     try {
@@ -1575,7 +1495,10 @@ export default function MentorMenteeChatManagement() {
   const handleIncomingMessage = (data) => {
     const newMessage = {
       id: data.message_id,
-      sender: { full_name: data.sender_name, id: data.sender_id },
+      sender: { 
+        full_name: data.sender_name, 
+        id: data.sender_id 
+      },
       content: data.message,
       message_type: data.message_type || 'text',
       attachment: data.attachment,
@@ -1584,9 +1507,17 @@ export default function MentorMenteeChatManagement() {
     };
 
     setChatMessages(prev => [...prev, newMessage]);
+    
+    // Also add to call chat messages if we're in a call
+    if (isInCall) {
+      setCallChatMessages(prev => [...prev, newMessage]);
+    }
   };
 
   const handleTypingStatus = (data) => {
+    const currentUserId = currentUser?.id;
+    const isCurrentUser = data.user_id === currentUserId;
+    
     setTypingUsers(prev => {
       const existingIndex = prev.findIndex(user => user.id === data.user_id);
 
@@ -1595,14 +1526,14 @@ export default function MentorMenteeChatManagement() {
           const updated = [...prev];
           updated[existingIndex] = {
             id: data.user_id,
-            name: data.full_name || data.full_name,
+            name: isCurrentUser ? 'You' : data.full_name || data.full_name,
             lastTyping: Date.now()
           };
           return updated;
         } else {
           return [...prev, {
             id: data.user_id,
-            name: data.full_name || data.full_name,
+            name: isCurrentUser ? 'You' : data.full_name || data.full_name,
             lastTyping: Date.now()
           }];
         }
@@ -1626,6 +1557,7 @@ export default function MentorMenteeChatManagement() {
     }
   }, [ws, selectedChat]);
 
+  // Handle typing for main chat
   useEffect(() => {
     if (newMessage) {
       handleTyping(true);
@@ -1648,6 +1580,30 @@ export default function MentorMenteeChatManagement() {
     };
   }, [newMessage, handleTyping]);
 
+  // Handle typing for call chat
+  useEffect(() => {
+    if (isInCall && callChatMessage) {
+      handleTyping(true);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = setTimeout(() => {
+        handleTyping(false);
+      }, 1000);
+    } else if (!callChatMessage) {
+      handleTyping(false);
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [callChatMessage, isInCall, handleTyping]);
+
+  // Clean up typing users who stopped typing
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -1688,11 +1644,43 @@ export default function MentorMenteeChatManagement() {
     }
   };
 
+  const handleSendCallChatMessage = async (message) => {
+    if (!message.trim() || !selectedChat) return;
+
+    try {
+      // Send via WebSocket
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'chat_message',
+          message: message,
+          message_type: 'text'
+        }));
+      }
+
+      // Also send via API
+      await sendMessage({
+        chat_room_id: selectedChat.id,
+        content: message,
+        message_type: 'text'
+      });
+
+      // Clear input
+      setCallChatMessage('');
+    } catch (error) {
+      console.error('Error sending call chat message:', error);
+      alert(`Failed to send message: ${error.message}`);
+    }
+  };
+
   const handleDeleteMessage = async (messageId) => {
     if (window.confirm('Are you sure you want to delete this message?')) {
       try {
         await deleteMessage(messageId);
         setChatMessages(prev => prev.filter(msg => msg.id !== messageId));
+        // Also remove from call chat messages if in call
+        if (isInCall) {
+          setCallChatMessages(prev => prev.filter(msg => msg.id !== messageId));
+        }
       } catch (error) {
         console.error('Error deleting message:', error);
         alert(`Failed to delete message: ${error.message}`);
@@ -1723,15 +1711,6 @@ export default function MentorMenteeChatManagement() {
 
     return filtered;
   }, [chats, filters]);
-
-  const handleSendCallMessage = (message) => {
-    if (callWs && callWs.readyState === WebSocket.OPEN) {
-      callWs.send(JSON.stringify({
-        type: 'chat_message',
-        message: message
-      }));
-    }
-  };
 
   const initCallWebSocket = (callId) => {
     console.log('🔌 Initializing call WebSocket for callId:', callId);
@@ -1858,6 +1837,17 @@ export default function MentorMenteeChatManagement() {
   //   }
   // };
 
+  const handleCallChatMessage = (data) => {
+    console.log('💬 Call chat message from:', data.sender_name);
+    console.log('Message:', data.message);
+  };
+
+  const handleCallEnd = (data) => {
+    console.log('📞 Call ended by:', data.sender_name);
+    console.log('Reason:', data.reason);
+    handleEndCall();
+  };
+
   const startCallTimer = () => {
     console.log('⏱️ Starting call timer...');
     if (timerRef.current) {
@@ -1973,27 +1963,6 @@ export default function MentorMenteeChatManagement() {
   const handleICECandidate = (data) => {
     console.log('🧊 Handling ICE candidate from:', data.sender_name);
     console.log('Candidate data:', data.candidate);
-  };
-
-  const handleCallChatMessage = (data) => {
-    console.log('💬 Call chat message from:', data.sender_name);
-    console.log('Message:', data.message);
-
-    // Add to call messages
-    setCallMessages(prev => [...prev, {
-      id: Date.now(),
-      sender: data.sender_name,
-      message: data.message,
-      timestamp: data.timestamp || new Date().toISOString()
-    }]);
-  };
-
-  const handleCallEnd = (data) => {
-    console.log('📞 Call ended by:', data.sender_name);
-    console.log('Reason:', data.reason);
-
-    // End the call locally
-    handleEndCall();
   };
 
   const handleEndCall = () => {
@@ -2397,27 +2366,7 @@ export default function MentorMenteeChatManagement() {
     await handleSelectChat(newChat);
   };
 
-  useEffect(() => {
-    fetchInitialData();
-
-    return () => {
-      if (ws) ws.close();
-      if (callWs) callWs.close();
-      stopCallTimer();
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (chats.length > 0 && !selectedChat && !loading) {
-      // Auto-select the first chat
-      handleSelectChat(chats[0]);
-    }
-  }, [chats, loading]);
-
-
+  // Initialize user notification WebSocket
   useEffect(() => {
     const initUserNotificationWebSocket = () => {
       try {
@@ -2522,6 +2471,28 @@ export default function MentorMenteeChatManagement() {
     };
   }, []);
 
+  // Initialize data on mount
+  useEffect(() => {
+    fetchInitialData();
+
+    return () => {
+      if (ws) ws.close();
+      if (callWs) callWs.close();
+      if (userNotificationWs) userNotificationWs.close();
+      stopCallTimer();
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  // Auto-select first chat if available
+  useEffect(() => {
+    if (chats.length > 0 && !selectedChat && !loading) {
+      handleSelectChat(chats[0]);
+    }
+  }, [chats, loading]);
+
   const renderChatWindow = () => {
     if (!selectedChat) {
       return (
@@ -2566,10 +2537,8 @@ export default function MentorMenteeChatManagement() {
 
                   {typingUsers.length > 0 && (
                     <span className="text-blue-600 italic">
-                      {typingUsers.length === 1
-                        ? `${typingUsers[0].name} is typing...`
-                        : `${typingUsers.length} people are typing...`
-                      }
+                      {typingUsers.map(user => user.name).join(', ')} 
+                      {typingUsers.length === 1 ? ' is typing...' : ' are typing...'}
                     </span>
                   )}
                 </div>
@@ -2863,20 +2832,24 @@ export default function MentorMenteeChatManagement() {
         onClose={handleEndCall}
         videoCallData={videoCallData}
         isInitiator={isInitiator}
-        onAccept={handleAcceptCall}
-        onReject={handleRejectCall}
         onEndCall={handleEndCall}
         onToggleMedia={handleToggleMedia}
         onScreenShare={handleScreenShare}
-        onSendMessage={handleSendCallMessage}
+        onSendCallChatMessage={handleSendCallChatMessage}
         localStream={localStream}
         remoteStreams={remoteStreams}
         participants={callParticipants}
         callDuration={callDuration}
-        isConnected={isConnected}
         userMediaStates={userMediaStates}
         screenSharingUser={screenSharingUser}
         activeSpeaker={activeSpeaker}
+        // New props for chat integration
+        currentChat={selectedChat}
+        chatMessages={callChatMessages}
+        newCallChatMessage={callChatMessage}
+        onCallChatMessageChange={setCallChatMessage}
+        typingUsers={typingUsers}
+        currentUser={currentUser}
       />
 
       <style>{`
