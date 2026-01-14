@@ -199,7 +199,7 @@ const Modal = ({ isOpen, onClose, children, title, size = 'md' }) => {
   );
 };
 
-// Enhanced Module Modal Component
+// FIXED: Enhanced Module Modal Component with proper file handling
 const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onComplete, onUpdateProgress }) => {
   if (!isOpen || !module) return null;
 
@@ -219,13 +219,41 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
     id: null
   };
 
+  // FIXED: Convert backend file path to proper URL
+  const normalizeFileUrl = (url) => {
+    if (!url) return '';
+    
+    // Replace backslashes with forward slashes
+    let normalized = url.replace(/\\/g, '/');
+    
+    // Remove leading slash if it's a relative path
+    if (normalized.startsWith('/')) {
+      normalized = normalized.substring(1);
+    }
+    
+    // If it's already a full URL, return as is
+    if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+      return normalized;
+    }
+    
+    // Otherwise, construct the full URL
+    return `${BASE_URL}/${normalized}`;
+  };
+
   // Safely handle content (could be string or array)
   const getContentArray = () => {
     if (!module.content) return [];
     if (Array.isArray(module.content)) return module.content;
     if (typeof module.content === 'string') {
-      // Split by newlines or other delimiters
-      return module.content.split('\n').filter(line => line.trim());
+      // Try to parse JSON if it's a JSON string
+      try {
+        const parsed = JSON.parse(module.content);
+        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed[0])) return parsed[0];
+      } catch (e) {
+        // If not JSON, split by newlines
+        return module.content.split('\n').filter(line => line.trim());
+      }
     }
     return [];
   };
@@ -234,6 +262,15 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
   const getResourcesArray = () => {
     if (!module.resources) return [];
     if (Array.isArray(module.resources)) return module.resources;
+    // Try to parse JSON string
+    if (typeof module.resources === 'string') {
+      try {
+        const parsed = JSON.parse(module.resources);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        return [];
+      }
+    }
     return [];
   };
 
@@ -251,8 +288,19 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
     return [];
   };
 
-  // Helper functions for file handling
-  const getFileType = (fileName) => {
+  // FIXED: Better file type detection
+  const getFileType = (fileName, fileTypeFromBackend = '') => {
+    // First check if backend already provided a type
+    if (fileTypeFromBackend) {
+      const type = fileTypeFromBackend.toLowerCase();
+      if (type.includes('image')) return 'image';
+      if (type.includes('video')) return 'video';
+      if (type.includes('audio')) return 'audio';
+      if (type.includes('pdf')) return 'pdf';
+      if (type.includes('document')) return 'document';
+    }
+    
+    // Fallback to extension detection
     if (!fileName) return 'document';
     const extension = fileName.split('.').pop().toLowerCase();
     
@@ -260,24 +308,17 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
     const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'wmv', 'flv', 'mkv'];
     const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'];
     const pdfExtensions = ['pdf'];
-    const docExtensions = ['doc', 'docx', 'txt', 'rtf'];
-    const excelExtensions = ['xls', 'xlsx', 'csv'];
-    const pptExtensions = ['ppt', 'pptx'];
     
     if (imageExtensions.includes(extension)) return 'image';
     if (videoExtensions.includes(extension)) return 'video';
     if (audioExtensions.includes(extension)) return 'audio';
     if (pdfExtensions.includes(extension)) return 'pdf';
-    if (docExtensions.includes(extension)) return 'document';
-    if (excelExtensions.includes(extension)) return 'spreadsheet';
-    if (pptExtensions.includes(extension)) return 'presentation';
     
     return 'document';
   };
 
-  const getFileIcon = (fileName) => {
-    const type = getFileType(fileName);
-    switch (type) {
+  const getFileIcon = (fileType) => {
+    switch (fileType) {
       case 'image': return '🖼️';
       case 'video': return '🎬';
       case 'audio': return '🔊';
@@ -296,73 +337,55 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  // Fix: Proper download function with correct filename
+  // FIXED: Proper download function
   const handleDownload = async (file) => {
     try {
-      const fileUrl = file.url || file.file_url || file.file;
+      const fileUrl = normalizeFileUrl(file.url || file.file_url || file.file);
       const fileName = file.name || file.file_name || file.title || `file_${Date.now()}`;
-      
-      // Ensure proper filename extension
-      let finalFileName = fileName;
-      if (!fileName.includes('.')) {
-        const fileType = getFileType(fileName);
-        if (fileUrl) {
-          const urlExtension = fileUrl.split('.').pop().split('?')[0];
-          if (urlExtension && urlExtension.length <= 5) {
-            finalFileName = `${fileName}.${urlExtension}`;
-          }
-        }
-      }
       
       // Create a temporary link element
       const link = document.createElement('a');
       link.href = fileUrl;
-      link.download = finalFileName;
+      link.download = fileName;
       
       // Append to body, click, and remove
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      // If it's a blob URL, revoke it after download
-      if (fileUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(fileUrl);
-      }
     } catch (error) {
       console.error('Error downloading file:', error);
       // Fallback: open in new tab
-      window.open(file.url || file.file_url || file.file, '_blank');
+      window.open(fileUrl, '_blank');
     }
   };
 
-  // Fix: Proper file open function
+  // FIXED: Proper file open function
   const handleFileOpen = (file) => {
-    const fileType = getFileType(file.name || file.file_name || file.title);
-    const fileUrl = file.url || file.file_url || file.file;
+    const fileUrl = normalizeFileUrl(file.url || file.file_url || file.file);
+    const fileName = file.name || file.file_name || file.title || '';
+    const fileType = getFileType(fileName, file.type);
     
-    if (fileType === 'pdf') {
-      // Open PDF in new tab
+    if (fileType === 'pdf' || fileType === 'image') {
+      // Open PDF and images in new tab
       window.open(fileUrl, '_blank');
-    } else if (fileType === 'image') {
-      // Open image in preview modal
-      setImagePreview(fileUrl);
     } else if (fileType === 'video' || fileType === 'audio') {
-      // Videos and audio are already embedded and playable
-      return;
+      // Videos and audio should be embedded and playable
+      return; // Let the embedded player handle it
     } else {
-      // For other files, download with proper name
+      // For other files, download
       handleDownload(file);
     }
   };
 
-  // Render file card with proper information
+  // FIXED: Render file card with proper URL handling
   const renderFileCard = (file, index) => {
     // Get file information with fallbacks
     const fileName = file.name || file.file_name || file.title || `File ${index + 1}`;
-    const fileType = getFileType(fileName);
-    const fileUrl = file.url || file.file_url || file.file;
+    const fileType = getFileType(fileName, file.type);
+    const fileUrl = normalizeFileUrl(file.url || file.file_url || file.file);
     const fileSize = file.size || file.file_size;
-    const fileIcon = getFileIcon(fileName);
+    const fileIcon = getFileIcon(fileType);
     
     // Get proper file type label
     const fileTypeLabel = fileType === 'pdf' ? 'PDF' : 
@@ -374,7 +397,7 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
                          fileType === 'audio' ? 'AUDIO' : 'DOCUMENT';
 
     return (
-      <div key={index} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+      <div key={index} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white mb-4">
         <div className="p-4">
           <div className="flex items-start space-x-3">
             <div className="flex-shrink-0">
@@ -407,15 +430,7 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
               </div>
             </div>
             <div className="flex-shrink-0 flex space-x-2">
-              {fileType === 'image' ? (
-                <button
-                  onClick={() => setImagePreview(fileUrl)}
-                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
-                  title="Preview image"
-                >
-                  👁️
-                </button>
-              ) : fileType === 'pdf' ? (
+              {fileType === 'pdf' ? (
                 <button
                   onClick={() => window.open(fileUrl, '_blank')}
                   className="p-2 text-red-600 hover:bg-red-50 rounded-md"
@@ -433,15 +448,13 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
                 </button>
               )}
               
-              {fileType !== 'pdf' && fileType !== 'image' && (
-                <button
-                  onClick={() => handleDownload(file)}
-                  className="p-2 text-green-600 hover:bg-green-50 rounded-md"
-                  title="Download file"
-                >
-                  📥
-                </button>
-              )}
+              <button
+                onClick={() => handleDownload(file)}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
+                title="Download file"
+              >
+                📥
+              </button>
             </div>
           </div>
           
@@ -454,7 +467,7 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
                   alt={fileName}
                   className="w-full h-full object-contain hover:scale-105 transition-transform"
                   onError={(e) => {
-                    e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Available';
+                    e.target.src = `https://via.placeholder.com/400x300?text=Image+Not+Available`;
                   }}
                 />
               </div>
@@ -471,7 +484,7 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
                   onPause={() => setPlayingVideo(null)}
                   preload="metadata"
                 >
-                  <source src={fileUrl} type={`video/${getFileType(fileName)}`} />
+                  <source src={fileUrl} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               </div>
@@ -492,7 +505,9 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
                     onPause={() => setPlayingAudio(null)}
                     preload="metadata"
                   >
-                    <source src={fileUrl} type={`audio/${getFileType(fileName)}`} />
+                    <source src={fileUrl} type="audio/mpeg" />
+                    <source src={fileUrl} type="audio/wav" />
+                    <source src={fileUrl} type="audio/ogg" />
                     Your browser does not support the audio element.
                   </audio>
                 </div>
@@ -504,7 +519,7 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
     );
   };
 
-  // Image Preview Modal
+  // FIXED: Image Preview Modal with proper URL
   const ImagePreviewModal = () => {
     if (!imagePreview) return null;
 
@@ -526,7 +541,7 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
             className="max-w-full max-h-[85vh] object-contain"
             onClick={(e) => e.stopPropagation()}
             onError={(e) => {
-              e.target.src = 'https://via.placeholder.com/800x600?text=Image+Not+Available';
+              e.target.src = `https://via.placeholder.com/800x600?text=Image+Not+Available`;
             }}
           />
         </div>
@@ -642,7 +657,7 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
               </div>
             )}
 
-            {/* Multimedia Tab */}
+            {/* FIXED: Multimedia Tab with proper file handling */}
             {activeTab === 'multimedia' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -652,7 +667,7 @@ const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onCom
                   </div>
                 </div>
                 {getMultimediaArray().length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-4">
                     {getMultimediaArray().map((file, index) => renderFileCard(file, index))}
                   </div>
                 ) : (
@@ -1385,7 +1400,7 @@ export default function MenteeOnboardingDashboard() {
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
-                  <SearchIcon className="absolute left-3 top-3 text-gray-400" />
+                  <div className="absolute left-3 top-3 text-gray-400">🔍</div>
                   <Input
                     placeholder="Search modules..."
                     value={searchTerm}

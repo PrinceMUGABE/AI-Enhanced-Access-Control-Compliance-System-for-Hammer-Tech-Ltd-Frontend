@@ -18,6 +18,41 @@ const formatDate = (dateString) => {
   });
 };
 
+// FIXED: Enhanced URL normalization function
+const normalizeFileUrl = (url) => {
+  if (!url) return '';
+  
+  console.log('🔧 Normalizing URL:', url);
+  
+  // Replace backslashes with forward slashes
+  let normalized = url.replace(/\\/g, '/');
+  
+  // Remove leading slash if it's a relative path
+  if (normalized.startsWith('/')) {
+    normalized = normalized.substring(1);
+  }
+  
+  // If it's already a full URL, return as is
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    return normalized;
+  }
+  
+  // If it starts with media/, ensure it's properly formatted
+  if (normalized.startsWith('media/')) {
+    // Ensure it doesn't have double slashes
+    normalized = normalized.replace(/\/\//g, '/');
+    return `${BASE_URL}/${normalized}`;
+  }
+  
+  // For any other relative paths, assume they're in media directory
+  if (normalized.includes('modules')) {
+    return `${BASE_URL}/media/${normalized}`;
+  }
+  
+  // Default: prepend media/
+  return `${BASE_URL}/media/${normalized}`;
+};
+
 // Enhanced logging function
 const logRequestData = (endpoint, method, requestData, responseData = null) => {
   console.group(`🌐 API Request: ${method} ${endpoint}`);
@@ -29,24 +64,6 @@ const logRequestData = (endpoint, method, requestData, responseData = null) => {
   
   console.log('⏰ Timestamp:', new Date().toISOString());
   console.groupEnd();
-  
-  // Optional: Log to localStorage for debugging
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    endpoint,
-    method,
-    request: requestData,
-    response: responseData
-  };
-  
-  try {
-    const existingLogs = JSON.parse(localStorage.getItem('api_logs') || '[]');
-    existingLogs.unshift(logEntry);
-    if (existingLogs.length > 50) existingLogs.pop(); // Keep only last 50 logs
-    localStorage.setItem('api_logs', JSON.stringify(existingLogs));
-  } catch (e) {
-    console.warn('Could not save to localStorage:', e);
-  }
 };
 
 // Simple UI Components
@@ -336,7 +353,7 @@ const ModuleTypeBadge = ({ type }) => {
   return <Badge variant={config.variant}><span className="mr-1">{config.icon}</span>{config.label}</Badge>;
 };
 
-// Enhanced API service with logging
+// FIXED: Enhanced API service with URL normalization
 const apiService = {
   async fetch(endpoint, options = {}) {
     const token = getAuthToken();
@@ -397,7 +414,7 @@ const apiService = {
   }
 };
 
-// File upload component
+// FIXED: File upload component with better file handling
 const FileUpload = ({ files, onFilesChange, onFileRemove, maxSizeMB = 50 }) => {
   const [dragOver, setDragOver] = useState(false);
 
@@ -527,7 +544,7 @@ const FileUpload = ({ files, onFilesChange, onFileRemove, maxSizeMB = 50 }) => {
   );
 };
 
-// Full screen media viewer modal
+// FIXED: Full screen media viewer modal with proper URL handling
 const MediaViewerModal = ({ open, onOpenChange, file }) => {
   if (!open || !file) return null;
 
@@ -551,7 +568,14 @@ const MediaViewerModal = ({ open, onOpenChange, file }) => {
   };
 
   const fileType = getFileType();
-  const fileUrl = file.url || '';
+  const fileUrl = normalizeFileUrl(file.url || '');
+
+  console.log('🎬 Media viewer file info:', {
+    fileType,
+    fileUrl,
+    originalUrl: file.url,
+    filename: file.original_filename || file.name
+  });
 
   const renderContent = () => {
     switch (fileType) {
@@ -563,6 +587,10 @@ const MediaViewerModal = ({ open, onOpenChange, file }) => {
               alt={file.title || file.original_filename}
               className="max-w-full max-h-full object-contain"
               style={{ maxHeight: 'calc(90vh - 100px)' }}
+              onError={(e) => {
+                console.error('❌ Error loading image:', fileUrl);
+                e.target.src = `https://via.placeholder.com/800x600?text=Image+Not+Available`;
+              }}
             />
           </div>
         );
@@ -712,7 +740,7 @@ const MediaViewerModal = ({ open, onOpenChange, file }) => {
   );
 };
 
-// Add details modal component - FIXED VERSION
+// FIXED: Add details modal component with proper file handling
 const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
   if (!open || !module) return null;
 
@@ -721,8 +749,25 @@ const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
   const [showMediaViewer, setShowMediaViewer] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Process files to ensure they have proper URLs
+  const processedFiles = files.map(file => ({
+    ...file,
+    normalizedUrl: normalizeFileUrl(file.url || '')
+  }));
+
+  console.log('📁 Module files processed:', {
+    originalCount: files.length,
+    processedCount: processedFiles.length,
+    files: processedFiles.map(f => ({
+      name: f.original_filename || f.title,
+      url: f.url,
+      normalizedUrl: f.normalizedUrl,
+      type: f.type
+    }))
+  });
+
   // Group files by type
-  const groupedFiles = files.reduce((acc, file) => {
+  const groupedFiles = processedFiles.reduce((acc, file) => {
     const type = file.type || 'other';
     if (!acc[type]) acc[type] = [];
     acc[type].push(file);
@@ -749,16 +794,19 @@ const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
   };
 
   const handleFileAction = (file) => {
-    const fileType = file.type?.toLowerCase() || '';
-    const fileUrl = file.url || '';
+    console.log('🖱️ File action clicked:', {
+      fileName: file.original_filename || file.title,
+      fileType: file.type,
+      url: file.normalizedUrl
+    });
 
-    if (['image', 'video', 'audio', 'pdf'].includes(fileType)) {
+    if (['image', 'video', 'audio', 'pdf'].includes(file.type?.toLowerCase())) {
       setSelectedFile(file);
       setShowMediaViewer(true);
     } else {
       // Download other files
       const link = document.createElement('a');
-      link.href = fileUrl;
+      link.href = file.normalizedUrl;
       link.download = file.original_filename || 'download';
       document.body.appendChild(link);
       link.click();
@@ -766,7 +814,7 @@ const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
     }
   };
 
-  // SAFELY handle content array - FIXED
+  // SAFELY handle content array
   const renderContentList = () => {
     if (!module.content) return <p className="text-gray-500">No content available</p>;
     
@@ -855,7 +903,7 @@ const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
               >
                 Overview
               </button>
-              {files.length > 0 && (
+              {processedFiles.length > 0 && (
                 <button
                   className={`py-2 px-1 font-medium text-sm border-b-2 transition-colors ${activeTab === 'files'
                       ? 'border-blue-600 text-blue-600'
@@ -863,7 +911,7 @@ const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
                     }`}
                   onClick={() => setActiveTab('files')}
                 >
-                  Files ({files.length})
+                  Files ({processedFiles.length})
                 </button>
               )}
             </div>
@@ -907,12 +955,12 @@ const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
                 </Card>
 
                 {/* Quick File Preview */}
-                {files.length > 0 && (
+                {processedFiles.length > 0 && (
                   <Card>
                     <CardContent className="p-6">
                       <h3 className="font-semibold text-lg mb-4">Attachments Preview</h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {files.slice(0, 8).map((file, index) => (
+                        {processedFiles.slice(0, 8).map((file, index) => (
                           <div
                             key={index}
                             className="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer transition-colors"
@@ -935,9 +983,9 @@ const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
                           </div>
                         ))}
                       </div>
-                      {files.length > 8 && (
+                      {processedFiles.length > 8 && (
                         <p className="text-sm text-gray-500 mt-3 text-center">
-                          + {files.length - 8} more files. Switch to Files tab to view all.
+                          + {processedFiles.length - 8} more files. Switch to Files tab to view all.
                         </p>
                       )}
                     </CardContent>
@@ -956,10 +1004,10 @@ const ModuleDetailsModal = ({ module, open, onOpenChange }) => {
               // Files Tab
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-semibold text-lg">All Files ({files.length})</h3>
+                  <h3 className="font-semibold text-lg">All Files ({processedFiles.length})</h3>
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-gray-500">
-                      Total size: {formatFileSize(files.reduce((sum, file) => sum + (file.size || 0), 0))}
+                      Total size: {formatFileSize(processedFiles.reduce((sum, file) => sum + (file.size || 0), 0))}
                     </span>
                   </div>
                 </div>
@@ -1148,14 +1196,17 @@ export default function OnboardingProgramManagement() {
         }))
       });
 
-      // Ensure content is always an array
+      // Process files to ensure they have proper URLs
       const transformedModules = modulesData.map(module => ({
         ...module,
         content: Array.isArray(module.content) ? module.content : 
                  typeof module.content === 'string' ? [module.content] : 
                  module.content ? [String(module.content)] : [],
         department_ids: module.departments?.map(dept => dept.id) || [],
-        multimedia_files: module.multimedia_files || []
+        multimedia_files: (module.multimedia_files || []).map(file => ({
+          ...file,
+          normalizedUrl: normalizeFileUrl(file.url || '')
+        }))
       }));
 
       console.log('📦 Transformed modules:', transformedModules);
@@ -1207,12 +1258,16 @@ export default function OnboardingProgramManagement() {
         departments: moduleData.departments?.length || 0
       });
       
-      // Ensure content is an array for display
+      // Process files to ensure they have proper URLs
       const processedModule = {
         ...moduleData,
         content: Array.isArray(moduleData.content) ? moduleData.content : 
                  typeof moduleData.content === 'string' ? [moduleData.content] : 
-                 moduleData.content ? [String(moduleData.content)] : []
+                 moduleData.content ? [String(moduleData.content)] : [],
+        multimedia_files: (moduleData.multimedia_files || []).map(file => ({
+          ...file,
+          normalizedUrl: normalizeFileUrl(file.url || '')
+        }))
       };
       
       setSelectedModule(processedModule);
@@ -1392,13 +1447,16 @@ export default function OnboardingProgramManagement() {
 
       console.log('✅ Module created successfully:', response);
 
-      // Ensure content is an array
+      // Process files to ensure they have proper URLs
       const transformedModule = {
         ...response,
         content: Array.isArray(response.content) ? response.content : 
                  typeof response.content === 'string' ? [response.content] : [],
         department_ids: response.departments?.map(dept => dept.id) || [],
-        multimedia_files: response.multimedia_files || []
+        multimedia_files: (response.multimedia_files || []).map(file => ({
+          ...file,
+          normalizedUrl: normalizeFileUrl(file.url || '')
+        }))
       };
 
       setModules([...modules, transformedModule]);
@@ -1471,13 +1529,16 @@ export default function OnboardingProgramManagement() {
 
       console.log('✅ Module updated successfully:', response);
 
-      // Ensure content is an array
+      // Process files to ensure they have proper URLs
       const transformedModule = {
         ...response,
         content: Array.isArray(response.content) ? response.content : 
                  typeof response.content === 'string' ? [response.content] : [],
         department_ids: response.departments?.map(dept => dept.id) || [],
-        multimedia_files: response.multimedia_files || []
+        multimedia_files: (response.multimedia_files || []).map(file => ({
+          ...file,
+          normalizedUrl: normalizeFileUrl(file.url || '')
+        }))
       };
 
       setModules(modules.map(m => m.id === selectedModule.id ? transformedModule : m));
@@ -1773,7 +1834,7 @@ export default function OnboardingProgramManagement() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="lg:col-span-2">
               <div className="relative">
-                <SearchIcon className="absolute left-3 top-3 text-gray-400" />
+                <div className="absolute left-3 top-3 text-gray-400">🔍</div>
                 <Input
                   placeholder="Search programs by title or description..."
                   value={searchTerm}
@@ -2427,7 +2488,11 @@ export default function OnboardingProgramManagement() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => window.open(file.url, '_blank')}
+                            onClick={() => {
+                              const fileUrl = normalizeFileUrl(file.url || '');
+                              console.log('👁️ Viewing file:', fileUrl);
+                              window.open(fileUrl, '_blank');
+                            }}
                           >
                             <Eye />
                           </Button>
