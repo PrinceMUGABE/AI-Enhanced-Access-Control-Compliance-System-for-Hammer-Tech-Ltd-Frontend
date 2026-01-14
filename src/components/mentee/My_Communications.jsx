@@ -1,5 +1,6 @@
 // MentorMenteeChatManagement.jsx - Complete Updated Version
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 
 // API functions
 const fetchAPI = async (endpoint, method = 'GET', data = null, isFormData = false) => {
@@ -865,7 +866,7 @@ const VideoCallModal = ({
   currentChat = null,
   chatMessages = [],
   newCallChatMessage = '',
-  onCallChatMessageChange = () => {},
+  onCallChatMessageChange = () => { },
   typingUsers = [],
   currentUser = null
 }) => {
@@ -1189,14 +1190,14 @@ const VideoCallModal = ({
                     {participants.length + 1} people in call
                   </p>
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                   {/* Show existing chat messages */}
                   {chatMessages.map(message => {
                     const isOwn = message.sender?.id === currentUser?.id;
                     return (
-                      <div 
-                        key={message.id} 
+                      <div
+                        key={message.id}
                         className={`rounded-lg p-3 ${isOwn ? 'bg-blue-900/50' : 'bg-gray-800'}`}
                       >
                         <div className="flex justify-between items-start mb-1">
@@ -1213,7 +1214,7 @@ const VideoCallModal = ({
                       </div>
                     );
                   })}
-                  
+
                   {/* Typing indicators */}
                   {typingUsers.length > 0 && (
                     <div className="text-gray-400 text-sm italic p-2">
@@ -1224,7 +1225,7 @@ const VideoCallModal = ({
                       ))}
                     </div>
                   )}
-                  
+
                   <div ref={chatMessagesEndRef} />
                 </div>
 
@@ -1348,6 +1349,7 @@ export default function MentorMenteeChatManagement() {
   // Call chat states
   const [callChatMessage, setCallChatMessage] = useState('');
   const [callChatMessages, setCallChatMessages] = useState([]);
+  const location = useLocation();
 
   const [filters, setFilters] = useState({
     search: '',
@@ -1376,6 +1378,74 @@ export default function MentorMenteeChatManagement() {
       setCallChatMessage('');
     }
   }, [isInCall, selectedChat, chatMessages]);
+
+  useEffect(() => {
+    const handleAutoOpenMentorshipChat = async () => {
+      // Check if we have mentorship data in location state
+      if (location.state?.autoOpenChat && location.state?.mentorshipId) {
+        try {
+          console.log('Auto-opening chat for mentorship:', location.state.mentorshipId);
+
+          // Find the chat associated with this mentorship
+          const mentorshipChat = chats.find(chat =>
+            chat.mentorship?.id === location.state.mentorshipId ||
+            chat.name?.includes(`Mentorship: ${location.state.mentorshipId}`) ||
+            chat.chat_type === 'mentorship_group' &&
+            chat.participants?.some(p => {
+              const user = p.user || p;
+              return user.id === location.state.mentorshipData?.mentor?.id
+            })
+          );
+
+          if (mentorshipChat) {
+            console.log('Found mentorship chat:', mentorshipChat);
+            await handleSelectChat(mentorshipChat);
+          } else {
+            console.log('No existing chat found, attempting to create/find...');
+            // Try to find a one-on-one chat with the mentor
+            if (location.state.mentorshipData?.mentor?.id) {
+              const mentorId = location.state.mentorshipData.mentor.id;
+
+              // Look for existing one-on-one chat with mentor
+              const existingChat = chats.find(chat =>
+                chat.chat_type === 'one_on_one' &&
+                chat.participants?.some(p => {
+                  const user = p.user || p;
+                  return user.id === mentorId
+                })
+              );
+
+              if (existingChat) {
+                await handleSelectChat(existingChat);
+              } else {
+                // Create a new one-on-one chat
+                console.log('Creating new chat with mentor:', mentorId);
+                const response = await getOrCreateOneOnOne(mentorId);
+                if (response.success || response.chat) {
+                  const newChat = response.chat || response;
+                  // Refresh chats list
+                  await fetchInitialData();
+                  // Select the new chat
+                  await handleSelectChat(newChat);
+                }
+              }
+            }
+          }
+
+          // Clear the state to prevent re-triggering
+          window.history.replaceState({}, document.title);
+
+        } catch (error) {
+          console.error('Error auto-opening mentorship chat:', error);
+        }
+      }
+    };
+
+    // Only run if we have chats loaded
+    if (chats.length > 0 && !loading) {
+      handleAutoOpenMentorshipChat();
+    }
+  }, [chats, loading, location.state]);
 
   const initChatWebSocket = (roomId) => {
     try {
@@ -1495,9 +1565,9 @@ export default function MentorMenteeChatManagement() {
   const handleIncomingMessage = (data) => {
     const newMessage = {
       id: data.message_id,
-      sender: { 
-        full_name: data.sender_name, 
-        id: data.sender_id 
+      sender: {
+        full_name: data.sender_name,
+        id: data.sender_id
       },
       content: data.message,
       message_type: data.message_type || 'text',
@@ -1507,7 +1577,7 @@ export default function MentorMenteeChatManagement() {
     };
 
     setChatMessages(prev => [...prev, newMessage]);
-    
+
     // Also add to call chat messages if we're in a call
     if (isInCall) {
       setCallChatMessages(prev => [...prev, newMessage]);
@@ -1517,7 +1587,7 @@ export default function MentorMenteeChatManagement() {
   const handleTypingStatus = (data) => {
     const currentUserId = currentUser?.id;
     const isCurrentUser = data.user_id === currentUserId;
-    
+
     setTypingUsers(prev => {
       const existingIndex = prev.findIndex(user => user.id === data.user_id);
 
@@ -1686,6 +1756,31 @@ export default function MentorMenteeChatManagement() {
         alert(`Failed to delete message: ${error.message}`);
       }
     }
+  };
+
+  // Helper function to find mentorship-related chats
+  const findMentorshipChats = (mentorshipId, mentorId) => {
+    return chats.filter(chat => {
+      // Check if chat is directly linked to mentorship
+      if (chat.mentorship?.id === mentorshipId) {
+        return true;
+      }
+
+      // Check if chat name contains mentorship info
+      if (chat.name?.includes(`Mentorship:`) || chat.name?.includes(mentorshipId)) {
+        return true;
+      }
+
+      // Check if it's a one-on-one chat with the mentor
+      if (chat.chat_type === 'one_on_one' && mentorId) {
+        return chat.participants?.some(p => {
+          const user = p.user || p;
+          return user.id === mentorId;
+        });
+      }
+
+      return false;
+    });
   };
 
   const filteredChats = useMemo(() => {
@@ -2084,7 +2179,7 @@ export default function MentorMenteeChatManagement() {
           call_id: callId,
           call_type: callType,
           is_conference: isConference,
-          caller_name: 'You'
+          caller_name: full_name
         });
 
         console.log('🌐 Initializing call WebSocket...');
@@ -2306,6 +2401,10 @@ export default function MentorMenteeChatManagement() {
         await handleSelectChat(allChats[0]);
       }
 
+      if (location.state?.autoOpenChat && location.state?.mentorshipId) {
+        // The useEffect above will handle this after chats are set
+      }
+
     } catch (error) {
       console.error('Error fetching data:', error);
       alert(`Failed to load data: ${error.message}`);
@@ -2318,6 +2417,11 @@ export default function MentorMenteeChatManagement() {
     try {
       setSelectedChat(chat);
       setChatMessages([]);
+
+      // Clear location state when a chat is selected
+      if (location.state?.autoOpenChat) {
+        window.history.replaceState({}, document.title);
+      }
 
       // Mark messages as read
       try {
@@ -2537,7 +2641,7 @@ export default function MentorMenteeChatManagement() {
 
                   {typingUsers.length > 0 && (
                     <span className="text-blue-600 italic">
-                      {typingUsers.map(user => user.name).join(', ')} 
+                      {typingUsers.map(user => user.name).join(', ')}
                       {typingUsers.length === 1 ? ' is typing...' : ' are typing...'}
                     </span>
                   )}
@@ -2737,7 +2841,9 @@ export default function MentorMenteeChatManagement() {
                   <p className="text-sm mt-2">You'll see chats here when you start conversations</p>
                 </div>
               ) : (
-                filteredChats.map(chat => (
+                filteredChats.map(chat => {
+                  const isMentorshipChat = chat.mentorship?.id === location.state?.mentorshipId;
+                  return(
                   <div
                     key={chat.id}
                     className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors ${selectedChat?.id === chat.id ? 'bg-blue-50' : ''
@@ -2804,7 +2910,9 @@ export default function MentorMenteeChatManagement() {
                       </div>
                     </div>
                   </div>
-                )))}
+                  )
+                })
+              )}
             </div>
           </div>
 

@@ -1,8 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 // API base URL
 const BASE_URL = "http://127.0.0.1:8000";
+
+const API_CACHE = {
+    mentorships: { data: null, timestamp: 0, ttl: 30000 }, // 30 seconds
+    activeMentorships: { data: null, timestamp: 0, ttl: 30000 },
+    upcomingSessions: { data: null, timestamp: 0, ttl: 30000 },
+    mentorshipDetails: {} // Per mentorship ID cache
+};
+
+const isCacheValid = (cacheKey, ttl = 30000) => {
+    const cache = API_CACHE[cacheKey];
+    if (!cache || !cache.data) return false;
+    return Date.now() - cache.timestamp < ttl;
+};
 
 // Helper functions (from your original code)
 const getAuthToken = () => {
@@ -42,9 +55,18 @@ const getProgressColor = (progress) => {
 };
 
 // API functions specific to mentee
-const fetchAPI = async (endpoint, method = 'GET', data = null) => {
+
+const fetchAPI = async (endpoint, method = 'GET', data = null, retryCount = 0) => {
     try {
         const token = getAuthToken();
+        console.log(`🔍 Fetching ${endpoint} with token: ${token ? 'Present' : 'Missing'}`);
+
+        if (!token) {
+            console.error('❌ No auth token found! Redirecting to login...');
+            window.location.href = '/login';
+            throw new Error('No authentication token found');
+        }
+
         const headers = {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -59,39 +81,100 @@ const fetchAPI = async (endpoint, method = 'GET', data = null) => {
             config.body = JSON.stringify(data);
         }
 
+        console.log(`📤 Making ${method} request to: ${BASE_URL}${endpoint}`);
+
         const response = await fetch(`${BASE_URL}${endpoint}`, config);
 
+        console.log(`📥 Response status for ${endpoint}:`, response.status);
+
+        // Handle non-OK responses
         if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
+            if (response.status === 401) {
+                console.error('❌ Unauthorized - token may be expired');
+                localStorage.removeItem('access_token');
+                window.location.href = '/login';
+                throw new Error('Unauthorized - please log in again');
+            }
+
+            if (response.status === 429) {
+                console.error('⚠️ Too many requests');
+                throw new Error('Too Many Requests - please wait a moment');
+            }
+
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
         }
 
-        return await response.json();
+        // Parse and return the JSON response
+        const responseData = await response.json();
+        console.log(`✅ Successfully fetched ${endpoint}:`, responseData);
+        return responseData;
+
     } catch (error) {
-        console.error(`Error fetching ${endpoint}:`, error);
+        console.error(`💥 Error fetching ${endpoint}:`, error);
+
+        // Retry logic for network errors (not 4xx/5xx errors)
+        if (retryCount < 2 && !error.message.includes('HTTP')) {
+            console.log(`🔄 Retrying ${endpoint} (attempt ${retryCount + 1})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            return fetchAPI(endpoint, method, data, retryCount + 1);
+        }
+
         throw error;
     }
 };
 
 // Mentee-specific API calls
-const getMyMentorships = async () => {
-    return fetchAPI('/mentorship/my-mentorships/');
+const getMyMentorships = async (forceRefresh = false) => {
+    if (!forceRefresh && isCacheValid('mentorships')) {
+        console.log('Using cached mentorships data');
+        return API_CACHE.mentorships.data;
+    }
+
+    const data = await fetchAPI('/mentorship/my-mentorships/');
+    API_CACHE.mentorships = { data, timestamp: Date.now() };
+    return data;
 };
 
-const getMyActiveMentorships = async () => {
-    return fetchAPI('/mentorship/my-active-mentorships/');
+const getMyActiveMentorships = async (forceRefresh = false) => {
+    if (!forceRefresh && isCacheValid('activeMentorships')) {
+        console.log('Using cached active mentorships data');
+        return API_CACHE.activeMentorships.data;
+    }
+
+    const data = await fetchAPI('/mentorship/my-active-mentorships/');
+    API_CACHE.activeMentorships = { data, timestamp: Date.now() };
+    return data;
 };
 
 const getMySessions = async () => {
     return fetchAPI('/mentorship/my-sessions/');
 };
 
-const getMyUpcomingSessions = async () => {
-    return fetchAPI('/mentorship/my-upcoming-sessions/');
+const getMyUpcomingSessions = async (forceRefresh = false) => {
+    if (!forceRefresh && isCacheValid('upcomingSessions')) {
+        console.log('Using cached upcoming sessions data');
+        return API_CACHE.upcomingSessions.data;
+    }
+
+    const data = await fetchAPI('/mentorship/my-upcoming-sessions/');
+    API_CACHE.upcomingSessions = { data, timestamp: Date.now() };
+    return data;
 };
 
 const getMentorshipDetail = async (mentorshipId) => {
-    return fetchAPI(`/mentorship/my-mentorships/${mentorshipId}/`);
+    const cacheKey = `mentorship-${mentorshipId}`;
+
+    if (isCacheValid(cacheKey, 60000)) { // 1 minute cache for details
+        console.log(`Using cached mentorship detail for ID: ${mentorshipId}`);
+        return API_CACHE.mentorshipDetails[cacheKey].data;
+    }
+
+    const data = await fetchAPI(`/mentorship/my-mentorships/${mentorshipId}/`);
+    API_CACHE.mentorshipDetails[cacheKey] = { data, timestamp: Date.now() };
+    return data;
 };
+
 
 const submitMentorshipReview = async (mentorshipId, reviewData) => {
     return fetchAPI(`/mentorship/reviews/create/`, 'POST', {
@@ -377,6 +460,7 @@ export default function MenteeMentorshipDashboard() {
     const [selectedMentorship, setSelectedMentorship] = useState(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showReviewModal, setShowReviewModal] = useState(false);
+    const isFetchingRef = useRef(false);
 
     // Review form state
     const [reviewForm, setReviewForm] = useState({
@@ -390,23 +474,68 @@ export default function MenteeMentorshipDashboard() {
 
     // Fetch data on component mount
     useEffect(() => {
-        fetchMenteeData();
+        const controller = new AbortController();
+
+        const loadData = async () => {
+            if (mentorships.length === 0 && !loading) {
+                await fetchMenteeData();
+            }
+        };
+
+        loadData();
+
+        return () => {
+            controller.abort();
+        };
     }, []);
 
     const fetchMenteeData = async () => {
+        if (isFetchingRef.current) {
+            console.log('Already fetching data, skipping...');
+            return;
+        }
+
         try {
+            isFetchingRef.current = true;
             setLoading(true);
 
-            const [mentorshipsData, activeMentorshipsData, upcomingSessionsData] = await Promise.all([
-                getMyMentorships(),
-                getMyActiveMentorships(),
-                getMyUpcomingSessions()
-            ]);
+            console.log('🚀 Starting to fetch mentee data...');
+
+            // Test each endpoint individually to identify which one fails
+            let mentorshipsData = null;
+            let activeMentorshipsData = null;
+            let upcomingSessionsData = null;
+
+            try {
+                console.log('📋 Testing mentorships endpoint...');
+                mentorshipsData = await getMyMentorships();
+                console.log('✅ Mentorships data received:', mentorshipsData);
+            } catch (mentorshipError) {
+                console.error('❌ Failed to fetch mentorships:', mentorshipError);
+            }
+
+            try {
+                console.log('📋 Testing active mentorships endpoint...');
+                activeMentorshipsData = await getMyActiveMentorships();
+                console.log('✅ Active mentorships data received:', activeMentorshipsData);
+            } catch (activeError) {
+                console.error('❌ Failed to fetch active mentorships:', activeError);
+            }
+
+            try {
+                console.log('📋 Testing upcoming sessions endpoint...');
+                upcomingSessionsData = await getMyUpcomingSessions();
+                console.log('✅ Upcoming sessions data received:', upcomingSessionsData);
+            } catch (sessionsError) {
+                console.error('❌ Failed to fetch upcoming sessions:', sessionsError);
+            }
 
             // Handle responses
             const allMentorships = mentorshipsData?.mentorships || [];
             const activeMentorshipsList = activeMentorshipsData?.active_mentorships || [];
             const upcomingSessionsList = upcomingSessionsData?.upcoming_sessions || [];
+
+            console.log(`📊 Setting state: ${allMentorships.length} mentorships, ${activeMentorshipsList.length} active, ${upcomingSessionsList.length} upcoming sessions`);
 
             setMentorships(allMentorships);
             setActiveMentorships(activeMentorshipsList);
@@ -416,12 +545,49 @@ export default function MenteeMentorshipDashboard() {
             calculateStats(allMentorships, upcomingSessionsList);
 
         } catch (error) {
-            console.error('Error fetching mentee data:', error);
-            alert('Failed to load your mentorship data. Please try again.');
+            console.error('💥 Error in fetchMenteeData:', error);
+
+            // Check specific error types
+            if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
+                alert('Please wait a moment and try again. Too many requests sent.');
+
+                // Implement exponential backoff
+                setTimeout(() => {
+                    fetchMenteeData();
+                }, 5000);
+            } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+                alert('Your session has expired. Please log in again.');
+                navigate('/login');
+            } else {
+                alert(`Failed to load your mentorship data: ${error.message}`);
+            }
         } finally {
+            isFetchingRef.current = false;
             setLoading(false);
+            console.log('🏁 Finished fetching mentee data');
         }
     };
+
+
+
+    // Call this in your useEffect
+    useEffect(() => {
+        console.log('🔧 MenteeMentorshipDashboard mounted');
+
+
+        const controller = new AbortController();
+        const loadData = async () => {
+            await fetchMenteeData();
+        };
+
+        loadData();
+
+        return () => {
+            console.log('🧹 Cleaning up...');
+            controller.abort();
+        };
+    }, []);
+
 
     const calculateStats = (mentorshipsList, sessionsList) => {
         const total = mentorshipsList.length;
@@ -516,11 +682,17 @@ export default function MenteeMentorshipDashboard() {
         }
     };
 
-    const navigateToChat = (mentorship) => {
-        // Assuming you have a chat route that accepts mentorship ID
-        navigate(`/chat/${mentorship.id}`);
-    };
 
+    const navigateToChat = (mentorship) => {
+        // Navigate to communication page with mentorship ID as state
+        navigate('/mentee/communication', {
+            state: {
+                mentorshipId: mentorship.id,
+                mentorshipData: mentorship,
+                autoOpenChat: true
+            }
+        });
+    };
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">

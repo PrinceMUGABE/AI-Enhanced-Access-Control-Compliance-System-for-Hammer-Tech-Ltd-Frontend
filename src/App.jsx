@@ -4,6 +4,7 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 
 // Public Pages
+import FloatingChatButton from './components/common/FloatingChatButton';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
@@ -19,15 +20,13 @@ import MenteeLayout from './components/mentee/MenteeLayout';
 import AdminDashboard from './components/admin/AdminDashboard';
 import AdminUsers from './components/admin/UserManagement';
 import AdminOnboardingManagement from './components/admin/OnboardingManagement';
-// import AdminIntegrations from './components/admin/IntegrationHub';
-// import AdminReports from './components/admin/ReportPage';
-// import AdminAnalytics from './components/admin/LearningAnalytics';
 import AdminProfile from './components/admin/UserProfile';
 import AdminMentorshipManagement from './components/admin/MentorshipManagement';
 import MentorshipDetailPage from './components/admin/MentorshipDetailPage';
 import OnboardingProgramManagement from './components/admin/ProgramManagement';
 import DepartmentsManagement from './components/admin/ManageDepartments';
 import AdminChatManagement from './components/admin/CommunicationCenter';
+import AdminAssistanceDashboard from './components/admin/AIChatbot';
 
 // HR Pages
 import HRDashboard from './components/hr/HRDashboard';
@@ -40,6 +39,8 @@ import MenteeDashboard from './components/mentee/MenteeDashboard';
 import MenteeOnboardingDashboard from './components/mentee/MyOnboardings';
 import MenteeMentorshipDashboard from './components/mentee/ManageMentorship';
 import MenteeChatManagement from './components/mentee/My_Communications';
+import UserAssistancePage from './components/mentee/AIChatbot';
+import UserProfile from './components/mentee/UserProfile';
 
 // Mentor Pages
 import MentorDashboard from './components/mentor/MentorDashboard';
@@ -96,6 +97,8 @@ export const useToast = () => {
 };
 
 function App() {
+  const [showChatButton, setShowChatButton] = useState(true);
+
   useEffect(() => {
     AOS.init({
       offset: 100,
@@ -104,6 +107,11 @@ function App() {
       delay: 100,
     });
     AOS.refresh();
+
+    // Check if we're on login/register pages (hide chat button)
+    const path = window.location.pathname;
+    const hideOnPaths = ['/login', '/register', '/reset-password'];
+    setShowChatButton(!hideOnPaths.includes(path));
   }, []);
 
   return (
@@ -123,14 +131,13 @@ function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="onboarding-management" element={<AdminOnboardingManagement />} />
-              {/* <Route path="reports" element={<AdminReports />} />
-              <Route path="analytics" element={<AdminAnalytics />} /> */}
               <Route path="mentorship" element={<AdminMentorshipManagement />} />
               <Route path="profile" element={<AdminProfile />} />
               <Route path="mentorships/:id" element={<MentorshipDetailPage />} />
               <Route path="programs" element={<OnboardingProgramManagement />} />
               <Route path="departments" element={<DepartmentsManagement />} />
               <Route path="communication-center" element={<AdminChatManagement />} />
+              <Route path="chatbot" element={<AdminAssistanceDashboard />} />
             </Route>
 
             {/* ==================== HR ROUTES ==================== */}
@@ -144,8 +151,6 @@ function App() {
             {/* ==================== MENTOR ROUTES ==================== */}
             <Route path="/mentor" element={<MentorLayout />}>
               <Route index element={<MentorMentorshipDashboard />} />
-  
-              {/* Add more mentor routes here */}
             </Route>
 
             {/* ==================== MENTEE ROUTES ==================== */}
@@ -155,12 +160,16 @@ function App() {
               <Route path="onboarding-management" element={<MenteeOnboardingDashboard />} />
               <Route path="mentorship" element={<MenteeMentorshipDashboard />} />
               <Route path="communication" element={<MenteeChatManagement />} />
-              {/* Add more mentee routes here */}
+              <Route path="chatbot" element={<UserAssistancePage />} />
+              <Route path="profile" element={<UserProfile />} />
             </Route>
             
             {/* Catch all - redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          
+          {/* Floating Chat Button - Conditionally rendered */}
+          {showChatButton && <FloatingChatButton />}
           
           <Toaster />
         </AuthProvider>

@@ -2717,7 +2717,7 @@ export default function AdminChatManagement() {
           ...response.call,
           call_type: callType,
           is_conference: isConference,
-          caller_name: 'You'
+          caller_name: full_name
         });
 
         initCallWebSocket(callId);
