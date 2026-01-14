@@ -24,193 +24,30 @@ import {
   Edit,
   Download,
   Share2,
-  Bell
+  Bell,
+  X,
+  Video,
+  Phone,
+  BookOpen,
+  User,
+  PlayCircle,
+  PauseCircle,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  ChevronUp,
+  PlusCircle,
+  List,
+  Grid,
+  RefreshCw,
+  CalendarDays,
+  Clock as ClockIcon
 } from 'lucide-react';
-
-// Reusing the API functions and UI components from your existing code
-// I'll extract and adapt what we need
 
 // API base URL
 const BASE_URL = "http://127.0.0.1:8000";
 
-
-const ProgramSessionsModal = ({
-  isOpen,
-  onClose,
-  mentorship,
-  program,
-  sessions,
-  onScheduleSession,
-  onCompleteSession
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl">
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Program Sessions</h2>
-            <p className="text-gray-600">
-              {program.name} • {mentorship.mentee.full_name}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-          >
-            <X className="w-6 h-6 text-gray-500" />
-          </button>
-        </div>
-
-        {/* Program Progress */}
-        <Card className="p-6 mb-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="font-semibold text-gray-900">Program Progress</h3>
-              <p className="text-gray-600">
-                {program.sessions_completed || 0}/{program.total_sessions} sessions completed
-              </p>
-            </div>
-            <div className="text-right">
-              <span className="text-3xl font-bold text-gray-900">
-                {program.progress_percentage || 0}%
-              </span>
-            </div>
-          </div>
-          <ProgressBar
-            value={program.progress_percentage || 0}
-            className="mt-4"
-          />
-        </Card>
-
-        {/* Sessions List */}
-        <div className="space-y-4">
-          <h3 className="font-semibold text-gray-900">Sessions to Cover</h3>
-
-          {sessions.map((session) => (
-            <Card key={session.template_id} className="p-4">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${session.status === 'completed' ? 'bg-green-500' :
-                        session.status === 'scheduled' ? 'bg-blue-500' :
-                          'bg-gray-300'
-                        }`} />
-                      <span className="text-sm font-semibold text-gray-700">
-                        Session {session.order}
-                      </span>
-                    </div>
-                    <Badge variant={
-                      session.status === 'completed' ? 'success' :
-                        session.status === 'scheduled' ? 'info' :
-                          'default'
-                    }>
-                      {session.status.replace('_', ' ')}
-                    </Badge>
-                  </div>
-
-                  <h4 className="font-medium text-gray-900">{session.title}</h4>
-                  <p className="text-sm text-gray-600 mt-1">{session.description}</p>
-
-                  <div className="flex flex-wrap gap-4 mt-3 text-sm">
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4 text-gray-400" />
-                      <span>{session.duration_minutes} min</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <span>
-                        {session.scheduled_date
-                          ? formatDate(session.scheduled_date, true)
-                          : 'Not scheduled'
-                        }
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Video className="w-4 h-4 text-gray-400" />
-                      <span className="capitalize">{session.session_type.replace('_', ' ')}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 ml-4">
-                  {session.status === 'not_scheduled' && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => onScheduleSession(session)}
-                      icon={Calendar}
-                    >
-                      Schedule
-                    </Button>
-                  )}
-
-                  {session.status === 'scheduled' && (
-                    <>
-                      <Button
-                        variant="success"
-                        size="sm"
-                        onClick={() => onCompleteSession(session)}
-                        icon={CheckCircle}
-                      >
-                        Complete
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // Handle reschedule
-                          const newDate = prompt('Enter new date (YYYY-MM-DDTHH:MM:SS):');
-                          if (newDate) {
-                            updateSessionProgress(session.session_id, 'reschedule', {
-                              new_date: newDate
-                            });
-                          }
-                        }}
-                        icon={Clock}
-                      >
-                        Reschedule
-                      </Button>
-                    </>
-                  )}
-
-                  {session.status === 'completed' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        alert(`Session Notes:\n\n${session.notes}`);
-                      }}
-                      icon={FileText}
-                    >
-                      View Notes
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Objectives */}
-              {session.objectives && session.objectives.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <h5 className="text-sm font-semibold text-gray-700 mb-2">Objectives:</h5>
-                  <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                    {session.objectives.map((objective, idx) => (
-                      <li key={idx}>{objective}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
-      </div>
-    </Modal>
-  );
-};
-
-// Helper functions (from your existing code)
+// ==================== HELPER FUNCTIONS ====================
 const getAuthToken = () => localStorage.getItem('access_token');
 const formatDate = (dateString, includeTime = false) => {
   if (!dateString) return 'N/A';
@@ -238,88 +75,183 @@ const getProgressColor = (progress) => {
   return 'bg-red-500';
 };
 
-// API functions for mentor
-const fetchAPI = async (endpoint, method = 'GET', data = null) => {
-  try {
-    const token = getAuthToken();
-    const headers = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
+const getSessionStatusColor = (status) => {
+  switch (status) {
+    case 'completed': return 'bg-green-100 text-green-800';
+    case 'scheduled': return 'bg-blue-100 text-blue-800';
+    case 'cancelled': return 'bg-red-100 text-red-800';
+    case 'rescheduled': return 'bg-purple-100 text-purple-800';
+    case 'not_scheduled': return 'bg-gray-100 text-gray-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
 
-    const config = { method, headers };
-    if (data && method !== 'GET') {
-      config.body = JSON.stringify(data);
+// ==================== API FUNCTIONS WITH RETRY LOGIC ====================
+const fetchAPIWithRetry = async (endpoint, method = 'GET', data = null, retries = 3, delay = 1000) => {
+  const token = getAuthToken();
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      const config = { method, headers };
+      if (data && method !== 'GET') {
+        config.body = JSON.stringify(data);
+      }
+
+      const response = await fetch(`${BASE_URL}${endpoint}`, config);
+
+      if (response.status === 429) {
+        // Rate limited, wait and retry
+        const waitTime = delay * Math.pow(2, i); // Exponential backoff
+        console.warn(`Rate limited. Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+
+      if (!response.ok) {
+        let errorMessage = `API error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.detail || errorMessage;
+        } catch (e) {
+          errorMessage = `${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (i === retries - 1) {
+        console.error(`Failed after ${retries} retries for ${endpoint}:`, error);
+        throw error;
+      }
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
     }
-
-    const response = await fetch(`${BASE_URL}${endpoint}`, config);
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    console.error(`Error fetching ${endpoint}:`, error);
-    throw error;
   }
 };
 
 // Mentor-specific API calls
 const getMentorDashboard = async () => {
-  return fetchAPI('/mentorship/my-dashboard/');
+  return fetchAPIWithRetry('/mentorship/my-dashboard/');
 };
 
 const getMentorMentorships = async () => {
-  return fetchAPI('/mentorship/my-mentorships/');
+  return fetchAPIWithRetry('/mentorship/my-mentorships/');
 };
 
 const getMentorActiveMentorships = async () => {
-  return fetchAPI('/mentorship/my-active-mentorships/');
+  return fetchAPIWithRetry('/mentorship/my-active-mentorships/');
 };
 
 const getMentorUpcomingSessions = async () => {
-  return fetchAPI('/mentorship/my-upcoming-sessions/');
+  return fetchAPIWithRetry('/mentorship/my-upcoming-sessions/');
 };
 
 const getMentorshipDetails = async (mentorshipId) => {
-  return fetchAPI(`/mentorship/mentorships/${mentorshipId}/`);
+  return fetchAPIWithRetry(`/mentorship/mentorships/${mentorshipId}/`);
 };
 
 const getMentorshipSessions = async (mentorshipId) => {
-  return fetchAPI(`/mentorship/sessions/?mentorship=${mentorshipId}`);
+  return fetchAPIWithRetry(`/mentorship/sessions/?mentorship=${mentorshipId}`);
 };
 
 const updateSessionStatus = async (sessionId, status, notes = '') => {
   if (status === 'completed') {
-    return fetchAPI(`/mentorship/sessions/${sessionId}/complete/`, 'PUT', { notes });
+    return fetchAPIWithRetry(`/mentorship/sessions/${sessionId}/complete/`, 'PUT', { notes });
   }
-  return fetchAPI(`/mentorship/sessions/${sessionId}/cancel/`, 'DELETE', { reason: notes });
+  return fetchAPIWithRetry(`/mentorship/sessions/${sessionId}/cancel/`, 'DELETE', { reason: notes });
 };
 
 const getMentorReviews = async () => {
-  return fetchAPI('/mentorship/reviews/mentor/');
+  return fetchAPIWithRetry('/mentorship/reviews/mentor/');
 };
 
 const getMentorPerformance = async () => {
-  return fetchAPI('/mentorship/mentor-performance/');
+  return fetchAPIWithRetry('/mentorship/mentor-performance/');
 };
 
-const getMentorshipProgramSessions = async (mentorshipId, programId) => {
-  return fetchAPI(`/mentorship/mentorships/${mentorshipId}/programs/${programId}/sessions/`);
+const getMentorshipPrograms = async (mentorshipId) => {
+  return fetchAPIWithRetry(`/mentorship/mentorships/${mentorshipId}/`);
+};
+
+const getProgramSessions = async (mentorshipId, programId) => {
+  return fetchAPIWithRetry(`/mentorship/mentorships/${mentorshipId}/programs/${programId}/sessions/`);
 };
 
 const scheduleProgramSession = async (mentorshipId, programId, sessionData) => {
-  return fetchAPI(`/mentorship/mentorships/${mentorshipId}/programs/${programId}/schedule-session/`, 'POST', sessionData);
+  // Convert scheduled_date to proper ISO format without milliseconds
+  let scheduledDateISO;
+
+  if (sessionData.scheduled_date instanceof Date) {
+    // Format: YYYY-MM-DDTHH:MM:SS (without milliseconds)
+    const date = sessionData.scheduled_date;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    scheduledDateISO = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  } else if (typeof sessionData.scheduled_date === 'string') {
+    // If it's already a string, try to parse and format it
+    try {
+      const date = new Date(sessionData.scheduled_date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+
+      scheduledDateISO = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    } catch (error) {
+      // If parsing fails, use the original string
+      scheduledDateISO = sessionData.scheduled_date;
+    }
+  } else {
+    throw new Error('scheduled_date must be a Date object or ISO string');
+  }
+
+  const formattedData = {
+    template_id: sessionData.template_id,
+    scheduled_date: scheduledDateISO,
+    duration_minutes: sessionData.duration_minutes || 60,
+    agenda: sessionData.agenda || '',
+    meeting_link: sessionData.meeting_link || '',
+    location: sessionData.location || ''
+  };
+
+  console.log('Scheduling session with data:', formattedData);
+
+  return fetchAPIWithRetry(
+    `/mentorship/mentorships/${mentorshipId}/programs/${programId}/schedule-session/`,
+    'POST',
+    formattedData
+  );
 };
 
 const updateSessionProgress = async (sessionId, action, data = {}) => {
-  return fetchAPI(`/mentorship/sessions/${sessionId}/update-progress/`, 'PUT', {
-    action,
-    ...data
-  });
+  return fetchAPIWithRetry(
+    `/mentorship/sessions/${sessionId}/update-progress/`,
+    'PUT',
+    { action, ...data }
+  );
 };
 
-// UI Components
-const Card = ({ children, className = '', onClick }) => (
+const getMentorProgramOverview = async (mentorshipId) => {
+  return fetchAPIWithRetry(`/mentorship/mentorships/${mentorshipId}/program-overview/`);
+};
+
+// ==================== UI COMPONENTS ====================
+const Card = ({ children, className = '', onClick, hover = true }) => (
   <div
-    className={`bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 ${className}`}
+    className={`bg-white rounded-2xl shadow-lg border border-gray-100 ${hover ? 'hover:shadow-xl' : ''} transition-all duration-300 ${className}`}
     onClick={onClick}
   >
     {children}
@@ -334,17 +266,19 @@ const Button = ({
   className = '',
   disabled = false,
   icon: Icon,
-  fullWidth = false
+  fullWidth = false,
+  loading = false
 }) => {
   const baseStyles = 'inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-300 focus:outline-none focus:ring-4';
 
   const variants = {
-    primary: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 focus:ring-blue-200',
-    secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-200',
-    success: 'bg-green-500 text-white hover:bg-green-600 focus:ring-green-200',
-    danger: 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-200',
-    outline: 'border-2 border-blue-500 text-blue-600 hover:bg-blue-50 focus:ring-blue-200',
-    ghost: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-200'
+    primary: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 focus:ring-blue-200 disabled:opacity-50',
+    secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-200 disabled:opacity-50',
+    success: 'bg-green-500 text-white hover:bg-green-600 focus:ring-green-200 disabled:opacity-50',
+    danger: 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-200 disabled:opacity-50',
+    warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-200 disabled:opacity-50',
+    outline: 'border-2 border-blue-500 text-blue-600 hover:bg-blue-50 focus:ring-blue-200 disabled:opacity-50',
+    ghost: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-200 disabled:opacity-50'
   };
 
   const sizes = {
@@ -357,10 +291,19 @@ const Button = ({
     <button
       className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || loading}
     >
-      {Icon && <Icon size={size === 'sm' ? 16 : size === 'lg' ? 24 : 20} />}
-      {children}
+      {loading ? (
+        <>
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+          <span>Processing...</span>
+        </>
+      ) : (
+        <>
+          {Icon && <Icon size={size === 'sm' ? 16 : size === 'lg' ? 24 : 20} />}
+          {children}
+        </>
+      )}
     </button>
   );
 };
@@ -372,7 +315,8 @@ const Badge = ({ children, variant = 'default', className = '' }) => {
     warning: 'bg-yellow-100 text-yellow-800',
     danger: 'bg-red-100 text-red-800',
     info: 'bg-indigo-100 text-indigo-800',
-    outline: 'border border-gray-300 text-gray-700'
+    outline: 'border border-gray-300 text-gray-700',
+    gray: 'bg-gray-100 text-gray-800'
   };
 
   return (
@@ -382,22 +326,30 @@ const Badge = ({ children, variant = 'default', className = '' }) => {
   );
 };
 
-const ProgressBar = ({ value, label, showLabel = true, className = '' }) => (
-  <div className={`space-y-2 ${className}`}>
-    {showLabel && (
-      <div className="flex justify-between text-sm">
-        <span className="font-medium text-gray-700">{label}</span>
-        <span className="font-bold text-gray-900">{value}%</span>
+const ProgressBar = ({ value, label, showLabel = true, className = '', size = 'md' }) => {
+  const heights = {
+    sm: 'h-1.5',
+    md: 'h-2.5',
+    lg: 'h-4'
+  };
+
+  return (
+    <div className={`space-y-2 ${className}`}>
+      {showLabel && (
+        <div className="flex justify-between text-sm">
+          <span className="font-medium text-gray-700">{label}</span>
+          <span className="font-bold text-gray-900">{value}%</span>
+        </div>
+      )}
+      <div className="w-full bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`${heights[size]} rounded-full transition-all duration-500 ${getProgressColor(value)}`}
+          style={{ width: `${value}%` }}
+        />
       </div>
-    )}
-    <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-      <div
-        className={`h-2.5 rounded-full transition-all duration-500 ${getProgressColor(value)}`}
-        style={{ width: `${value}%` }}
-      />
     </div>
-  </div>
-);
+  );
+};
 
 const StarRating = ({ rating, size = 'md', showNumber = false }) => {
   const sizes = {
@@ -419,21 +371,33 @@ const StarRating = ({ rating, size = 'md', showNumber = false }) => {
   );
 };
 
-const Modal = ({ isOpen, onClose, children, size = 'md' }) => {
+const Modal = ({ isOpen, onClose, children, size = 'md', title = '' }) => {
   if (!isOpen) return null;
 
   const sizes = {
     sm: 'max-w-md',
     md: 'max-w-2xl',
     lg: 'max-w-4xl',
-    xl: 'max-w-6xl'
+    xl: 'max-w-6xl',
+    full: 'max-w-7xl'
   };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
-        <div className={`relative z-50 w-full ${sizes[size]} bg-white rounded-3xl shadow-2xl transform transition-all`}>
+        <div className={`relative z-50 w-full ${sizes[size]} bg-white rounded-3xl shadow-2xl transform transition-all overflow-hidden`}>
+          {title && (
+            <div className="border-b border-gray-200 p-6">
+              <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="absolute right-6 top-6 p-2 hover:bg-gray-100 rounded-xl transition-colors z-10"
+          >
+            <X className="w-6 h-6 text-gray-500" />
+          </button>
           {children}
         </div>
       </div>
@@ -459,7 +423,7 @@ const Tabs = ({ tabs, activeTab, onTabChange }) => (
           <div className="flex items-center gap-2">
             {tab.icon && <tab.icon size={16} />}
             {tab.label}
-            {tab.count && (
+            {tab.count !== undefined && (
               <span className={`ml-2 px-2 py-1 rounded-full text-xs font-bold ${activeTab === tab.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
                 }`}>
                 {tab.count}
@@ -472,27 +436,924 @@ const Tabs = ({ tabs, activeTab, onTabChange }) => (
   </div>
 );
 
-// Main Mentor Dashboard Component
+const SessionStatusBadge = ({ status }) => {
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'completed':
+        return { label: 'Completed', className: 'bg-green-100 text-green-800' };
+      case 'scheduled':
+        return { label: 'Scheduled', className: 'bg-blue-100 text-blue-800' };
+      case 'cancelled':
+        return { label: 'Cancelled', className: 'bg-red-100 text-red-800' };
+      case 'rescheduled':
+        return { label: 'Rescheduled', className: 'bg-purple-100 text-purple-800' };
+      case 'not_scheduled':
+        return { label: 'Not Scheduled', className: 'bg-gray-100 text-gray-800' };
+      default:
+        return { label: status, className: 'bg-gray-100 text-gray-800' };
+    }
+  };
+
+  const statusInfo = getStatusInfo(status);
+  return (
+    <Badge variant="default" className={statusInfo.className}>
+      {statusInfo.label}
+    </Badge>
+  );
+};
+
+// ==================== DATE PICKER COMPONENT ====================
+const DateTimePicker = ({
+  value,
+  onChange,
+  minDate = new Date(),
+  disabledDates = [],
+  disabledTimes = {},
+  label = "Select Date & Time"
+}) => {
+  const [selectedDate, setSelectedDate] = useState(value ? new Date(value) : new Date());
+  const [selectedTime, setSelectedTime] = useState(value ? new Date(value).toTimeString().substring(0, 5) : '09:00');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Generate days in month
+  const generateDaysInMonth = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+
+    const days = [];
+    const startDay = firstDay.getDay();
+
+    // Previous month days
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = startDay - 1; i >= 0; i--) {
+      const date = new Date(year, month - 1, prevMonthLastDay - i);
+      days.push({
+        date,
+        isCurrentMonth: false,
+        isDisabled: date < minDate || disabledDates.some(d =>
+          d.getDate() === date.getDate() &&
+          d.getMonth() === date.getMonth() &&
+          d.getFullYear() === date.getFullYear()
+        )
+      });
+    }
+
+    // Current month days
+    for (let i = 1; i <= daysInMonth; i++) {
+      const date = new Date(year, month, i);
+      days.push({
+        date,
+        isCurrentMonth: true,
+        isDisabled: date < minDate || disabledDates.some(d =>
+          d.getDate() === date.getDate() &&
+          d.getMonth() === date.getMonth() &&
+          d.getFullYear() === date.getFullYear()
+        )
+      });
+    }
+
+    // Next month days
+    const totalCells = 42; // 6 weeks
+    for (let i = 1; days.length < totalCells; i++) {
+      const date = new Date(year, month + 1, i);
+      days.push({
+        date,
+        isCurrentMonth: false,
+        isDisabled: true
+      });
+    }
+
+    return days;
+  };
+
+  // Generate time slots (30-minute intervals from 8:00 to 18:00)
+  const generateTimeSlots = () => {
+    const slots = [];
+    const selectedDateKey = selectedDate.toDateString();
+    const disabledTimesForDate = disabledTimes[selectedDateKey] || [];
+
+    for (let hour = 8; hour <= 18; hour++) {
+      for (let minute of [0, 30]) {
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const isDisabled = disabledTimesForDate.includes(time);
+        slots.push({ time, isDisabled });
+      }
+    }
+    return slots;
+  };
+
+  const handleDateSelect = (date) => {
+    if (date < minDate) return;
+    const newDate = new Date(date);
+    newDate.setHours(selectedTime.split(':')[0]);
+    newDate.setMinutes(selectedTime.split(':')[1]);
+    setSelectedDate(date);
+    setShowDatePicker(false);
+    onChange(newDate);
+  };
+
+  const handleTimeSelect = (time) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const newDate = new Date(selectedDate);
+    newDate.setHours(hours);
+    newDate.setMinutes(minutes);
+    setSelectedTime(time);
+    setShowTimePicker(false);
+    onChange(newDate);
+  };
+
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  return (
+    <div className="space-y-4">
+      <label className="block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Date Picker */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowDatePicker(!showDatePicker)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-left hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-gray-400" />
+              <span>{formatDate(selectedDate)}</span>
+            </div>
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          </button>
+
+          {showDatePicker && (
+            <div className="absolute z-10 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 w-80">
+              <div className="flex justify-between items-center mb-4">
+                <button
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <ChevronRight className="w-5 h-5 text-gray-600 rotate-180" />
+                </button>
+                <h3 className="font-semibold text-gray-900">
+                  {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                </h3>
+                <button
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <ChevronRight className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {dayNames.map(day => (
+                  <div key={day} className="text-center text-sm font-medium text-gray-500 py-1">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-1">
+                {generateDaysInMonth().map((day, index) => {
+                  const isToday = day.date.toDateString() === new Date().toDateString();
+                  const isSelected = day.date.toDateString() === selectedDate.toDateString();
+
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => !day.isDisabled && handleDateSelect(day.date)}
+                      disabled={day.isDisabled}
+                      className={`
+                        h-10 rounded-lg text-sm font-medium
+                        ${isToday ? 'border-2 border-blue-500' : ''}
+                        ${isSelected ? 'bg-blue-600 text-white' : ''}
+                        ${!isSelected && !day.isDisabled ? 'hover:bg-blue-50 text-gray-900' : ''}
+                        ${day.isDisabled ? 'text-gray-400 cursor-not-allowed' : ''}
+                        ${!day.isCurrentMonth ? 'text-gray-400' : ''}
+                      `}
+                    >
+                      {day.date.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-center gap-2 text-sm">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                    <span>Selected</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full border-2 border-blue-500"></div>
+                    <span>Today</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Time Picker */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowTimePicker(!showTimePicker)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-left hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <ClockIcon className="w-5 h-5 text-gray-400" />
+              <span>{selectedTime}</span>
+            </div>
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          </button>
+
+          {showTimePicker && (
+            <div className="absolute z-10 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 w-64 max-h-64 overflow-y-auto">
+              <div className="grid grid-cols-3 gap-2">
+                {generateTimeSlots().map((slot, index) => (
+                  <button
+                    key={index}
+                    onClick={() => !slot.isDisabled && handleTimeSelect(slot.time)}
+                    disabled={slot.isDisabled}
+                    className={`
+                      py-2 px-3 rounded-lg text-sm font-medium text-center
+                      ${selectedTime === slot.time ? 'bg-blue-600 text-white' : ''}
+                      ${!slot.isDisabled && selectedTime !== slot.time ? 'hover:bg-blue-50 text-gray-900' : ''}
+                      ${slot.isDisabled ? 'text-gray-400 cursor-not-allowed' : ''}
+                    `}
+                  >
+                    {slot.time}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== SCHEDULE SESSION MODAL ====================
+const ScheduleSessionModal = ({
+  isOpen,
+  onClose,
+  template,
+  onSchedule,
+  loading = false
+}) => {
+  const [selectedDateTime, setSelectedDateTime] = useState(null);
+  const [disabledDates, setDisabledDates] = useState([]);
+  const [disabledTimes, setDisabledTimes] = useState({});
+  const [duration, setDuration] = useState(template?.duration_minutes || 60);
+  const [agenda, setAgenda] = useState('');
+  const [meetingLink, setMeetingLink] = useState('');
+  const [location, setLocation] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const today = new Date();
+    const disabledDatesList = [];
+    const disabledTimesDict = {};
+
+    // Disable weekends
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      if (date.getDay() === 0 || date.getDay() === 6) {
+        disabledDatesList.push(date);
+      }
+    }
+
+    // Disable past hours for today
+    if (selectedDateTime && selectedDateTime.toDateString() === today.toDateString()) {
+      const currentHour = today.getHours();
+      const currentMinute = today.getMinutes();
+      const disabledTimesForToday = [];
+
+      for (let hour = 8; hour <= 18; hour++) {
+        for (let minute of [0, 30]) {
+          if (hour < currentHour || (hour === currentHour && minute < currentMinute)) {
+            disabledTimesForToday.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+          }
+        }
+      }
+
+      disabledTimesDict[today.toDateString()] = disabledTimesForToday;
+    }
+
+    setDisabledDates(disabledDatesList);
+    setDisabledTimes(disabledTimesDict);
+
+    if (!selectedDateTime) {
+      const defaultDate = new Date();
+      defaultDate.setHours(9, 0, 0, 0);
+      if (defaultDate < new Date()) {
+        defaultDate.setDate(defaultDate.getDate() + 1);
+      }
+      setSelectedDateTime(defaultDate);
+    }
+  }, [isOpen, selectedDateTime]);
+
+  const handleSubmit = () => {
+    if (!selectedDateTime) {
+      alert('Please select a date and time');
+      return;
+    }
+
+    const sessionData = {
+      template_id: template.template_id,
+      scheduled_date: selectedDateTime.toISOString(),
+      duration_minutes: duration,
+      agenda: agenda,
+      meeting_link: meetingLink,
+      location: location
+    };
+
+    onSchedule(sessionData);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="md">
+      <div className="p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Schedule Session</h3>
+        <p className="text-gray-600 mb-6">{template?.title}</p>
+
+        <div className="space-y-6">
+          <DateTimePicker
+            value={selectedDateTime}
+            onChange={setSelectedDateTime}
+            disabledDates={disabledDates}
+            disabledTimes={disabledTimes}
+            label="Session Date & Time"
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Duration (minutes)
+            </label>
+            <input
+              type="number"
+              min="15"
+              max="240"
+              step="15"
+              value={duration}
+              onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Agenda (Optional)
+            </label>
+            <textarea
+              value={agenda}
+              onChange={(e) => setAgenda(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows="3"
+              placeholder="What will be discussed in this session?"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Location (Optional)
+            </label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Conference Room A"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="primary"
+              onClick={handleSubmit}
+              loading={loading}
+              disabled={!selectedDateTime}
+              fullWidth
+            >
+              Schedule Session
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ==================== PROGRAM SESSIONS MODAL ====================
+const ProgramSessionsModal = ({
+  isOpen,
+  onClose,
+  mentorship,
+  program,
+  sessions,
+  onScheduleSession,
+  onCompleteSession,
+  onCancelSession,
+  onRescheduleSession,
+  loading = false,
+}) => {
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [sessionNotes, setSessionNotes] = useState('');
+
+  const handleCompleteSession = async (session) => {
+    if (session.status === 'scheduled') {
+      setSelectedSession(session);
+      setShowNotesModal(true);
+    } else {
+      // Pass the session_id from the session object
+      await onCompleteSession(session.session_id || session.id);
+    }
+  };
+
+
+
+  const handleScheduleClick = (template) => {
+    setSelectedTemplate(template);
+    setShowScheduleModal(true);
+  };
+
+  const handleSubmitCompletion = async () => {
+    if (selectedSession && sessionNotes.trim()) {
+      // Pass the session_id from selectedSession
+      await onCompleteSession(selectedSession.session_id || selectedSession.id, sessionNotes);
+      setShowNotesModal(false);
+      setSessionNotes('');
+      setSelectedSession(null);
+    }
+  };
+
+  const handleScheduleSubmit = async (sessionData) => {
+    await onScheduleSession(selectedTemplate, sessionData);
+  };
+
+  const calculateProgress = () => {
+    const completed = sessions.filter(s => s.status === 'completed').length;
+    const total = sessions.length;
+    return total > 0 ? Math.round((completed / total) * 100) : 0;
+  };
+
+  return (
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} size="xl" title="Program Sessions">
+        <div className="p-6 max-h-[80vh] overflow-y-auto">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{program?.name}</h2>
+                <p className="text-gray-600">
+                  Mentorship with {mentorship?.other_user?.full_name || mentorship?.mentee?.full_name}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-gray-900">{calculateProgress()}%</div>
+                <p className="text-sm text-gray-600">Overall Progress</p>
+              </div>
+            </div>
+            <ProgressBar value={calculateProgress()} showLabel={false} className="mt-4" />
+          </div>
+
+          {/* Sessions List */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold text-gray-900">Session Templates</h3>
+              <div className="text-sm text-gray-600">
+                {sessions.filter(s => s.status === 'completed').length} of {sessions.length} completed
+              </div>
+            </div>
+
+            {sessions.length === 0 ? (
+              <Card className="p-8 text-center">
+                <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">No Sessions Found</h3>
+                <p className="text-gray-500">No session templates defined for this program.</p>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {sessions.map((session) => (
+                  <Card key={session.template_id} className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${session.status === 'completed' ? 'bg-green-500' :
+                              session.status === 'scheduled' ? 'bg-blue-500' :
+                                session.status === 'cancelled' ? 'bg-red-500' :
+                                  'bg-gray-300'
+                              }`} />
+                            <span className="text-sm font-semibold text-gray-700">
+                              Session {session.order}
+                            </span>
+                          </div>
+                          <SessionStatusBadge status={session.status} />
+                        </div>
+
+                        <h4 className="font-medium text-gray-900">{session.title}</h4>
+                        <p className="text-sm text-gray-600 mt-1">{session.description}</p>
+
+                        <div className="flex flex-wrap gap-4 mt-3 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span>{session.duration_minutes} min</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            <span>
+                              {session.scheduled_date
+                                ? formatDate(session.scheduled_date, true)
+                                : 'Not scheduled'
+                              }
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {session.session_type === 'video' ? (
+                              <Video className="w-4 h-4 text-gray-400" />
+                            ) : session.session_type === 'phone' ? (
+                              <Phone className="w-4 h-4 text-gray-400" />
+                            ) : (
+                              <Users className="w-4 h-4 text-gray-400" />
+                            )}
+                            <span className="capitalize">{session.session_type?.replace('_', ' ')}</span>
+                          </div>
+                        </div>
+
+                        {/* Objectives */}
+                        {session.objectives && session.objectives.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <h5 className="text-sm font-semibold text-gray-700 mb-2">Objectives:</h5>
+                            <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                              {session.objectives.map((objective, idx) => (
+                                <li key={idx}>{objective}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Notes if completed */}
+                        {session.status === 'completed' && session.notes && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <h5 className="text-sm font-semibold text-gray-700 mb-2">Session Notes:</h5>
+                            <p className="text-sm text-gray-600">{session.notes}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col gap-2 ml-4 min-w-[150px]">
+                        {session.status === 'not_scheduled' && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleScheduleClick(session)}
+                            icon={Calendar}
+                            disabled={loading}
+                            loading={loading}
+                          >
+                            Schedule
+                          </Button>
+                        )}
+
+                        {session.status === 'scheduled' && (
+                          <>
+                            <Button
+                              variant="success"
+                              size="sm"
+                              onClick={() => handleCompleteSession(session)}
+                              icon={CheckCircle}
+                              disabled={loading}
+                              loading={loading}
+                            >
+                              Complete
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onRescheduleSession(session)}
+                              icon={Clock}
+                              disabled={loading}
+                            >
+                              Reschedule
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to cancel this session?')) {
+                                  onCancelSession(session);
+                                }
+                              }}
+                              icon={AlertCircle}
+                              disabled={loading}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+
+                        {session.status === 'completed' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              alert(`Session Notes:\n\n${session.notes || 'No notes available'}`);
+                            }}
+                            icon={FileText}
+                          >
+                            View Notes
+                          </Button>
+                        )}
+
+                        {session.status === 'cancelled' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleScheduleClick(session)}
+                            icon={Calendar}
+                            disabled={loading}
+                          >
+                            Reschedule
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Session Completion Modal */}
+      <Modal isOpen={showNotesModal} onClose={() => setShowNotesModal(false)} size="sm">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Complete Session</h3>
+          <p className="text-gray-600 mb-4">Please add notes about what was discussed in this session.</p>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Session Notes *
+            </label>
+            <textarea
+              className="w-full h-32 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter session notes..."
+              value={sessionNotes}
+              onChange={(e) => setSessionNotes(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              variant="primary"
+              onClick={handleSubmitCompletion}
+              disabled={!sessionNotes.trim()}
+              fullWidth
+            >
+              Mark as Completed
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowNotesModal(false);
+                setSessionNotes('');
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Schedule Session Modal */}
+      <ScheduleSessionModal
+        isOpen={showScheduleModal}
+        onClose={() => {
+          setShowScheduleModal(false);
+          setSelectedTemplate(null);
+        }}
+        template={selectedTemplate}
+        onSchedule={handleScheduleSubmit}
+        loading={loading}
+      />
+    </>
+  );
+};
+
+// ==================== PROGRAM OVERVIEW MODAL ====================
+const ProgramOverviewModal = ({
+  isOpen,
+  onClose,
+  mentorship,
+  programs,
+  onViewSessions,
+  loading = false
+}) => {
+  const [expandedProgram, setExpandedProgram] = useState(null);
+
+  const toggleProgram = (programId) => {
+    setExpandedProgram(expandedProgram === programId ? null : programId);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="xl" title="Programs Overview">
+      <div className="p-6 max-h-[80vh] overflow-y-auto">
+        {programs.length === 0 ? (
+          <Card className="p-8 text-center">
+            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Programs Assigned</h3>
+            <p className="text-gray-500">No programs have been assigned to this mentorship yet.</p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {programs.map((program) => (
+              <Card key={program.id} className="overflow-hidden">
+                <div className="p-6">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <BookOpen className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg text-gray-900">{program.name}</h3>
+                          <p className="text-sm text-gray-600">{program.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-4 mb-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-gray-900">{program.total_sessions || 0}</div>
+                          <div className="text-sm text-gray-600">Total Sessions</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-gray-900">{program.completed_sessions || 0}</div>
+                          <div className="text-sm text-gray-600">Completed</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-gray-900">{program.scheduled_sessions || 0}</div>
+                          <div className="text-sm text-gray-600">Scheduled</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-gray-900">{program.progress_percentage || 0}%</div>
+                          <div className="text-sm text-gray-600">Progress</div>
+                        </div>
+                      </div>
+
+                      <ProgressBar value={program.progress_percentage || 0} showLabel={false} />
+                    </div>
+
+                    <div className="ml-4 flex flex-col gap-2">
+                      <Button
+                        variant={program.is_current ? "primary" : "outline"}
+                        size="sm"
+                        onClick={() => onViewSessions(program)}
+                        icon={List}
+                        disabled={loading}
+                      >
+                        View Sessions
+                      </Button>
+                      <button
+                        onClick={() => toggleProgram(program.id)}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        {expandedProgram === program.id ? (
+                          <ChevronUp className="w-5 h-5 text-gray-500" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-500" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {expandedProgram === program.id && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-3">Program Details</h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Status:</span>
+                              <Badge variant={program.status === 'completed' ? 'success' : program.status === 'in_progress' ? 'info' : 'default'}>
+                                {program.status?.replace('_', ' ') || 'Not Started'}
+                              </Badge>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Can Schedule Next:</span>
+                              <span className={`font-semibold ${program.can_schedule ? 'text-green-600' : 'text-gray-600'}`}>
+                                {program.can_schedule ? 'Yes' : 'No'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Next Session:</span>
+                              <span className="font-semibold">#{program.next_session_number || 1}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-3">Quick Actions</h4>
+                          <div className="space-y-2">
+                            {program.can_schedule && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                icon={Calendar}
+                                onClick={() => onViewSessions(program)}
+                                fullWidth
+                              >
+                                Schedule Next Session
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon={FileText}
+                              onClick={() => {
+                                alert(`Program Details:\n\n${program.description}`);
+                              }}
+                              fullWidth
+                            >
+                              View Program Details
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};
+
+// ==================== MAIN COMPONENT ====================
 export default function MentorMentorshipDashboard() {
   const navigate = useNavigate();
+
+  // State management
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('active');
   const [selectedMentorship, setSelectedMentorship] = useState(null);
-  const [mentorshipDetails, setMentorshipDetails] = useState(null);
-  const [mentorshipSessions, setMentorshipSessions] = useState([]);
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
-  const [selectedSession, setSelectedSession] = useState(null);
+  const [selectedProgram, setSelectedProgram] = useState(null);
+  const [programSessions, setProgramSessions] = useState([]);
+  const [programsOverview, setProgramsOverview] = useState([]);
+  const [error, setError] = useState(null);
+
+  // Modal states
+  const [isProgramOverviewModalOpen, setIsProgramOverviewModalOpen] = useState(false);
+  const [isProgramSessionsModalOpen, setIsProgramSessionsModalOpen] = useState(false);
+  const [isSessionModalLoading, setIsSessionModalLoading] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // Data states
   const [dashboardData, setDashboardData] = useState(null);
-  const [mentorships, setMentorships] = useState([]);
+  const [allMentorships, setAllMentorships] = useState([]);
+  const [activeMentorships, setActiveMentorships] = useState([]);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [mentorPerformance, setMentorPerformance] = useState(null);
   const [reviews, setReviews] = useState([]);
-  const [programSessions, setProgramSessions] = useState([]);
-  const [selectedProgram, setSelectedProgram] = useState(null);
-  const [isProgramSessionsModalOpen, setIsProgramSessionsModalOpen] = useState(false);
 
   // Stats
   const [stats, setStats] = useState({
@@ -505,6 +1366,10 @@ export default function MentorMentorshipDashboard() {
     completionRate: 0
   });
 
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
   // Fetch all data on component mount
   useEffect(() => {
     fetchMentorData();
@@ -513,155 +1378,246 @@ export default function MentorMentorshipDashboard() {
   const fetchMentorData = async () => {
     try {
       setLoading(true);
+      setError(null);
+
       const [
         dashboardRes,
         mentorshipsRes,
+        activeMentorshipsRes,
         upcomingSessionsRes,
         performanceRes
       ] = await Promise.all([
-        getMentorDashboard(),
-        getMentorActiveMentorships(),
-        getMentorUpcomingSessions(),
-        getMentorPerformance()
+        getMentorDashboard().catch(err => {
+          console.warn('Failed to fetch dashboard:', err);
+          return null;
+        }),
+        getMentorMentorships().catch(err => {
+          console.warn('Failed to fetch mentorships:', err);
+          return { mentorships: [] };
+        }),
+        getMentorActiveMentorships().catch(err => {
+          console.warn('Failed to fetch active mentorships:', err);
+          return { active_mentorships: [] };
+        }),
+        getMentorUpcomingSessions().catch(err => {
+          console.warn('Failed to fetch upcoming sessions:', err);
+          return { upcoming_sessions: [] };
+        }),
+        getMentorPerformance().catch(err => {
+          console.warn('Failed to fetch performance:', err);
+          return null;
+        })
       ]);
 
+
       setDashboardData(dashboardRes);
-      setMentorships(mentorshipsRes?.active_mentorships || []);
+      setAllMentorships(mentorshipsRes?.mentorships || []);
+      setActiveMentorships(activeMentorshipsRes?.active_mentorships || []);
       setUpcomingSessions(upcomingSessionsRes?.upcoming_sessions || []);
       setMentorPerformance(performanceRes);
 
       // Calculate stats
-      const activeMentorships = mentorshipsRes?.active_mentorships?.length || 0;
-      const totalMentorships = dashboardRes?.statistics?.total_mentorships || 0;
-      const completedMentorships = dashboardRes?.statistics?.completed_mentorships || 0;
+      const activeCount = activeMentorshipsRes?.active_mentorships?.length || 0;
+      const totalCount = mentorshipsRes?.mentorships?.length || 0;
+      const completedCount = mentorshipsRes?.mentorships?.filter(m => m.status === 'completed').length || 0;
 
       setStats({
-        totalMentorships,
-        activeMentorships,
-        completedMentorships,
+        totalMentorships: totalCount,
+        activeMentorships: activeCount,
+        completedMentorships: completedCount,
         totalSessions: dashboardRes?.statistics?.total_sessions || 0,
         upcomingSessions: upcomingSessionsRes?.upcoming_sessions?.length || 0,
         avgRating: performanceRes?.average_rating || 0,
-        completionRate: totalMentorships > 0 ? Math.round((completedMentorships / totalMentorships) * 100) : 0
+        completionRate: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
       });
 
     } catch (error) {
       console.error('Error fetching mentor data:', error);
+      setError('Failed to load dashboard data. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewMentorshipDetails = async (mentorship) => {
+  const handleCompleteSessionAction = async (sessionId, notes = '') => {
     try {
-      setSelectedMentorship(mentorship);
+      setIsSessionModalLoading(true);
 
-      const [detailsRes, sessionsRes] = await Promise.all([
-        getMentorshipDetails(mentorship.id),
-        getMentorshipSessions(mentorship.id)
-      ]);
-
-      setMentorshipDetails(detailsRes?.mentorship || detailsRes);
-      setMentorshipSessions(sessionsRes?.sessions || []);
-      setIsDetailsModalOpen(true);
-    } catch (error) {
-      console.error('Error fetching mentorship details:', error);
-    }
-  };
-
-  const handleUpdateSessionStatus = async (sessionId, newStatus, notes = '') => {
-    try {
-      await updateSessionStatus(sessionId, newStatus, notes);
-      alert(`Session marked as ${newStatus} successfully!`);
-
-      // Refresh data
-      if (selectedMentorship) {
-        const sessionsRes = await getMentorshipSessions(selectedMentorship.id);
-        setMentorshipSessions(sessionsRes?.sessions || []);
+      if (!sessionId) {
+        throw new Error('Session ID not found');
       }
 
-      setIsSessionModalOpen(false);
-      fetchMentorData(); // Refresh dashboard stats
-    } catch (error) {
-      alert(`Failed to update session: ${error.message}`);
-    }
-  };
-
-  // Function to view program sessions
-  const handleViewProgramSessions = async (mentorship, program) => {
-    try {
-      setSelectedMentorship(mentorship);
-      setSelectedProgram(program);
-
-      const sessionsRes = await getMentorshipProgramSessions(mentorship.id, program.id);
-      setProgramSessions(sessionsRes.sessions || []);
-
-      // Open modal or navigate to program sessions view
-      setIsProgramSessionsModalOpen(true);
-    } catch (error) {
-      console.error('Error fetching program sessions:', error);
-      alert('Failed to load program sessions');
-    }
-  };
-
-  // Function to schedule a session
-  const handleScheduleSession = async (template) => {
-    try {
-      const scheduledDate = prompt('Enter date and time (YYYY-MM-DDTHH:MM:SS):');
-      if (!scheduledDate) return;
-
-      const sessionData = {
-        template_id: template.id,
-        scheduled_date: scheduledDate,
-        session_type: template.session_type,
-        duration_minutes: template.duration_minutes
-      };
-
-      await scheduleProgramSession(selectedMentorship.id, selectedProgram.id, sessionData);
-
-      // Refresh sessions
-      const sessionsRes = await getMentorshipProgramSessions(selectedMentorship.id, selectedProgram.id);
-      setProgramSessions(sessionsRes.sessions || []);
-
-      alert('Session scheduled successfully!');
-    } catch (error) {
-      console.error('Error scheduling session:', error);
-      alert(`Failed to schedule session: ${error.message}`);
-    }
-  };
-
-  // Function to complete a session
-  const handleCompleteSession = async (session) => {
-    try {
-      const notes = prompt('Enter session notes:');
-      if (notes === null) return;
-
-      await updateSessionProgress(session.id, 'complete', {
-        notes,
+      await updateSessionProgress(sessionId, 'complete', {
+        notes: notes || 'Session completed by mentor',
         mentor_feedback: '',
         mentee_feedback: '',
         action_items: []
       });
 
       // Refresh sessions
-      const sessionsRes = await getMentorshipProgramSessions(selectedMentorship.id, selectedProgram.id);
+      const sessionsRes = await getProgramSessions(selectedMentorship.id, selectedProgram.id);
       setProgramSessions(sessionsRes.sessions || []);
 
-      // Refresh overall data
+      // Refresh dashboard data
       fetchMentorData();
 
       alert('Session marked as completed!');
     } catch (error) {
       console.error('Error completing session:', error);
       alert(`Failed to complete session: ${error.message}`);
+    } finally {
+      setIsSessionModalLoading(false);
+    }
+  };
+
+  const handleCancelSessionAction = async (sessionId) => {
+    try {
+      setIsSessionModalLoading(true);
+
+      if (!sessionId) {
+        throw new Error('Session ID not found');
+      }
+
+      const reason = prompt('Enter cancellation reason:');
+      if (!reason) return;
+
+      await updateSessionProgress(sessionId, 'cancel', {
+        reason: reason
+      });
+
+      // Refresh sessions
+      const sessionsRes = await getProgramSessions(selectedMentorship.id, selectedProgram.id);
+      setProgramSessions(sessionsRes.sessions || []);
+
+      // Refresh dashboard data
+      fetchMentorData();
+
+      alert('Session cancelled successfully!');
+    } catch (error) {
+      console.error('Error cancelling session:', error);
+      alert(`Failed to cancel session: ${error.message}`);
+    } finally {
+      setIsSessionModalLoading(false);
+    }
+  };
+
+  const handleRescheduleSessionAction = async (sessionId) => {
+    try {
+      setIsSessionModalLoading(true);
+
+      if (!sessionId) {
+        throw new Error('Session ID not found');
+      }
+
+      const newDate = prompt('Enter new date and time (YYYY-MM-DDTHH:MM:SS):\nExample: 2024-01-15T14:30:00');
+      if (!newDate) return;
+
+      await updateSessionProgress(sessionId, 'reschedule', {
+        new_date: newDate
+      });
+
+      // Refresh sessions
+      const sessionsRes = await getProgramSessions(selectedMentorship.id, selectedProgram.id);
+      setProgramSessions(sessionsRes.sessions || []);
+
+      // Refresh dashboard data
+      fetchMentorData();
+
+      alert('Session rescheduled successfully!');
+    } catch (error) {
+      console.error('Error rescheduling session:', error);
+      alert(`Failed to reschedule session: ${error.message}`);
+    } finally {
+      setIsSessionModalLoading(false);
+    }
+  };
+
+  const handleViewProgramsOverview = async (mentorship) => {
+    try {
+      setSelectedMentorship(mentorship);
+      const overviewData = await getMentorProgramOverview(mentorship.id);
+      setProgramsOverview(overviewData?.programs || []);
+      setIsProgramOverviewModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching program overview:', error);
+      alert('Failed to load program overview');
+    }
+  };
+
+  const handleViewProgramSessions = async (program) => {
+    try {
+      setIsSessionModalLoading(true);
+      const sessionsData = await getProgramSessions(selectedMentorship.id, program.id);
+      setSelectedProgram(program);
+      setProgramSessions(sessionsData?.sessions || []);
+      setIsProgramOverviewModalOpen(false);
+      setIsProgramSessionsModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching program sessions:', error);
+      alert('Failed to load program sessions');
+    } finally {
+      setIsSessionModalLoading(false);
+    }
+  };
+
+  const handleScheduleSession = async (template, sessionData) => {
+    try {
+      setIsSessionModalLoading(true);
+
+      await scheduleProgramSession(selectedMentorship.id, selectedProgram.id, sessionData);
+
+      // Refresh sessions
+      const sessionsRes = await getProgramSessions(selectedMentorship.id, selectedProgram.id);
+      setProgramSessions(sessionsRes.sessions || []);
+
+      // Refresh dashboard data
+      fetchMentorData();
+
+      alert('Session scheduled successfully!');
+      return true;
+    } catch (error) {
+      console.error('Error scheduling session:', error);
+      alert(`Failed to schedule session: ${error.message}`);
+      return false;
+    } finally {
+      setIsSessionModalLoading(false);
     }
   };
 
 
+  // Filter mentorships based on search and status
+  const getFilteredMentorships = () => {
+    let filtered = allMentorships;
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(m => m.status === statusFilter);
+    }
+
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(m =>
+        m.other_user?.full_name?.toLowerCase().includes(term) ||
+        m.department?.name?.toLowerCase().includes(term) ||
+        m.current_program?.name?.toLowerCase().includes(term)
+      );
+    }
+
+    return filtered;
+  };
+
+  // Get mentorships for current tab
+  const getCurrentMentorships = () => {
+    if (activeTab === 'active') {
+      return activeMentorships;
+    }
+    return getFilteredMentorships();
+  };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3, count: mentorships.length },
-    { id: 'mentorships', label: 'Active Mentorships', icon: Users, count: mentorships.length },
+    { id: 'active', label: 'Active Mentorships', icon: Activity, count: activeMentorships.length },
+    { id: 'all', label: 'All Mentorships', icon: Users, count: allMentorships.length },
     { id: 'sessions', label: 'Upcoming Sessions', icon: Calendar, count: upcomingSessions.length },
     { id: 'performance', label: 'Performance', icon: Award }
   ];
@@ -681,44 +1637,50 @@ export default function MentorMentorshipDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl">
-                <Users className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Mentor Dashboard</h1>
-                <p className="text-gray-600">Manage your mentorship relationships and track progress</p>
-              </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl">
+              <Users className="w-8 h-8 text-white" />
             </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Mentor Dashboard</h1>
+              <p className="text-gray-600">Manage your mentorship relationships and track progress</p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            icon={RefreshCw}
+            onClick={fetchMentorData}
+            disabled={loading}
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" icon={Bell}>
-                Notifications
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => navigate('/mentor/availability')}
-                icon={Calendar}
-              >
-                Set Availability
-              </Button>
+      {/* Error Message */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 mr-2" />
+              <span>{error}</span>
             </div>
           </div>
         </div>
-      </header>
+      )}
 
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="p-6 hover:scale-[1.02] transition-transform">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 font-medium">Active Mentorships</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.activeMentorships}</p>
-                <p className="text-sm text-gray-600 mt-1">{stats.totalMentorships} total</p>
+                <p className="text-sm text-gray-500 font-medium">Total Mentorships</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalMentorships}</p>
+                <p className="text-sm text-gray-600 mt-1">{stats.activeMentorships} active</p>
               </div>
               <div className="p-3 bg-blue-100 rounded-xl">
                 <Users className="w-8 h-8 text-blue-600" />
@@ -743,7 +1705,7 @@ export default function MentorMentorshipDashboard() {
             <div className="mt-4">
               <div className="flex items-center text-sm text-gray-600">
                 <Clock className="w-4 h-4 mr-2" />
-                <span>Next session: {upcomingSessions[0]?.scheduled_date ? formatDate(upcomingSessions[0].scheduled_date, true) : 'No upcoming'}</span>
+                <span>Next: {upcomingSessions[0]?.scheduled_date ? formatDate(upcomingSessions[0].scheduled_date, true) : 'No upcoming'}</span>
               </div>
             </div>
           </Card>
@@ -764,7 +1726,9 @@ export default function MentorMentorshipDashboard() {
             <div className="mt-4">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Performance</span>
-                <span className="font-semibold">{stats.avgRating >= 4 ? 'Excellent' : stats.avgRating >= 3 ? 'Good' : 'Needs Improvement'}</span>
+                <span className="font-semibold">
+                  {stats.avgRating >= 4 ? 'Excellent' : stats.avgRating >= 3 ? 'Good' : 'Needs Improvement'}
+                </span>
               </div>
             </div>
           </Card>
@@ -774,11 +1738,11 @@ export default function MentorMentorshipDashboard() {
               <div>
                 <p className="text-sm text-gray-500 font-medium">Avg. Progress</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {mentorships.length > 0
-                    ? Math.round(mentorships.reduce((acc, m) => acc + (m.progress_percentage || 0), 0) / mentorships.length)
+                  {activeMentorships.length > 0
+                    ? Math.round(activeMentorships.reduce((acc, m) => acc + (m.progress_percentage || 0), 0) / activeMentorships.length)
                     : 0}%
                 </p>
-                <p className="text-sm text-gray-600 mt-1">Across all mentorships</p>
+                <p className="text-sm text-gray-600 mt-1">Across active mentorships</p>
               </div>
               <div className="p-3 bg-purple-100 rounded-xl">
                 <TrendingUp className="w-8 h-8 text-purple-600" />
@@ -787,133 +1751,39 @@ export default function MentorMentorshipDashboard() {
             <div className="mt-4">
               <div className="flex items-center text-sm text-gray-600">
                 <Activity className="w-4 h-4 mr-2" />
-                <span>{mentorships.filter(m => m.progress_percentage === 100).length} completed</span>
+                <span>{stats.completedMentorships} completed</span>
               </div>
             </div>
           </Card>
         </div>
 
-        {/* Tabs Navigation */}
-        <Card className="mb-8">
+        {/* Main Content Card */}
+        <Card>
           <Tabs
             tabs={tabs}
             activeTab={activeTab}
             onTabChange={setActiveTab}
           />
 
-          {/* Tab Content */}
           <div className="p-6">
-            {activeTab === 'overview' && (
-              <div className="space-y-8">
-                {/* Performance Overview */}
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">Performance Overview</h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="p-6">
-                      <h3 className="font-semibold text-gray-900 mb-4">Rating Breakdown</h3>
-                      {mentorPerformance?.category_ratings ? (
-                        <div className="space-y-4">
-                          {Object.entries(mentorPerformance.category_ratings).map(([category, rating]) => (
-                            <div key={category} className="space-y-2">
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-600 capitalize">{category.replace('_', ' ')}</span>
-                                <span className="font-semibold">{rating.toFixed(1)}/5</span>
-                              </div>
-                              <ProgressBar value={(rating / 5) * 100} showLabel={false} />
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 text-center py-8">No rating data available yet</p>
-                      )}
-                    </Card>
-
-                    <Card className="p-6">
-                      <h3 className="font-semibold text-gray-900 mb-4">Recent Feedback</h3>
-                      {reviews.length > 0 ? (
-                        <div className="space-y-4">
-                          {reviews.slice(0, 3).map((review) => (
-                            <div key={review.id} className="border-l-4 border-blue-500 pl-4 py-2">
-                              <div className="flex items-center justify-between mb-2">
-                                <StarRating rating={review.rating} size="sm" />
-                                <span className="text-sm text-gray-500">{formatDate(review.created_at)}</span>
-                              </div>
-                              <p className="text-gray-700 line-clamp-2">{review.review_text}</p>
-                              <p className="text-sm text-gray-500 mt-1">- {review.mentee_name}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 text-center py-8">No reviews yet</p>
-                      )}
-                    </Card>
-                  </div>
-                </div>
-
-                {/* Recent Activity */}
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
-                    <Button variant="ghost" size="sm">View All</Button>
-                  </div>
-                  <Card className="p-6">
-                    <div className="space-y-4">
-                      {upcomingSessions.slice(0, 5).map((session) => (
-                        <div key={session.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div className="p-2 bg-blue-100 rounded-lg">
-                              <Calendar className="w-5 h-5 text-blue-600" />
-                            </div>
-                            <div>
-                              <p className="font-medium text-gray-900">Session with {session.mentee_name}</p>
-                              <p className="text-sm text-gray-600">{formatDate(session.scheduled_date, true)}</p>
-                            </div>
-                          </div>
-                          <Badge variant={session.status === 'scheduled' ? 'info' : 'warning'}>
-                            {session.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'mentorships' && (
+            {/* Active Mentorships Tab */}
+            {activeTab === 'active' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-gray-900">Active Mentorships</h2>
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="search"
-                        placeholder="Search mentees..."
-                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <Button variant="outline" icon={Filter}>Filter</Button>
-                  </div>
+                  <p className="text-gray-600">{activeMentorships.length} active mentorships</p>
                 </div>
 
-                {mentorships.length === 0 ? (
+                {activeMentorships.length === 0 ? (
                   <Card className="p-12 text-center">
                     <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-gray-700 mb-2">No Active Mentorships</h3>
                     <p className="text-gray-500 mb-6">You don't have any active mentorship relationships at the moment.</p>
-                    <Button variant="primary" onClick={() => navigate('/mentor/availability')}>
-                      Update Availability
-                    </Button>
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {mentorships.map((mentorship) => (
-                      <Card
-                        key={mentorship.id}
-                        className="p-6 hover:shadow-xl transition-all cursor-pointer"
-                        onClick={() => handleViewMentorshipDetails(mentorship)}
-                      >
+                    {activeMentorships.map((mentorship) => (
+                      <Card key={mentorship.id} className="p-6 hover:shadow-xl transition-all">
                         <div className="flex justify-between items-start mb-4">
                           <div>
                             <h3 className="font-bold text-lg text-gray-900">{mentorship.other_user?.full_name}</h3>
@@ -925,7 +1795,7 @@ export default function MentorMentorshipDashboard() {
                         <div className="space-y-4">
                           <div>
                             <div className="flex justify-between text-sm mb-1">
-                              <span className="text-gray-600">Program Progress</span>
+                              <span className="text-gray-600">Progress</span>
                               <span className="font-semibold">{mentorship.progress_percentage || 0}%</span>
                             </div>
                             <ProgressBar value={mentorship.progress_percentage || 0} showLabel={false} />
@@ -952,26 +1822,37 @@ export default function MentorMentorshipDashboard() {
 
                           <div className="flex gap-2 pt-4 border-t">
                             <Button
-                              variant="ghost"
+                              variant="primary"
                               size="sm"
-                              icon={Eye}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleViewMentorshipDetails(mentorship);
-                              }}
+                              icon={BookOpen}
+                              onClick={() => handleViewProgramsOverview(mentorship)}
                             >
-                              View Details
+                              View Programs
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
                               icon={MessageSquare}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/chat/${mentorship.chat_room_id || 'new'}`);
+                              onClick={() => {
+                                navigate('/mentor/communication', {
+                                  state: {
+                                    mentorshipId: mentorship.id,
+                                    mentorshipData: mentorship
+                                  }
+                                });
                               }}
                             >
                               Message
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon={Eye}
+                              onClick={() => {
+                                alert(`Mentorship Details:\n\nMentee: ${mentorship.other_user?.full_name}\nDepartment: ${mentorship.department?.name}\nProgress: ${mentorship.progress_percentage}%\nStart Date: ${formatDate(mentorship.start_date)}`);
+                              }}
+                            >
+                              Details
                             </Button>
                           </div>
                         </div>
@@ -982,11 +1863,144 @@ export default function MentorMentorshipDashboard() {
               </div>
             )}
 
+            {/* All Mentorships Tab */}
+            {activeTab === 'all' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-900">All Mentorships</h2>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <input
+                        type="search"
+                        placeholder="Search mentees..."
+                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <select
+                      className="px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                    >
+                      <option value="all">All Status</option>
+                      <option value="active">Active</option>
+                      <option value="pending">Pending</option>
+                      <option value="completed">Completed</option>
+                      <option value="paused">Paused</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+                {getCurrentMentorships().length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">No Mentorships Found</h3>
+                    <p className="text-gray-500">No mentorships match your search criteria.</p>
+                  </Card>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 text-gray-600 font-semibold">Mentee</th>
+                          <th className="text-left py-3 px-4 text-gray-600 font-semibold">Department</th>
+                          <th className="text-left py-3 px-4 text-gray-600 font-semibold">Program</th>
+                          <th className="text-left py-3 px-4 text-gray-600 font-semibold">Progress</th>
+                          <th className="text-left py-3 px-4 text-gray-600 font-semibold">Status</th>
+                          <th className="text-left py-3 px-4 text-gray-600 font-semibold">Start Date</th>
+                          <th className="text-left py-3 px-4 text-gray-600 font-semibold">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getCurrentMentorships().map((mentorship) => (
+                          <tr key={mentorship.id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-4 px-4">
+                              <div className="font-medium text-gray-900">{mentorship.other_user?.full_name}</div>
+                              <div className="text-sm text-gray-500">{mentorship.other_user?.email}</div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="font-medium">{mentorship.department?.name || 'N/A'}</div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="font-medium">{mentorship.current_program?.name || 'Not assigned'}</div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="space-y-1">
+                                <div className="text-sm font-semibold">{mentorship.progress_percentage || 0}%</div>
+                                <ProgressBar value={mentorship.progress_percentage || 0} showLabel={false} size="sm" />
+                              </div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <Badge variant={
+                                mentorship.status === 'active' ? 'success' :
+                                  mentorship.status === 'completed' ? 'info' :
+                                    mentorship.status === 'pending' ? 'warning' :
+                                      mentorship.status === 'cancelled' ? 'danger' : 'default'
+                              }>
+                                {mentorship.status}
+                              </Badge>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="text-sm">{formatDate(mentorship.start_date)}</div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex gap-2">
+                                {mentorship.status === 'active' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      icon={BookOpen}
+                                      onClick={() => handleViewProgramsOverview(mentorship)}
+                                    >
+                                      Programs
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      icon={MessageSquare}
+                                      onClick={() => {
+                                        navigate('/mentor/communication', {
+                                          state: { mentorshipId: mentorship.id }
+                                        });
+                                      }}
+                                    >
+                                      Message
+                                    </Button>
+                                  </>
+                                )}
+                                {mentorship.status === 'completed' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    icon={Eye}
+                                    onClick={() => {
+                                      alert(`Completed Mentorship\n\nMentee: ${mentorship.other_user?.full_name}\nCompleted on: ${formatDate(mentorship.actual_end_date)}\nFinal Rating: ${mentorship.rating || 'N/A'}`);
+                                    }}
+                                  >
+                                    View Details
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Upcoming Sessions Tab */}
             {activeTab === 'sessions' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-gray-900">Upcoming Sessions</h2>
-                  <Button variant="primary" icon={Calendar}>Schedule New</Button>
+                  <p className="text-gray-600">{upcomingSessions.length} upcoming sessions</p>
                 </div>
 
                 {upcomingSessions.length === 0 ? (
@@ -996,478 +2010,175 @@ export default function MentorMentorshipDashboard() {
                     <p className="text-gray-500">You don't have any scheduled sessions for the next 7 days.</p>
                   </Card>
                 ) : (
-                  <Card className="p-6">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-gray-200">
-                            <th className="text-left py-3 px-4 text-gray-600 font-semibold">Date & Time</th>
-                            <th className="text-left py-3 px-4 text-gray-600 font-semibold">Mentee</th>
-                            <th className="text-left py-3 px-4 text-gray-600 font-semibold">Program</th>
-                            <th className="text-left py-3 px-4 text-gray-600 font-semibold">Type</th>
-                            <th className="text-left py-3 px-4 text-gray-600 font-semibold">Duration</th>
-                            <th className="text-left py-3 px-4 text-gray-600 font-semibold">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {upcomingSessions.map((session) => (
-                            <tr key={session.id} className="border-b border-gray-100 hover:bg-gray-50">
-                              <td className="py-4 px-4">
-                                <div className="font-medium text-gray-900">{formatDate(session.scheduled_date, true)}</div>
-                                <div className="text-sm text-gray-500">In {(() => {
-                                  const diff = new Date(session.scheduled_date) - new Date();
-                                  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                                  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                                  return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
-                                })()}</div>
-                              </td>
-                              <td className="py-4 px-4">
-                                <div className="font-medium">{session.mentee_name}</div>
-                                <div className="text-sm text-gray-500">{session.mentee_email}</div>
-                              </td>
-                              <td className="py-4 px-4">
-                                <Badge variant="outline">{session.program_name}</Badge>
-                              </td>
-                              <td className="py-4 px-4">
-                                <div className="flex items-center gap-2">
-                                  <div className={`p-1 rounded ${session.session_type === 'video' ? 'bg-blue-100' :
-                                    session.session_type === 'in_person' ? 'bg-green-100' : 'bg-purple-100'
-                                    }`}>
-                                    {session.session_type === 'video' && <Video className="w-4 h-4 text-blue-600" />}
-                                    {session.session_type === 'in_person' && <Users className="w-4 h-4 text-green-600" />}
-                                    {session.session_type === 'phone' && <Phone className="w-4 h-4 text-purple-600" />}
-                                  </div>
-                                  <span className="capitalize">{session.session_type?.replace('_', ' ')}</span>
-                                </div>
-                              </td>
-                              <td className="py-4 px-4">
-                                <div className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4 text-gray-400" />
-                                  {session.duration_minutes} min
-                                </div>
-                              </td>
-                              <td className="py-4 px-4">
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="success"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedSession(session);
-                                      setIsSessionModalOpen(true);
-                                    }}
-                                    icon={CheckCircle}
-                                  >
-                                    Complete
-                                  </Button>
-                                  <Button
-                                    variant="danger"
-                                    size="sm"
-                                    onClick={() => {
-                                      if (window.confirm('Cancel this session?')) {
-                                        handleUpdateSessionStatus(session.id, 'cancelled', 'Mentor cancelled');
-                                      }
-                                    }}
-                                    icon={AlertCircle}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </Card>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {upcomingSessions.map((session) => (
+                      <Card key={session.id} className="p-6">
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-bold text-gray-900">{session.session_template?.title || 'Session'}</h3>
+                              <p className="text-sm text-gray-600">{session.mentee_name}</p>
+                            </div>
+                            <Badge variant="info">Scheduled</Badge>
+                          </div>
+
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-gray-400" />
+                              <span>{formatDate(session.scheduled_date, true)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-gray-400" />
+                              <span>{session.duration_minutes} minutes</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {session.session_type === 'video' ? (
+                                <Video className="w-4 h-4 text-gray-400" />
+                              ) : session.session_type === 'phone' ? (
+                                <Phone className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <Users className="w-4 h-4 text-gray-400" />
+                              )}
+                              <span className="capitalize">{session.session_type?.replace('_', ' ')}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 pt-4 border-t">
+                            <Button
+                              variant="success"
+                              size="sm"
+                              onClick={() => {
+                                const sessionId = session.session_id || session.id;
+                                const notes = prompt('Enter session notes (optional):');
+                                handleCompleteSessionAction(sessionId, notes || '');
+                              }}
+                              icon={CheckCircle}
+                              disabled={loading}
+                              loading={loading}
+                            >
+                              Complete
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to cancel this session?')) {
+                                  handleCancelSessionAction(session.session_id || session.id);
+                                }
+                              }}
+                              icon={AlertCircle}
+                              disabled={loading}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
 
+            {/* Performance Tab */}
             {activeTab === 'performance' && (
               <div className="space-y-8">
-                {/* Performance Summary */}
-                <Card className="p-8">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Performance Dashboard</h2>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Overall Rating */}
-                    <div className="text-center">
-                      <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full mb-4">
-                        <span className="text-3xl font-bold text-white">{stats.avgRating.toFixed(1)}</span>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Overall Rating</h3>
-                      <StarRating rating={stats.avgRating} size="lg" />
-                      <p className="text-gray-600 mt-2">Based on {reviews.length} reviews</p>
-                    </div>
-
-                    {/* Rating Distribution */}
-                    <div className="lg:col-span-2">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Rating Distribution</h3>
-                      <div className="space-y-3">
-                        {[5, 4, 3, 2, 1].map((stars) => {
-                          const count = reviews.filter(r => Math.round(r.rating) === stars).length;
-                          const percentage = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
-                          return (
-                            <div key={stars} className="flex items-center gap-3">
-                              <div className="flex items-center gap-1 w-20">
-                                <span className="text-sm text-gray-600">{stars}</span>
-                                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                                <span className="text-xs text-gray-500">({count})</span>
-                              </div>
-                              <div className="flex-1 bg-gray-200 rounded-full h-3">
-                                <div
-                                  className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full"
-                                  style={{ width: `${percentage}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-semibold w-12">{percentage.toFixed(1)}%</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Detailed Performance Metrics */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card className="p-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">Performance Metrics</h3>
-                    <div className="space-y-4">
-                      {mentorPerformance?.metrics?.map((metric, index) => (
-                        <div key={index} className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-gray-700">{metric.name}</span>
-                            <span className="font-semibold">{metric.value}</span>
+                {mentorPerformance ? (
+                  <>
+                    {/* Performance Summary */}
+                    <Card className="p-8">
+                      <h2 className="text-2xl font-bold text-gray-900 mb-6">Performance Dashboard</h2>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="text-center">
+                          <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full mb-4">
+                            <span className="text-3xl font-bold text-white">{stats.avgRating.toFixed(1)}</span>
                           </div>
-                          <ProgressBar value={metric.percentage} showLabel={false} />
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Overall Rating</h3>
+                          <StarRating rating={stats.avgRating} size="lg" />
+                          <p className="text-gray-600 mt-2">Based on {reviews.length} reviews</p>
                         </div>
-                      ))}
-                    </div>
-                  </Card>
 
-                  <Card className="p-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">Top Strengths</h3>
-                    <div className="space-y-3">
-                      {mentorPerformance?.strengths?.map((strength, index) => (
-                        <div key={index} className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                          <Award className="w-5 h-5 text-blue-600" />
-                          <span className="text-gray-700">{strength}</span>
+                        <div className="lg:col-span-2">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">Rating Distribution</h3>
+                          <div className="space-y-3">
+                            {[5, 4, 3, 2, 1].map((stars) => {
+                              const count = reviews.filter(r => Math.round(r.rating) === stars).length;
+                              const percentage = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
+                              return (
+                                <div key={stars} className="flex items-center gap-3">
+                                  <div className="flex items-center gap-1 w-20">
+                                    <span className="text-sm text-gray-600">{stars}</span>
+                                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                                    <span className="text-xs text-gray-500">({count})</span>
+                                  </div>
+                                  <div className="flex-1 bg-gray-200 rounded-full h-3">
+                                    <div
+                                      className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full"
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-sm font-semibold w-12">{percentage.toFixed(1)}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      ))}
+                      </div>
+                    </Card>
+
+                    {/* Recent Reviews */}
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Reviews</h2>
+                      {reviews.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {reviews.slice(0, 4).map((review) => (
+                            <Card key={review.id} className="p-6">
+                              <div className="flex justify-between items-start mb-4">
+                                <StarRating rating={review.rating} size="md" />
+                                <span className="text-sm text-gray-500">{formatDate(review.created_at)}</span>
+                              </div>
+                              <p className="text-gray-700 mb-4 line-clamp-3">{review.review_text}</p>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-semibold text-gray-900">{review.mentee_name}</span>
+                                {review.would_recommend && (
+                                  <Badge variant="success">Would Recommend</Badge>
+                                )}
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      ) : (
+                        <Card className="p-8 text-center">
+                          <Star className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                          <h3 className="text-xl font-semibold text-gray-700 mb-2">No Reviews Yet</h3>
+                          <p className="text-gray-500">You haven't received any reviews from your mentees yet.</p>
+                        </Card>
+                      )}
                     </div>
+                  </>
+                ) : (
+                  <Card className="p-12 text-center">
+                    <Award className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">No Performance Data</h3>
+                    <p className="text-gray-500">Performance data will be available once you complete mentorships.</p>
                   </Card>
-                </div>
+                )}
               </div>
             )}
           </div>
         </Card>
       </main>
 
-      {/* Mentorship Details Modal */}
-      <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} size="xl">
-        {mentorshipDetails && (
-          <div className="p-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Mentorship Details</h2>
-                <p className="text-gray-600">ID: {mentorshipDetails.id} • Started: {formatDate(mentorshipDetails.start_date)}</p>
-              </div>
-              <button
-                onClick={() => setIsDetailsModalOpen(false)}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                <X className="w-6 h-6 text-gray-500" />
-              </button>
-            </div>
+      {/* Modals */}
+      <ProgramOverviewModal
+        isOpen={isProgramOverviewModalOpen}
+        onClose={() => setIsProgramOverviewModalOpen(false)}
+        mentorship={selectedMentorship}
+        programs={programsOverview}
+        onViewSessions={handleViewProgramSessions}
+        loading={isSessionModalLoading}
+      />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Mentee Information */}
-              <Card className="p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-16 h-16 bg-gradient-to-r from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center">
-                    <User className="w-8 h-8 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-gray-900">{mentorshipDetails.mentee?.full_name}</h3>
-                    <p className="text-gray-600">{mentorshipDetails.mentee?.email}</p>
-                    <Badge variant="success" className="mt-2">Mentee</Badge>
-                  </div>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Department:</span>
-                    <span className="font-semibold">{mentorshipDetails.department?.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Role:</span>
-                    <span className="font-semibold">{mentorshipDetails.mentee?.role}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Phone:</span>
-                    <span className="font-semibold">{mentorshipDetails.mentee?.phone_number || 'N/A'}</span>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  icon={BookOpen}
-                  onClick={() => handleViewProgramSessions(mentorship, mentorship.current_program)}
-                >
-                  View Sessions
-                </Button>
-              </Card>
-
-              {/* Program Progress */}
-              <div className="lg:col-span-2 space-y-6">
-                <Card className="p-6">
-                  <h3 className="font-bold text-lg text-gray-900 mb-4">Current Program</h3>
-                  {mentorshipDetails.current_program ? (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h4 className="font-semibold text-gray-900">{mentorshipDetails.current_program.name}</h4>
-                          <p className="text-gray-600 text-sm mt-1">{mentorshipDetails.current_program.description}</p>
-                        </div>
-                        <Badge variant="info">Active</Badge>
-                      </div>
-
-                      <div>
-                        <ProgressBar
-                          value={mentorshipDetails.progress_percentage || 0}
-                          label="Overall Progress"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4 text-center">
-                        <div className="p-3 bg-blue-50 rounded-xl">
-                          <p className="text-sm text-gray-500">Sessions</p>
-                          <p className="text-xl font-bold text-gray-900">{mentorshipDetails.sessions_completed || 0}/{mentorshipDetails.total_sessions || 0}</p>
-                        </div>
-                        <div className="p-3 bg-green-50 rounded-xl">
-                          <p className="text-sm text-gray-500">Duration</p>
-                          <p className="text-xl font-bold text-gray-900">{mentorshipDetails.current_program.total_duration_hours || 0}h</p>
-                        </div>
-                        <div className="p-3 bg-purple-50 rounded-xl">
-                          <p className="text-sm text-gray-500">Days</p>
-                          <p className="text-xl font-bold text-gray-900">{mentorshipDetails.current_program.total_days || 0}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-center py-8">No program assigned</p>
-                  )}
-                </Card>
-
-                {/* Session History */}
-                <Card className="p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg text-gray-900">Session History</h3>
-                    <Button variant="outline" size="sm" icon={Calendar}>
-                      Schedule New
-                    </Button>
-                  </div>
-
-                  {mentorshipSessions.length > 0 ? (
-                    <div className="space-y-4">
-                      {mentorshipSessions.map((session) => (
-                        <div key={session.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-gray-50">
-                          <div className="flex items-center gap-4">
-                            <div className={`p-3 rounded-xl ${session.status === 'completed' ? 'bg-green-100' :
-                              session.status === 'scheduled' ? 'bg-blue-100' :
-                                'bg-gray-100'
-                              }`}>
-                              {session.status === 'completed' && <CheckCircle className="w-6 h-6 text-green-600" />}
-                              {session.status === 'scheduled' && <Clock className="w-6 h-6 text-blue-600" />}
-                              {session.status === 'cancelled' && <AlertCircle className="w-6 h-6 text-gray-600" />}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-gray-900">Session {session.session_number}</p>
-                              <p className="text-sm text-gray-600">{formatDate(session.scheduled_date, true)}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant={
-                                  session.status === 'completed' ? 'success' :
-                                    session.status === 'scheduled' ? 'info' :
-                                      'danger'
-                                }>
-                                  {session.status}
-                                </Badge>
-                                <span className="text-sm text-gray-500">{session.duration_minutes} min</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2">
-                            {session.status === 'scheduled' && (
-                              <>
-                                <Button
-                                  variant="success"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedSession(session);
-                                    setIsSessionModalOpen(true);
-                                  }}
-                                  icon={CheckCircle}
-                                >
-                                  Complete
-                                </Button>
-                                <Button
-                                  variant="danger"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (window.confirm('Cancel this session?')) {
-                                      handleUpdateSessionStatus(session.id, 'cancelled', 'Mentor cancelled');
-                                    }
-                                  }}
-                                  icon={AlertCircle}
-                                >
-                                  Cancel
-                                </Button>
-                              </>
-                            )}
-                            {session.status === 'completed' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                icon={FileText}
-                                onClick={() => {
-                                  // View session notes
-                                  alert(`Session Notes:\n\n${session.notes || 'No notes provided'}`);
-                                }}
-                              >
-                                View Notes
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-center py-8">No sessions scheduled</p>
-                  )}
-                </Card>
-              </div>
-            </div>
-
-            {/* Goals and Notes */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-              <Card className="p-6">
-                <h3 className="font-bold text-lg text-gray-900 mb-4">Mentorship Goals</h3>
-                {mentorshipDetails.goals?.length > 0 ? (
-                  <ul className="space-y-3">
-                    {mentorshipDetails.goals.map((goal, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <Target className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-700">{goal}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-500 text-center py-4">No goals set for this mentorship</p>
-                )}
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="font-bold text-lg text-gray-900 mb-4">Admin Notes</h3>
-                <div className="bg-gray-50 p-4 rounded-xl">
-                  <p className="text-gray-700">{mentorshipDetails.notes || 'No notes available for this mentorship.'}</p>
-                </div>
-              </Card>
-            </div>
-
-            {/* Programs to be Covered */}
-            {mentorshipDetails.programs?.length > 0 && (
-              <Card className="p-6 mt-6">
-                <h3 className="font-bold text-lg text-gray-900 mb-4">Programs in this Mentorship</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {mentorshipDetails.programs.map((program) => (
-                    <div key={program.id} className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <BookOpen className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-gray-900">{program.name}</h4>
-                          <p className="text-xs text-gray-500">{program.department?.name}</p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Sessions:</span>
-                          <span className="font-semibold">{program.total_sessions || 0}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Duration:</span>
-                          <span className="font-semibold">{program.total_duration_hours || 0}h</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Status:</span>
-                          <Badge variant={program.id === mentorshipDetails.current_program?.id ? 'success' : 'default'}>
-                            {program.id === mentorshipDetails.current_program?.id ? 'Current' : 'Assigned'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      {/* Session Completion Modal */}
-      <Modal isOpen={isSessionModalOpen} onClose={() => setIsSessionModalOpen(false)} size="md">
-        {selectedSession && (
-          <div className="p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Complete Session</h2>
-            <p className="text-gray-600 mb-6">Session with {selectedSession.mentee_name} on {formatDate(selectedSession.scheduled_date, true)}</p>
-
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Session Notes</label>
-                <textarea
-                  className="w-full h-32 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Add notes about what was discussed, achievements, action items, etc."
-                  defaultValue={selectedSession.notes || ''}
-                  id="sessionNotes"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Mentee Feedback (Optional)</label>
-                <textarea
-                  className="w-full h-24 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Record any feedback from the mentee"
-                  id="menteeFeedback"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-6 border-t">
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    const notes = document.getElementById('sessionNotes').value;
-                    const feedback = document.getElementById('menteeFeedback').value;
-                    handleUpdateSessionStatus(selectedSession.id, 'completed', notes + (feedback ? `\n\nMentee Feedback: ${feedback}` : ''));
-                  }}
-                  icon={CheckCircle}
-                  fullWidth
-                >
-                  Mark as Completed
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => setIsSessionModalOpen(false)}
-                  fullWidth
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
       <ProgramSessionsModal
         isOpen={isProgramSessionsModalOpen}
         onClose={() => setIsProgramSessionsModalOpen(false)}
@@ -1475,39 +2186,11 @@ export default function MentorMentorshipDashboard() {
         program={selectedProgram}
         sessions={programSessions}
         onScheduleSession={handleScheduleSession}
-        onCompleteSession={handleCompleteSession}
+        onCompleteSession={handleCompleteSessionAction} // Use the new function
+        onCancelSession={handleCancelSessionAction}     // Use the new function
+        onRescheduleSession={handleRescheduleSessionAction} // Use the new function
+        loading={isSessionModalLoading}
       />
     </div>
   );
 }
-
-// Icons that need to be imported
-const X = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const Video = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-  </svg>
-);
-
-const Phone = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-  </svg>
-);
-
-const BookOpen = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-  </svg>
-);
-
-const User = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-  </svg>
-);

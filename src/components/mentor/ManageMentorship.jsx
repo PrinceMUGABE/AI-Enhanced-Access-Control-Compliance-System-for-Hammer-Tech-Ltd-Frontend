@@ -461,7 +461,6 @@ export default function MenteeMentorshipDashboard() {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showReviewModal, setShowReviewModal] = useState(false);
     const isFetchingRef = useRef(false);
-    const [activeDetailsTab, setActiveDetailsTab] = useState('details');
 
     // Review form state
     const [reviewForm, setReviewForm] = useState({
@@ -617,40 +616,16 @@ export default function MenteeMentorshipDashboard() {
         });
     };
 
-    const fetchMentorshipWithDetails = async (mentorshipId) => {
-        try {
-            // Fetch mentorship details
-            const mentorshipDetail = await getMentorshipDetail(mentorshipId);
-
-            // Fetch upcoming sessions for this mentorship
-            const upcomingSessionsResponse = await fetchAPI(`/mentorship/mentorships/${mentorshipId}/sessions/?status=scheduled`);
-
-            // Fetch recent sessions
-            const recentSessionsResponse = await fetchAPI(`/mentorship/mentorships/${mentorshipId}/sessions/?status=completed&limit=5`);
-
-            return {
-                mentorship: mentorshipDetail?.mentorship,
-                upcoming_sessions: upcomingSessionsResponse?.sessions || [],
-                recent_sessions: recentSessionsResponse?.sessions || []
-            };
-        } catch (error) {
-            console.error('Error fetching mentorship with details:', error);
-            throw error;
-        }
-    };
-
 
     const handleViewDetails = async (mentorship) => {
         try {
-            const detailedMentorship = await fetchMentorshipWithDetails(mentorship.id);
-            setSelectedMentorship(detailedMentorship);
+            const detail = await getMentorshipDetail(mentorship.id);
+            setSelectedMentorship(detail?.mentorship || mentorship);
             setShowDetailsModal(true);
-            setActiveDetailsTab('details');
         } catch (error) {
             console.error('Error fetching mentorship details:', error);
             setSelectedMentorship(mentorship);
             setShowDetailsModal(true);
-            setActiveDetailsTab('details');
         }
     };
 
@@ -706,8 +681,6 @@ export default function MenteeMentorshipDashboard() {
             alert('Failed to submit review. Please try again.');
         }
     };
-
-
 
 
     const navigateToChat = (mentorship) => {
@@ -1087,396 +1060,127 @@ export default function MenteeMentorshipDashboard() {
                                 <XIcon />
                             </button>
                         </div>
-
-                        {/* Tabs for details and upcoming sessions */}
-                        <div className="flex border-b border-gray-200 mt-4">
-                            <button
-                                onClick={() => setActiveDetailsTab('details')}
-                                className={`px-4 py-2 text-sm font-medium transition-colors ${activeDetailsTab === 'details'
-                                    ? 'text-blue-600 border-b-2 border-blue-600'
-                                    : 'text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300'
-                                    }`}
-                            >
-                                Mentorship Details
-                            </button>
-                            <button
-                                onClick={() => setActiveDetailsTab('upcoming')}
-                                className={`px-4 py-2 text-sm font-medium transition-colors ${activeDetailsTab === 'upcoming'
-                                    ? 'text-blue-600 border-b-2 border-blue-600'
-                                    : 'text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300'
-                                    }`}
-                            >
-                                Upcoming Sessions
-                            </button>
-                        </div>
                     </DialogHeader>
 
                     {selectedMentorship && (
-                        <div className="p-6">
-                            {/* Details Tab Content */}
-                            {activeDetailsTab === 'details' && (
-                                <div className="space-y-8">
-                                    {/* Basic Information */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <h4 className="text-sm font-medium text-gray-500">Mentor</h4>
-                                            <p className="text-lg font-semibold text-gray-900">
-                                                {selectedMentorship.mentor?.full_name}
-                                            </p>
-                                            <p className="text-gray-600">{selectedMentorship.mentor?.email}</p>
-                                        </div>
+                        <div className="p-6 space-y-8">
+                            {/* Basic Information */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-medium text-gray-500">Mentor</h4>
+                                    <p className="text-lg font-semibold text-gray-900">
+                                        {selectedMentorship.mentor?.full_name}
+                                    </p>
+                                    <p className="text-gray-600">{selectedMentorship.mentor?.email}</p>
+                                </div>
 
-                                        <div className="space-y-2">
-                                            <h4 className="text-sm font-medium text-gray-500">Status</h4>
-                                            <Badge className={getStatusBadgeProps(selectedMentorship.status).className}>
-                                                {getStatusBadgeProps(selectedMentorship.status).label}
-                                            </Badge>
-                                        </div>
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-medium text-gray-500">Status</h4>
+                                    <Badge className={getStatusBadgeProps(selectedMentorship.status).className}>
+                                        {getStatusBadgeProps(selectedMentorship.status).label}
+                                    </Badge>
+                                </div>
 
-                                        <div className="space-y-2">
-                                            <h4 className="text-sm font-medium text-gray-500">Start Date</h4>
-                                            <p className="text-gray-900">{formatDate(selectedMentorship.start_date)}</p>
-                                        </div>
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-medium text-gray-500">Start Date</h4>
+                                    <p className="text-gray-900">{formatDate(selectedMentorship.start_date)}</p>
+                                </div>
 
-                                        {selectedMentorship.expected_end_date && (
-                                            <div className="space-y-2">
-                                                <h4 className="text-sm font-medium text-gray-500">Expected End Date</h4>
-                                                <p className="text-gray-900">{formatDate(selectedMentorship.expected_end_date)}</p>
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-2 md:col-span-2">
-                                            <h4 className="text-sm font-medium text-gray-500">Overall Progress</h4>
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex-1">
-                                                    <Progress value={selectedMentorship.progress_percentage || 0} showLabel />
-                                                </div>
-                                                <span className="text-lg font-semibold text-gray-900">
-                                                    {selectedMentorship.progress_percentage || 0}%
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between text-sm text-gray-500">
-                                                <span>
-                                                    {selectedMentorship.sessions_completed || 0} of {selectedMentorship.total_sessions || 0} sessions completed
-                                                </span>
-                                            </div>
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-medium text-gray-500">Progress</h4>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1">
+                                            <Progress value={selectedMentorship.progress_percentage || 0} showLabel />
                                         </div>
+                                        <span className="text-lg font-semibold text-gray-900">
+                                            {selectedMentorship.progress_percentage || 0}%
+                                        </span>
                                     </div>
+                                </div>
+                            </div>
 
-                                    {/* Programs Section */}
-                                    {selectedMentorship.programs && selectedMentorship.programs.length > 0 && (
-                                        <div className="border-t border-gray-200 pt-6">
-                                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Mentorship Programs</h4>
-                                            <div className="space-y-4">
-                                                {selectedMentorship.programs.map((program, index) => (
-                                                    <div key={program.id} className="border border-gray-200 rounded-lg p-4">
-                                                        <div className="flex justify-between items-start mb-3">
-                                                            <div>
-                                                                <h5 className="font-medium text-gray-900">
-                                                                    {program.name}
-                                                                    {selectedMentorship.current_program?.id === program.id && (
-                                                                        <Badge variant="info" className="ml-2">Current Program</Badge>
-                                                                    )}
-                                                                </h5>
-                                                                <p className="text-sm text-gray-600 mt-1">{program.description}</p>
-                                                            </div>
-                                                            <Badge variant="secondary">
-                                                                {program.total_sessions || program.session_templates?.length || 0} Sessions
-                                                            </Badge>
-                                                        </div>
-
-                                                        {/* Program Progress */}
-                                                        {program.progress !== undefined && (
-                                                            <div className="mb-3">
-                                                                <div className="flex justify-between text-sm mb-1">
-                                                                    <span className="text-gray-600">Program Progress</span>
-                                                                    <span className="font-semibold">{program.progress}%</span>
-                                                                </div>
-                                                                <Progress value={program.progress || 0} />
-                                                            </div>
-                                                        )}
-
-                                                        {/* Program Sessions Status Summary */}
-                                                        <div className="grid grid-cols-3 gap-2 text-sm">
-                                                            <div className="bg-green-50 p-2 rounded text-center">
-                                                                <div className="font-semibold text-green-700">
-                                                                    {program.sessions_completed || 0}
-                                                                </div>
-                                                                <div className="text-green-600">Completed</div>
-                                                            </div>
-                                                            <div className="bg-blue-50 p-2 rounded text-center">
-                                                                <div className="font-semibold text-blue-700">
-                                                                    {program.sessions_scheduled || 0}
-                                                                </div>
-                                                                <div className="text-blue-600">Scheduled</div>
-                                                            </div>
-                                                            <div className="bg-gray-50 p-2 rounded text-center">
-                                                                <div className="font-semibold text-gray-700">
-                                                                    {program.remaining_sessions || 0}
-                                                                </div>
-                                                                <div className="text-gray-600">Remaining</div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Current Program Detailed Sessions */}
-                                    {selectedMentorship.current_program && selectedMentorship.programSessions && (
-                                        <div className="border-t border-gray-200 pt-6">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <h4 className="text-lg font-semibold text-gray-900">
-                                                    {selectedMentorship.current_program.name} - Sessions
-                                                </h4>
+                            {/* Program Information */}
+                            {selectedMentorship.current_program && (
+                                <div className="border-t border-gray-200 pt-6">
+                                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Current Program</h4>
+                                    <Card>
+                                        <CardContent className="p-4">
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <h5 className="font-medium text-gray-900">
+                                                        {selectedMentorship.current_program.name}
+                                                    </h5>
+                                                    <p className="text-sm text-gray-600 mt-1">
+                                                        {selectedMentorship.current_program.description}
+                                                    </p>
+                                                </div>
                                                 <Badge variant="info">
-                                                    {selectedMentorship.programSessions.sessions_completed || 0}/{selectedMentorship.programSessions.total_sessions || 0} sessions
+                                                    {selectedMentorship.sessions_completed || 0}/{selectedMentorship.total_sessions || 0} sessions
                                                 </Badge>
                                             </div>
-
-                                            <div className="space-y-3">
-                                                {selectedMentorship.programSessions.sessions?.map((session) => (
-                                                    <div key={session.template_id} className="border border-gray-200 rounded-lg p-4">
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <div>
-                                                                <h5 className="font-medium text-gray-900">
-                                                                    Session {session.order}: {session.title}
-                                                                </h5>
-                                                                <p className="text-sm text-gray-600 mt-1">{session.description}</p>
-                                                            </div>
-                                                            <div>
-                                                                {session.session_id ? (
-                                                                    <Badge variant={
-                                                                        session.status === 'completed' ? 'success' :
-                                                                            session.status === 'scheduled' ? 'info' :
-                                                                                session.status === 'cancelled' ? 'destructive' :
-                                                                                    session.status === 'rescheduled' ? 'warning' : 'secondary'
-                                                                    }>
-                                                                        {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
-                                                                    </Badge>
-                                                                ) : (
-                                                                    <Badge variant="outline">Not Scheduled</Badge>
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                                                            <div className="flex items-center gap-1">
-                                                                <ClockIcon className="w-4 h-4 text-gray-400" />
-                                                                <span>{session.duration_minutes} min</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-1">
-                                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                                </svg>
-                                                                <span>
-                                                                    {session.scheduled_date ? formatDate(session.scheduled_date, true) : 'Not scheduled'}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex items-center gap-1">
-                                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                                                </svg>
-                                                                <span className="capitalize">{session.session_type || 'N/A'}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-1">
-                                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                </svg>
-                                                                <span>{session.is_required ? 'Required' : 'Optional'}</span>
-                                                            </div>
-                                                        </div>
-
-                                                        {session.status === 'scheduled' && session.meeting_link && (
-                                                            <div className="mt-3">
-                                                                <a
-                                                                    href={session.meeting_link}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
-                                                                >
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                                    </svg>
-                                                                    Join Meeting Link
-                                                                </a>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Goals Section */}
-                                    {selectedMentorship.goals && selectedMentorship.goals.length > 0 && (
-                                        <div className="border-t border-gray-200 pt-6">
-                                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Mentorship Goals</h4>
-                                            <div className="space-y-2">
-                                                {selectedMentorship.goals.map((goal, index) => (
-                                                    <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                                                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                                            <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                                            </svg>
-                                                        </div>
-                                                        <p className="text-gray-700">{goal}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                        </CardContent>
+                                    </Card>
                                 </div>
                             )}
 
-                            {/* Upcoming Sessions Tab Content */}
-                            {activeDetailsTab === 'upcoming' && (
-                                <div className="space-y-6">
-                                    {/* Show upcoming sessions */}
-                                    {selectedMentorship.upcoming_sessions && selectedMentorship.upcoming_sessions.length > 0 ? (
-                                        <>
-                                            <div className="flex justify-between items-center">
-                                                <h4 className="text-lg font-semibold text-gray-900">Upcoming Sessions</h4>
-                                                <Badge variant="info">
-                                                    {selectedMentorship.upcoming_sessions.length} upcoming
+                            {/* Goals */}
+                            {selectedMentorship.goals && selectedMentorship.goals.length > 0 && (
+                                <div className="border-t border-gray-200 pt-6">
+                                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Goals</h4>
+                                    <div className="space-y-2">
+                                        {selectedMentorship.goals.map((goal, index) => (
+                                            <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                                <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                                                    <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </div>
+                                                <p className="text-gray-700">{goal}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Sessions */}
+                            {selectedMentorship.sessions && selectedMentorship.sessions.length > 0 && (
+                                <div className="border-t border-gray-200 pt-6">
+                                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Recent Sessions</h4>
+                                    <div className="space-y-3">
+                                        {selectedMentorship.sessions.slice(0, 5).map((session) => (
+                                            <div key={session.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                                <div>
+                                                    <p className="font-medium text-gray-900">
+                                                        {session.session_template?.title || 'Session'}
+                                                    </p>
+                                                    <p className="text-sm text-gray-600">
+                                                        {formatDate(session.actual_date || session.scheduled_date, true)}
+                                                    </p>
+                                                </div>
+                                                <Badge variant={session.status === 'completed' ? 'success' : 'warning'}>
+                                                    {session.status}
                                                 </Badge>
                                             </div>
-
-                                            <div className="space-y-4">
-                                                {selectedMentorship.upcoming_sessions.map((session) => (
-                                                    <div key={session.id} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
-                                                        <div className="flex justify-between items-start mb-3">
-                                                            <div>
-                                                                <h5 className="font-semibold text-gray-900">
-                                                                    {session.session_template?.title || `Session ${session.program_session_number || ''}`}
-                                                                </h5>
-                                                                <p className="text-sm text-gray-600 mt-1">
-                                                                    {session.program?.name || selectedMentorship.current_program?.name}
-                                                                </p>
-                                                            </div>
-                                                            <Badge variant="info">
-                                                                {formatDate(session.scheduled_date, true)}
-                                                            </Badge>
-                                                        </div>
-
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-                                                            <div className="flex items-center gap-2">
-                                                                <ClockIcon className="w-4 h-4 text-gray-400" />
-                                                                <span className="text-sm">{session.duration_minutes} minutes</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                                                </svg>
-                                                                <span className="text-sm capitalize">{session.session_type || 'Video Call'}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 md:col-span-1">
-                                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                                                </svg>
-                                                                <span className="text-sm">Session {session.program_session_number}</span>
-                                                            </div>
-                                                        </div>
-
-                                                        {session.agenda && (
-                                                            <div className="mb-4">
-                                                                <h6 className="text-sm font-medium text-gray-700 mb-1">Agenda</h6>
-                                                                <p className="text-sm text-gray-600">{session.agenda}</p>
-                                                            </div>
-                                                        )}
-
-                                                        {session.meeting_link && (
-                                                            <div className="flex justify-between items-center pt-3 border-t border-gray-100">
-                                                                <a
-                                                                    href={session.meeting_link}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                                                >
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                                    </svg>
-                                                                    Join Meeting
-                                                                </a>
-                                                                <span className="text-sm text-gray-500">
-                                                                    Click 10 minutes before scheduled time
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="text-center py-12">
-                                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                                                <CalendarIcon />
-                                            </div>
-                                            <h4 className="text-lg font-medium text-gray-900 mb-2">No Upcoming Sessions</h4>
-                                            <p className="text-gray-600 mb-6">
-                                                There are no upcoming sessions scheduled for this mentorship.
-                                            </p>
-                                            {selectedMentorship.status === 'active' && (
-                                                <p className="text-sm text-gray-500">
-                                                    Your mentor will schedule sessions soon.
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Add a section for recently completed sessions */}
-                                    {selectedMentorship.recent_sessions && selectedMentorship.recent_sessions.length > 0 && (
-                                        <div className="border-t border-gray-200 pt-6">
-                                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Recently Completed Sessions</h4>
-                                            <div className="space-y-3">
-                                                {selectedMentorship.recent_sessions.slice(0, 3).map((session) => (
-                                                    <div key={session.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                                                        <div>
-                                                            <p className="font-medium text-gray-900">
-                                                                {session.session_template?.title || `Session ${session.program_session_number}`}
-                                                            </p>
-                                                            <p className="text-sm text-gray-600">
-                                                                Completed on {formatDate(session.actual_date, true)}
-                                                            </p>
-                                                        </div>
-                                                        <Badge variant="success">
-                                                            Completed
-                                                        </Badge>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
                     )}
 
                     <DialogFooter>
-                        <div className="flex justify-between w-full">
-                            <div className="text-sm text-gray-500">
-                                {selectedMentorship && (
-                                    <>
-                                        Mentorship ID: {selectedMentorship.id} • Created: {formatDate(selectedMentorship.created_at, true)}
-                                    </>
-                                )}
-                            </div>
-                            <div className="flex gap-3">
-                                <Button variant="outline" onClick={() => setShowDetailsModal(false)}>
-                                    Close
-                                </Button>
-                                {selectedMentorship?.status === 'active' && (
-                                    <Button onClick={() => {
-                                        setShowDetailsModal(false);
-                                        navigateToChat(selectedMentorship);
-                                    }}>
-                                        <ChatIcon />
-                                        <span className="ml-2">Go to Chat</span>
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
+                        <Button variant="outline" onClick={() => setShowDetailsModal(false)}>
+                            Close
+                        </Button>
+                        {selectedMentorship?.status === 'active' && (
+                            <Button onClick={() => {
+                                setShowDetailsModal(false);
+                                navigateToChat(selectedMentorship);
+                            }}>
+                                <ChatIcon />
+                                <span className="ml-2">Open Chat</span>
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

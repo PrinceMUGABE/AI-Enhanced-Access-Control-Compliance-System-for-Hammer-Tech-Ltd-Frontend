@@ -29,7 +29,7 @@ const Button = ({ children, onClick, variant = 'default', className = '', disabl
     secondary: 'bg-gray-100 text-gray-800 hover:bg-gray-200 focus:ring-gray-500'
   };
   return (
-    <button 
+    <button
       type={type}
       className={`${base} ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       onClick={onClick}
@@ -84,13 +84,12 @@ const TableCell = ({ children, className = '' }) => (
 
 const Progress = ({ value, className = '' }) => (
   <div className={`w-full bg-gray-200 rounded-full h-2 ${className}`}>
-    <div 
-      className={`h-2 rounded-full transition-all duration-300 ${
-        value >= 80 ? 'bg-green-600' : 
-        value >= 50 ? 'bg-blue-600' : 
-        value >= 30 ? 'bg-yellow-500' : 
-        'bg-red-600'
-      }`}
+    <div
+      className={`h-2 rounded-full transition-all duration-300 ${value >= 80 ? 'bg-green-600' :
+        value >= 50 ? 'bg-blue-600' :
+          value >= 30 ? 'bg-yellow-500' :
+            'bg-red-600'
+        }`}
       style={{ width: `${value}%` }}
     />
   </div>
@@ -139,41 +138,710 @@ const SortIcon = () => <span className="text-lg">↕️</span>;
 const PlayIcon = () => <span className="text-lg">▶️</span>;
 const PauseIcon = () => <span className="text-lg">⏸️</span>;
 const RefreshIcon = () => <span className="text-lg">🔄</span>;
+const Eye = () => <span className="text-lg">👁️</span>;
+const DownloadIcon = () => <span className="text-lg">📥</span>;
+const FileIcon = () => <span className="text-lg">📄</span>;
+const ImageIcon = () => <span className="text-lg">🖼️</span>;
+const VideoIcon = () => <span className="text-lg">🎬</span>;
+const AudioIcon = () => <span className="text-lg">🔊</span>;
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
+const formatTime = (minutes) => {
+  if (!minutes) return '0m';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}m`;
+};
 
 // Modal Component
-const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
+const Modal = ({ isOpen, onClose, children, title, size = 'md' }) => {
   if (!isOpen) return null;
 
-  const sizes = {
+  const sizeClasses = {
     sm: 'max-w-md',
-    md: 'max-w-2xl',
-    lg: 'max-w-4xl',
-    xl: 'max-w-6xl'
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
+    full: 'max-w-7xl'
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose}></div>
-        <div className={`inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle ${sizes[size]} sm:w-full`}>
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">{title}</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className={`${sizeClasses[size]} w-full bg-white rounded-lg shadow-xl max-h-[90vh] flex flex-col`}>
+        {title && (
+          <div className="border-b p-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                className="text-gray-500 hover:text-gray-700 text-xl"
               >
-                ✕
+                ×
               </button>
             </div>
-            {children}
           </div>
+        )}
+        <div className="flex-1 overflow-auto p-6">
+          {children}
         </div>
       </div>
     </div>
   );
 };
 
+// Enhanced Module Modal Component
+const EnhancedModuleModal = ({ isOpen, onClose, module, progress, onStart, onComplete, onUpdateProgress }) => {
+  if (!isOpen || !module) return null;
+
+  const [activeTab, setActiveTab] = useState('overview');
+  const [checklistProgress, setChecklistProgress] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [playingVideo, setPlayingVideo] = useState(null);
+  const [playingAudio, setPlayingAudio] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState(null);
+
+  const safeProgress = progress || {
+    status: 'not_started',
+    progress_percentage: 0,
+    time_spent_minutes: 0,
+    due_date: null,
+    id: null
+  };
+
+  // Safely handle content (could be string or array)
+  const getContentArray = () => {
+    if (!module.content) return [];
+    if (Array.isArray(module.content)) return module.content;
+    if (typeof module.content === 'string') {
+      // Split by newlines or other delimiters
+      return module.content.split('\n').filter(line => line.trim());
+    }
+    return [];
+  };
+
+  // Safely handle resources
+  const getResourcesArray = () => {
+    if (!module.resources) return [];
+    if (Array.isArray(module.resources)) return module.resources;
+    return [];
+  };
+
+  // Safely handle checklist items
+  const getChecklistArray = () => {
+    if (!module.checklist_items) return [];
+    if (Array.isArray(module.checklist_items)) return module.checklist_items;
+    return [];
+  };
+
+  // Safely handle multimedia files
+  const getMultimediaArray = () => {
+    if (!module.multimedia_files) return [];
+    if (Array.isArray(module.multimedia_files)) return module.multimedia_files;
+    return [];
+  };
+
+  // Helper functions for file handling
+  const getFileType = (fileName) => {
+    if (!fileName) return 'document';
+    const extension = fileName.split('.').pop().toLowerCase();
+    
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff'];
+    const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'wmv', 'flv', 'mkv'];
+    const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'];
+    const pdfExtensions = ['pdf'];
+    const docExtensions = ['doc', 'docx', 'txt', 'rtf'];
+    const excelExtensions = ['xls', 'xlsx', 'csv'];
+    const pptExtensions = ['ppt', 'pptx'];
+    
+    if (imageExtensions.includes(extension)) return 'image';
+    if (videoExtensions.includes(extension)) return 'video';
+    if (audioExtensions.includes(extension)) return 'audio';
+    if (pdfExtensions.includes(extension)) return 'pdf';
+    if (docExtensions.includes(extension)) return 'document';
+    if (excelExtensions.includes(extension)) return 'spreadsheet';
+    if (pptExtensions.includes(extension)) return 'presentation';
+    
+    return 'document';
+  };
+
+  const getFileIcon = (fileName) => {
+    const type = getFileType(fileName);
+    switch (type) {
+      case 'image': return '🖼️';
+      case 'video': return '🎬';
+      case 'audio': return '🔊';
+      case 'pdf': return '📕';
+      case 'document': return '📄';
+      case 'spreadsheet': return '📊';
+      case 'presentation': return '📽️';
+      default: return '📄';
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return 'Unknown size';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  // Fix: Proper download function with correct filename
+  const handleDownload = async (file) => {
+    try {
+      const fileUrl = file.url || file.file_url || file.file;
+      const fileName = file.name || file.file_name || file.title || `file_${Date.now()}`;
+      
+      // Ensure proper filename extension
+      let finalFileName = fileName;
+      if (!fileName.includes('.')) {
+        const fileType = getFileType(fileName);
+        if (fileUrl) {
+          const urlExtension = fileUrl.split('.').pop().split('?')[0];
+          if (urlExtension && urlExtension.length <= 5) {
+            finalFileName = `${fileName}.${urlExtension}`;
+          }
+        }
+      }
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = finalFileName;
+      
+      // Append to body, click, and remove
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // If it's a blob URL, revoke it after download
+      if (fileUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(fileUrl);
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      // Fallback: open in new tab
+      window.open(file.url || file.file_url || file.file, '_blank');
+    }
+  };
+
+  // Fix: Proper file open function
+  const handleFileOpen = (file) => {
+    const fileType = getFileType(file.name || file.file_name || file.title);
+    const fileUrl = file.url || file.file_url || file.file;
+    
+    if (fileType === 'pdf') {
+      // Open PDF in new tab
+      window.open(fileUrl, '_blank');
+    } else if (fileType === 'image') {
+      // Open image in preview modal
+      setImagePreview(fileUrl);
+    } else if (fileType === 'video' || fileType === 'audio') {
+      // Videos and audio are already embedded and playable
+      return;
+    } else {
+      // For other files, download with proper name
+      handleDownload(file);
+    }
+  };
+
+  // Render file card with proper information
+  const renderFileCard = (file, index) => {
+    // Get file information with fallbacks
+    const fileName = file.name || file.file_name || file.title || `File ${index + 1}`;
+    const fileType = getFileType(fileName);
+    const fileUrl = file.url || file.file_url || file.file;
+    const fileSize = file.size || file.file_size;
+    const fileIcon = getFileIcon(fileName);
+    
+    // Get proper file type label
+    const fileTypeLabel = fileType === 'pdf' ? 'PDF' : 
+                         fileType === 'document' ? 'DOCUMENT' :
+                         fileType === 'spreadsheet' ? 'SPREADSHEET' :
+                         fileType === 'presentation' ? 'PRESENTATION' :
+                         fileType === 'image' ? 'IMAGE' :
+                         fileType === 'video' ? 'VIDEO' :
+                         fileType === 'audio' ? 'AUDIO' : 'DOCUMENT';
+
+    return (
+      <div key={index} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+        <div className="p-4">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <div className={`w-12 h-12 flex items-center justify-center rounded-lg text-xl ${
+                fileType === 'pdf' ? 'bg-red-100 text-red-600' :
+                fileType === 'image' ? 'bg-green-100 text-green-600' :
+                fileType === 'video' ? 'bg-purple-100 text-purple-600' :
+                fileType === 'audio' ? 'bg-yellow-100 text-yellow-600' :
+                'bg-blue-100 text-blue-600'
+              }`}>
+                {fileIcon}
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-medium text-gray-900 truncate" title={fileName}>
+                {fileName}
+              </h4>
+              <div className="flex items-center space-x-2 mt-1">
+                <Badge variant={
+                  fileType === 'pdf' ? 'destructive' :
+                  fileType === 'image' ? 'success' :
+                  fileType === 'video' ? 'info' :
+                  fileType === 'audio' ? 'warning' : 'default'
+                } className="text-xs">
+                  {fileTypeLabel}
+                </Badge>
+                {fileSize && (
+                  <span className="text-xs text-gray-500">{formatFileSize(fileSize)}</span>
+                )}
+              </div>
+            </div>
+            <div className="flex-shrink-0 flex space-x-2">
+              {fileType === 'image' ? (
+                <button
+                  onClick={() => setImagePreview(fileUrl)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
+                  title="Preview image"
+                >
+                  👁️
+                </button>
+              ) : fileType === 'pdf' ? (
+                <button
+                  onClick={() => window.open(fileUrl, '_blank')}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-md"
+                  title="Open PDF in browser"
+                >
+                  📖
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleFileOpen(file)}
+                  className="p-2 text-green-600 hover:bg-green-50 rounded-md"
+                  title={fileType === 'video' || fileType === 'audio' ? 'Play' : 'Download'}
+                >
+                  {fileType === 'video' || fileType === 'audio' ? '▶️' : '📥'}
+                </button>
+              )}
+              
+              {fileType !== 'pdf' && fileType !== 'image' && (
+                <button
+                  onClick={() => handleDownload(file)}
+                  className="p-2 text-green-600 hover:bg-green-50 rounded-md"
+                  title="Download file"
+                >
+                  📥
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {/* Preview for images, videos, and audio */}
+          {fileType === 'image' && (
+            <div className="mt-3">
+              <div className="aspect-video bg-gray-100 rounded-md overflow-hidden cursor-pointer" onClick={() => setImagePreview(fileUrl)}>
+                <img
+                  src={fileUrl}
+                  alt={fileName}
+                  className="w-full h-full object-contain hover:scale-105 transition-transform"
+                  onError={(e) => {
+                    e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Available';
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          
+          {fileType === 'video' && (
+            <div className="mt-3">
+              <div className="aspect-video bg-black rounded-md overflow-hidden">
+                <video
+                  controls
+                  className="w-full h-full"
+                  onPlay={() => setPlayingVideo(index)}
+                  onPause={() => setPlayingVideo(null)}
+                  preload="metadata"
+                >
+                  <source src={fileUrl} type={`video/${getFileType(fileName)}`} />
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            </div>
+          )}
+          
+          {fileType === 'audio' && (
+            <div className="mt-3">
+              <div className="bg-gray-100 rounded-lg p-4">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                    <span className="text-purple-600 text-xl">🎵</span>
+                  </div>
+                  <audio
+                    controls
+                    className="flex-1"
+                    onPlay={() => setPlayingAudio(index)}
+                    onPause={() => setPlayingAudio(null)}
+                    preload="metadata"
+                  >
+                    <source src={fileUrl} type={`audio/${getFileType(fileName)}`} />
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Image Preview Modal
+  const ImagePreviewModal = () => {
+    if (!imagePreview) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={() => setImagePreview(null)}>
+        <div className="relative max-w-7xl max-h-[90vh]">
+          <button
+            className="absolute top-4 right-4 text-white text-2xl z-10 bg-black bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center hover:bg-opacity-70"
+            onClick={(e) => {
+              e.stopPropagation();
+              setImagePreview(null);
+            }}
+          >
+            ×
+          </button>
+          <img
+            src={imagePreview}
+            alt="Preview"
+            className="max-w-full max-h-[85vh] object-contain"
+            onClick={(e) => e.stopPropagation()}
+            onError={(e) => {
+              e.target.src = 'https://via.placeholder.com/800x600?text=Image+Not+Available';
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title={module.title}
+        size="xl"
+      >
+        <div className="space-y-6">
+          {/* Module Status Bar */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <Badge variant={safeProgress.status === 'completed' ? 'success' : safeProgress.status === 'in_progress' ? 'info' : 'secondary'}>
+                  {safeProgress.status ? safeProgress.status.replace('_', ' ').toUpperCase() : 'NOT STARTED'}
+                </Badge>
+                <h3 className="text-lg font-semibold text-gray-900 mt-2">{module.title}</h3>
+                <p className="text-gray-600 mt-1">{module.description}</p>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-gray-900">{safeProgress.progress_percentage || 0}%</div>
+                <Progress value={safeProgress.progress_percentage || 0} className="mt-2 w-32" />
+              </div>
+            </div>
+          </div>
+
+          {/* Module Tabs */}
+          <div className="border-b">
+            <div className="flex space-x-6 overflow-x-auto">
+              {['overview', 'content', 'multimedia', 'checklist', 'resources'].map(tab => (
+                <button
+                  key={tab}
+                  className={`pb-2 px-1 font-medium whitespace-nowrap ${activeTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="min-h-[400px]">
+            {/* Overview Tab */}
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="text-gray-600 text-sm">Type</div>
+                    <div className="font-medium mt-1">
+                      {module.module_type === 'core' ? 'Core Module' : 'Department Module'}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="text-gray-600 text-sm">Duration</div>
+                    <div className="font-medium mt-1">{module.duration_minutes || 0} minutes</div>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="text-gray-600 text-sm">Due Date</div>
+                    <div className="font-medium mt-1">{safeProgress.due_date ? formatDate(safeProgress.due_date) : 'Not set'}</div>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="text-gray-600 text-sm">Time Spent</div>
+                    <div className="font-medium mt-1">{formatTime(safeProgress.time_spent_minutes || 0)}</div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Description</h4>
+                  <div className="prose prose-sm max-w-none">
+                    {module.description ? (
+                      module.description.split('\n').map((paragraph, idx) => (
+                        <p key={idx} className="text-gray-700 mb-2">{paragraph}</p>
+                      ))
+                    ) : (
+                      <p className="text-gray-600">No description available</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Content Tab */}
+            {activeTab === 'content' && (
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900 mb-3">Module Content</h4>
+                {getContentArray().length > 0 ? (
+                  <div className="space-y-3">
+                    {getContentArray().map((item, index) => (
+                      <div key={index} className="flex items-start p-4 border rounded-lg hover:bg-gray-50">
+                        <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                          <span className="text-blue-600 font-medium">{index + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-gray-900">{item}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-4">📝</div>
+                    <p className="text-gray-600">No detailed content available</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Multimedia Tab */}
+            {activeTab === 'multimedia' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h4 className="font-medium text-gray-900">Multimedia Files</h4>
+                  <div className="text-sm text-gray-600">
+                    {getMultimediaArray().length} files available
+                  </div>
+                </div>
+                {getMultimediaArray().length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {getMultimediaArray().map((file, index) => renderFileCard(file, index))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-4">📁</div>
+                    <p className="text-gray-600">No multimedia files available for this module</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Checklist Tab */}
+            {activeTab === 'checklist' && (
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900 mb-3">Checklist Items</h4>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-gray-600 mt-2">Loading checklist...</p>
+                  </div>
+                ) : getChecklistArray().length > 0 ? (
+                  <div className="space-y-3">
+                    {getChecklistArray().map((item, index) => {
+                      const isCompleted = checklistProgress.some(p => p.checklist_item === item.id && p.is_completed);
+                      return (
+                        <div key={item.id || index} className="p-4 border rounded-lg hover:bg-gray-50">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start space-x-3 flex-1">
+                              <button
+                                onClick={() => {
+                                  // Handle checklist toggle
+                                  const newProgress = !isCompleted;
+                                  // Update local state
+                                  setChecklistProgress(prev => {
+                                    const existing = prev.find(p => p.checklist_item === item.id);
+                                    if (existing) {
+                                      return prev.map(p => 
+                                        p.checklist_item === item.id 
+                                          ? { ...p, is_completed: newProgress }
+                                          : p
+                                      );
+                                    } else {
+                                      return [...prev, {
+                                        checklist_item: item.id,
+                                        is_completed: newProgress,
+                                        completed_at: newProgress ? new Date().toISOString() : null
+                                      }];
+                                    }
+                                  });
+                                  
+                                  // Update overall progress
+                                  const totalItems = getChecklistArray().length;
+                                  const completedItems = checklistProgress.filter(p => p.is_completed).length + (newProgress ? 1 : -1);
+                                  const newPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+                                  
+                                  if (onUpdateProgress) {
+                                    onUpdateProgress(newPercentage);
+                                  }
+                                }}
+                                className={`mt-1 w-5 h-5 rounded-full flex items-center justify-center ${isCompleted ? 'bg-green-500' : 'border-2 border-gray-300'}`}
+                              >
+                                {isCompleted && (
+                                  <span className="text-white text-xs">✓</span>
+                                )}
+                              </button>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <h5 className={`font-medium ${isCompleted ? 'text-green-700 line-through' : 'text-gray-900'}`}>
+                                    {item.title || `Checklist Item ${index + 1}`}
+                                  </h5>
+                                  <span className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">
+                                    {item.estimated_minutes || 0} min
+                                  </span>
+                                </div>
+                                {item.description && (
+                                  <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-4">✓</div>
+                    <p className="text-gray-600">No checklist items for this module</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Resources Tab */}
+            {activeTab === 'resources' && (
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900 mb-3">Additional Resources</h4>
+                {getResourcesArray().length > 0 ? (
+                  <div className="space-y-3">
+                    {getResourcesArray().map((resource, index) => (
+                      <a
+                        key={index}
+                        href={resource.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors group"
+                      >
+                        <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4 group-hover:bg-blue-200">
+                          <span className="text-blue-600">🔗</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{resource.title || `Resource ${index + 1}`}</p>
+                          <p className="text-sm text-gray-600 truncate">
+                            {resource.type || 'Link'} • {resource.description || 'Additional resource'}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0 ml-4">
+                          <span className="text-blue-600 group-hover:text-blue-700">→</span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-4">📚</div>
+                    <p className="text-gray-600">No additional resources available</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-between items-center pt-6 border-t">
+            <div>
+              {safeProgress.status === 'in_progress' && (
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <Clock />
+                  <span>Time spent: {formatTime(safeProgress.time_spent_minutes || 0)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex space-x-3">
+              <Button
+                variant="outline"
+                onClick={onClose}
+              >
+                Close
+              </Button>
+
+              {safeProgress.status === 'not_started' && (
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    if (onStart) onStart();
+                    onClose();
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <PlayIcon />
+                  <span className="ml-2">Start Module</span>
+                </Button>
+              )}
+
+              {safeProgress.status === 'in_progress' && (
+                <Button
+                  variant="success"
+                  onClick={() => {
+                    if (onComplete) onComplete();
+                    onClose();
+                  }}
+                >
+                  <CheckCircle />
+                  <span className="ml-2">Mark as Complete</span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Image Preview Modal */}
+      <ImagePreviewModal />
+    </>
+  );
+};
+
+// Main Dashboard Component
 export default function MenteeOnboardingDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
@@ -193,9 +861,9 @@ export default function MenteeOnboardingDashboard() {
   const [isStartingModule, setIsStartingModule] = useState(false);
   const [isCompletingModule, setIsCompletingModule] = useState(false);
   const [progressPercentage, setProgressPercentage] = useState({});
-  const [checklistProgress, setChecklistProgress] = useState({});
   const [activeTimer, setActiveTimer] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [selectedModuleProgress, setSelectedModuleProgress] = useState(null);
 
   const getAuthToken = () => {
     const token = localStorage.getItem('access_token');
@@ -221,10 +889,6 @@ export default function MenteeOnboardingDashboard() {
       if (modulesResponse.ok) {
         const modulesData = await modulesResponse.json();
         setProgress(modulesData);
-        
-        // Extract modules from progress
-        const assignedModules = modulesData.map(item => item.module);
-        setModules(assignedModules);
       }
 
       // Fetch mentee summary
@@ -259,7 +923,6 @@ export default function MenteeOnboardingDashboard() {
 
     } catch (error) {
       console.error('Error fetching mentee data:', error);
-      alert("Failed to load onboarding data");
     } finally {
       setLoading(false);
     }
@@ -278,15 +941,25 @@ export default function MenteeOnboardingDashboard() {
       if (response.ok) {
         const moduleData = await response.json();
         setSelectedModule(moduleData);
-        
-        // Fetch checklist progress for this module
+
+        // Find and store the progress for this module
         const progressRecord = progress.find(p => p.module === moduleId);
-        if (progressRecord) {
-          setChecklistProgress(progressRecord.checklist_progress || []);
-        }
+        setSelectedModuleProgress(progressRecord);
       }
     } catch (error) {
       console.error('Error fetching module details:', error);
+    }
+  };
+
+  // Open module details modal
+  const openModuleModal = async (moduleId) => {
+    if (!moduleId) return;
+    
+    try {
+      await fetchModuleDetails(moduleId);
+      setIsModuleModalOpen(true);
+    } catch (error) {
+      console.error('Error opening module modal:', error);
     }
   };
 
@@ -312,9 +985,8 @@ export default function MenteeOnboardingDashboard() {
       });
 
       if (response.ok) {
-        alert("Module started successfully!");
         await fetchMenteeData();
-        
+
         // Start timer for this module
         setActiveTimer({
           moduleId,
@@ -344,7 +1016,7 @@ export default function MenteeOnboardingDashboard() {
       // Calculate time spent if timer is active
       let timeSpent = 0;
       if (activeTimer && activeTimer.moduleId === moduleId) {
-        timeSpent = Math.floor((Date.now() - activeTimer.startTime) / 60000); // Convert to minutes
+        timeSpent = Math.floor((Date.now() - activeTimer.startTime) / 60000);
       }
 
       const response = await fetch(`${BASE_URL}/onboarding/progress/${progressRecord.id}/update-percentage/`, {
@@ -364,13 +1036,13 @@ export default function MenteeOnboardingDashboard() {
           ...prev,
           [moduleId]: percentage
         }));
-        
+
         // Reset timer
         if (activeTimer && activeTimer.moduleId === moduleId) {
           setActiveTimer(null);
           setElapsedTime(0);
         }
-        
+
         await fetchMenteeData();
       }
     } catch (error) {
@@ -397,7 +1069,6 @@ export default function MenteeOnboardingDashboard() {
       });
 
       if (response.ok) {
-        alert("Module completed successfully! 🎉");
         await fetchMenteeData();
       } else {
         const errorData = await response.json();
@@ -408,49 +1079,6 @@ export default function MenteeOnboardingDashboard() {
       alert("Failed to complete module");
     } finally {
       setIsCompletingModule(false);
-    }
-  };
-
-  // Update checklist item
-  const updateChecklistItem = async (checklistItemId, isCompleted) => {
-    try {
-      const token = getAuthToken();
-      if (!token) return;
-
-      const progressRecord = progress.find(p => p.module === selectedModule?.id);
-      if (!progressRecord) return;
-
-      const response = await fetch(`${BASE_URL}/onboarding/progress/${progressRecord.id}/update-checklist/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          checklist_item_id: checklistItemId,
-          is_completed: isCompleted
-        })
-      });
-
-      if (response.ok) {
-        // Update local state
-        setChecklistProgress(prev =>
-          prev.map(item =>
-            item.id === checklistItemId
-              ? { ...item, is_completed: isCompleted, completed_at: isCompleted ? new Date().toISOString() : null }
-              : item
-          )
-        );
-        
-        // Recalculate overall progress
-        const totalItems = selectedModule?.checklist_items?.length || 0;
-        const completedItems = checklistProgress.filter(item => item.is_completed).length + (isCompleted ? 1 : -1);
-        const newPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
-        
-        await updateProgress(selectedModule.id, newPercentage);
-      }
-    } catch (error) {
-      console.error('Error updating checklist:', error);
     }
   };
 
@@ -467,7 +1095,6 @@ export default function MenteeOnboardingDashboard() {
         }
       });
 
-      // Update local state
       setNotifications(prev =>
         prev.map(notification =>
           notification.id === notificationId
@@ -478,12 +1105,6 @@ export default function MenteeOnboardingDashboard() {
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
-  };
-
-  // Open module details modal
-  const openModuleModal = (moduleId) => {
-    fetchModuleDetails(moduleId);
-    setIsModuleModalOpen(true);
   };
 
   // Filter and sort modules
@@ -550,7 +1171,7 @@ export default function MenteeOnboardingDashboard() {
     if (activeTimer) {
       interval = setInterval(() => {
         setElapsedTime(prev => prev + 1);
-      }, 60000); // Update every minute
+      }, 60000);
     }
 
     return () => {
@@ -564,7 +1185,7 @@ export default function MenteeOnboardingDashboard() {
   }, []);
 
   // Format date
-  const formatDate = (dateString) => {
+  const formatDateDisplay = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -572,15 +1193,6 @@ export default function MenteeOnboardingDashboard() {
       month: 'short',
       day: 'numeric'
     });
-  };
-
-  // Format time
-  const formatTime = (minutes) => {
-    if (!minutes) return '0m';
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
   };
 
   // Get status badge variant
@@ -741,7 +1353,7 @@ export default function MenteeOnboardingDashboard() {
             onClick={() => setActiveTab('overview')}
           >
             <BookOpen />
-            <span className="ml-2">Modules ({modules.length})</span>
+            <span className="ml-2">Modules ({progress.length})</span>
           </button>
           <button
             className={`pb-2 px-1 flex items-center whitespace-nowrap ${activeTab === 'deadlines' ? 'border-b-2 border-blue-600 text-blue-600 font-medium' : 'text-gray-600 hover:text-gray-900'}`}
@@ -879,7 +1491,7 @@ export default function MenteeOnboardingDashboard() {
                   </TableHeader>
                   <TableBody>
                     {filteredModules.map((item) => (
-                      <TableRow 
+                      <TableRow
                         key={item.id}
                         className="cursor-pointer hover:bg-blue-50"
                         onClick={() => openModuleModal(item.module)}
@@ -915,11 +1527,11 @@ export default function MenteeOnboardingDashboard() {
                         </TableCell>
                         <TableCell>
                           <div className={`px-2 py-1 rounded text-center text-sm font-medium ${getPriorityColor(item.days_remaining || 0)}`}>
-                            {item.due_date ? formatDate(item.due_date) : 'N/A'}
+                            {item.due_date ? formatDateDisplay(item.due_date) : 'N/A'}
                             {item.days_remaining !== undefined && (
                               <div className="text-xs mt-1">
-                                {item.days_remaining < 0 
-                                  ? `${Math.abs(item.days_remaining)} days overdue` 
+                                {item.days_remaining < 0
+                                  ? `${Math.abs(item.days_remaining)} days overdue`
                                   : `${item.days_remaining} days left`}
                               </div>
                             )}
@@ -928,43 +1540,49 @@ export default function MenteeOnboardingDashboard() {
                         <TableCell>
                           {formatTime(item.time_spent_minutes || 0)}
                         </TableCell>
+
                         <TableCell>
                           <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openModuleModal(item.module);
+                              }}
+                            >
+                              <Eye />
+                              <span className="ml-2">View Details</span>
+                            </Button>
+
                             {item.status === 'not_started' && (
                               <Button
                                 variant="default"
                                 size="sm"
-                                onClick={() => startModule(item.module)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startModule(item.module);
+                                }}
                                 disabled={isStartingModule}
                               >
                                 <PlayIcon />
                                 <span className="ml-2">Start</span>
                               </Button>
                             )}
+
                             {item.status === 'in_progress' && (
-                              <div className="flex space-x-2">
-                                <Button
-                                  variant="success"
-                                  size="sm"
-                                  onClick={() => completeModule(item.module)}
-                                  disabled={isCompletingModule}
-                                >
-                                  <CheckCircle />
-                                  <span className="ml-2">Complete</span>
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => updateProgress(item.module, Math.min(item.progress_percentage + 25, 100))}
-                                >
-                                  +25%
-                                </Button>
-                              </div>
-                            )}
-                            {item.status === 'completed' && (
-                              <Badge variant="success" className="px-3 py-1">
-                                COMPLETED
-                              </Badge>
+                              <Button
+                                variant="success"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  completeModule(item.module);
+                                }}
+                                disabled={isCompletingModule}
+                              >
+                                <CheckCircle />
+                                <span className="ml-2">Complete</span>
+                              </Button>
                             )}
                           </div>
                         </TableCell>
@@ -1005,7 +1623,7 @@ export default function MenteeOnboardingDashboard() {
                       <div>
                         <h4 className="font-medium text-gray-900">{deadline.module_title}</h4>
                         <p className="text-sm text-gray-600 mt-1">
-                          Due: {formatDate(deadline.due_date)}
+                          Due: {formatDateDisplay(deadline.due_date)}
                         </p>
                         <div className="flex items-center space-x-4 mt-2">
                           <span className="text-sm text-gray-600">
@@ -1018,7 +1636,7 @@ export default function MenteeOnboardingDashboard() {
                       </div>
                       <div className="text-right">
                         <div className={`text-lg font-semibold ${deadline.days_remaining < 0 ? 'text-red-600' : deadline.days_remaining <= 3 ? 'text-yellow-600' : 'text-green-600'}`}>
-                          {deadline.days_remaining < 0 
+                          {deadline.days_remaining < 0
                             ? `${Math.abs(deadline.days_remaining)} days overdue`
                             : `${deadline.days_remaining} days left`}
                         </div>
@@ -1074,13 +1692,13 @@ export default function MenteeOnboardingDashboard() {
                       onClick={async () => {
                         const token = getAuthToken();
                         if (!token) return;
-                        
+
                         await fetch(`${BASE_URL}/onboarding/notifications/mark-all-read/`, {
                           method: 'POST',
                           headers: { 'Authorization': `Bearer ${token}` }
                         });
-                        
-                        setNotifications(prev => 
+
+                        setNotifications(prev =>
                           prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
                         );
                       }}
@@ -1104,7 +1722,7 @@ export default function MenteeOnboardingDashboard() {
                         </div>
                         <p className="text-gray-600 mt-1">{notification.message}</p>
                         <p className="text-xs text-gray-500 mt-2">
-                          {formatDate(notification.sent_at)} • {notification.type}
+                          {formatDateDisplay(notification.sent_at)} • {notification.type}
                         </p>
                       </div>
                       {!notification.is_read && (
@@ -1117,21 +1735,6 @@ export default function MenteeOnboardingDashboard() {
                         </Button>
                       )}
                     </div>
-                    {notification.module_id && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-3"
-                        onClick={() => {
-                          openModuleModal(notification.module_id);
-                          if (!notification.is_read) {
-                            markNotificationAsRead(notification.id);
-                          }
-                        }}
-                      >
-                        Go to Module
-                      </Button>
-                    )}
                   </div>
                 ))}
               </div>
@@ -1141,170 +1744,32 @@ export default function MenteeOnboardingDashboard() {
       )}
 
       {/* Module Details Modal */}
-      <Modal
+      <EnhancedModuleModal
         isOpen={isModuleModalOpen}
         onClose={() => setIsModuleModalOpen(false)}
-        title={selectedModule?.title}
-        size="lg"
-      >
-        {selectedModule && (
-          <div className="space-y-6">
-            {/* Module Info */}
-            <div className="bg-gray-50 p-4 rounded-md">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Type</p>
-                  <p className="font-medium">
-                    {selectedModule.module_type === 'core' ? 'Core Module' : 'Department Module'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Estimated Duration</p>
-                  <p className="font-medium">{selectedModule.duration_minutes} minutes</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Status</p>
-                  <p className="font-medium">
-                    <Badge variant={getStatusVariant(
-                      progress.find(p => p.module === selectedModule.id)?.status || 'not_started'
-                    )}>
-                      {progress.find(p => p.module === selectedModule.id)?.status?.replace('_', ' ').toUpperCase() || 'NOT STARTED'}
-                    </Badge>
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Progress</p>
-                  <p className="font-medium">
-                    {progress.find(p => p.module === selectedModule.id)?.progress_percentage || 0}%
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">Description</h4>
-              <p className="text-gray-600">{selectedModule.description}</p>
-            </div>
-
-            {/* Content Sections */}
-            {selectedModule.content && selectedModule.content.length > 0 && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">Content</h4>
-                <ul className="space-y-2">
-                  {selectedModule.content.map((item, index) => (
-                    <li key={index} className="flex items-start">
-                      <span className="text-blue-600 mr-2">•</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Resources */}
-            {selectedModule.resources && selectedModule.resources.length > 0 && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">Resources</h4>
-                <div className="space-y-2">
-                  {selectedModule.resources.map((resource, index) => (
-                    <a
-                      key={index}
-                      href={resource.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center p-3 border rounded-md hover:bg-gray-50 transition-colors"
-                    >
-                      <span className="text-blue-600 mr-2">🔗</span>
-                      <div>
-                        <p className="font-medium text-gray-900">{resource.title}</p>
-                        <p className="text-sm text-gray-600">{resource.type}</p>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Checklist */}
-            {selectedModule.checklist_items && selectedModule.checklist_items.length > 0 && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">Checklist</h4>
-                <div className="space-y-3">
-                  {selectedModule.checklist_items.map((item) => {
-                    const checklistItem = checklistProgress.find(c => c.checklist_item === item.id);
-                    return (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between p-3 border rounded-md"
-                      >
-                        <div className="flex items-start space-x-3">
-                          <input
-                            type="checkbox"
-                            checked={checklistItem?.is_completed || false}
-                            onChange={(e) => updateChecklistItem(item.id, e.target.checked)}
-                            className="mt-1 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <div>
-                            <p className="font-medium text-gray-900">{item.title}</p>
-                            {item.description && (
-                              <p className="text-sm text-gray-600">{item.description}</p>
-                            )}
-                            <p className="text-xs text-gray-500 mt-1">
-                              Estimated: {item.estimated_minutes} minutes
-                            </p>
-                          </div>
-                        </div>
-                        {checklistItem?.completed_at && (
-                          <span className="text-xs text-gray-500">
-                            Completed: {formatDate(checklistItem.completed_at)}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex justify-end space-x-3 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => setIsModuleModalOpen(false)}
-              >
-                Close
-              </Button>
-              {progress.find(p => p.module === selectedModule.id)?.status === 'not_started' && (
-                <Button
-                  variant="default"
-                  onClick={() => {
-                    startModule(selectedModule.id);
-                    setIsModuleModalOpen(false);
-                  }}
-                  disabled={isStartingModule}
-                >
-                  <PlayIcon />
-                  <span className="ml-2">Start Module</span>
-                </Button>
-              )}
-              {progress.find(p => p.module === selectedModule.id)?.status === 'in_progress' && (
-                <Button
-                  variant="success"
-                  onClick={() => {
-                    completeModule(selectedModule.id);
-                    setIsModuleModalOpen(false);
-                  }}
-                  disabled={isCompletingModule}
-                >
-                  <CheckCircle />
-                  <span className="ml-2">Mark as Complete</span>
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
+        module={selectedModule}
+        progress={selectedModuleProgress || {
+          status: 'not_started',
+          progress_percentage: 0,
+          time_spent_minutes: 0,
+          due_date: null
+        }}
+        onStart={() => {
+          if (selectedModule?.id) {
+            startModule(selectedModule.id);
+          }
+        }}
+        onComplete={() => {
+          if (selectedModule?.id) {
+            completeModule(selectedModule.id);
+          }
+        }}
+        onUpdateProgress={(percentage) => {
+          if (selectedModule?.id) {
+            updateProgress(selectedModule.id, percentage);
+          }
+        }}
+      />
 
       {/* Quick Tips */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -1317,7 +1782,9 @@ export default function MenteeOnboardingDashboard() {
             <div className="mt-2 text-sm text-blue-700">
               <ul className="list-disc list-inside space-y-1">
                 <li>Click on any module to view detailed information</li>
-                <li>Start modules early to avoid deadline pressure</li>
+                <li>PDF files open in browser, other files download with proper names</li>
+                <li>Images can be previewed in full-screen mode</li>
+                <li>Videos and audio can be played directly in the module</li>
                 <li>Complete checklist items to track your progress</li>
                 <li>Check notifications regularly for updates</li>
                 <li>Contact your mentor if you need help</li>

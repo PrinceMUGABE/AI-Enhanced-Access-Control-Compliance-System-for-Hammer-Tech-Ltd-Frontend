@@ -86,16 +86,11 @@ export default function LoginPage() {
         console.warn("No token in response data");
       }
 
-      // Store user data
-      console.log("=== STORING USER DATA ===");
-      console.log("User data to store:", JSON.stringify(data, null, 2));
-      localStorage.setItem("user", JSON.stringify(data));
-      console.log("User data stored successfully");
-
-      // Update AuthContext with user data - AuthContext will handle navigation
+      // Map and store user data
       const mappedUser = {
         id: data.id?.toString() || '',
         full_name: data.full_name || '',
+        name: data.full_name || '', // For compatibility
         email: data.email || '',
         work_mail_address: data.work_mail_address || '',
         role: data.role || 'mentee',
@@ -108,9 +103,14 @@ export default function LoginPage() {
       console.log(JSON.stringify(mappedUser, null, 2));
       console.log("User role:", mappedUser.role);
 
-      // Set user in context - navigation will happen automatically via AuthContext
+      // Store user data in localStorage
+      localStorage.setItem("user", JSON.stringify(mappedUser));
+      console.log("User data stored in localStorage");
+
+      // Set user in context - setUser will handle navigation to appropriate dashboard
+      console.log("Setting user in AuthContext...");
       setUser(mappedUser);
-      console.log("User set in AuthContext - navigation will happen automatically");
+      console.log("User set in AuthContext - navigation will be handled by setUser");
 
     } catch (err) {
       console.error("=== LOGIN ERROR (CATCH BLOCK) ===");

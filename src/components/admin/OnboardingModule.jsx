@@ -217,6 +217,153 @@ const Zap = () => <span>⚡</span>;
 const Award = () => <span>🏆</span>;
 const ArrowRight = () => <span>→</span>;
 
+
+const MultimediaUploader = ({ moduleId, onUploadComplete }) => {
+  const [files, setFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState({});
+
+  const handleFileSelect = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    const newFiles = selectedFiles.map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      file,
+      type: getFileTypeFromExtension(file.name),
+      title: file.name.replace(/\.[^/.]+$/, ""),
+      description: '',
+      progress: 0,
+      status: 'pending'
+    }));
+    
+    setFiles(prev => [...prev, ...newFiles]);
+  };
+
+  const getFileTypeFromExtension = (filename) => {
+    const extension = filename.split('.').pop().toLowerCase();
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+    const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi'];
+    const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a'];
+    
+    if (imageExtensions.includes(extension)) return 'image';
+    if (videoExtensions.includes(extension)) return 'video';
+    if (audioExtensions.includes(extension)) return 'audio';
+    return 'document';
+  };
+
+  const uploadFiles = async () => {
+    setUploading(true);
+    
+    for (const fileData of files) {
+      if (fileData.status === 'completed') continue;
+      
+      const formData = new FormData();
+      formData.append('file', fileData.file);
+      formData.append('module_id', moduleId);
+      formData.append('type', fileData.type);
+      formData.append('title', fileData.title);
+      formData.append('description', fileData.description);
+      
+      try {
+        const response = await fetch(`${BASE_URL}/onboarding/modules/${moduleId}/upload-file/`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`
+          },
+          body: formData
+        });
+        
+        if (response.ok) {
+          setFiles(prev => prev.map(f => 
+            f.id === fileData.id 
+              ? { ...f, status: 'completed', progress: 100 }
+              : f
+          ));
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        setFiles(prev => prev.map(f => 
+          f.id === fileData.id 
+            ? { ...f, status: 'error' }
+            : f
+        ));
+      }
+    }
+    
+    setUploading(false);
+    onUploadComplete();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+        <input
+          type="file"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+          id="file-upload"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+        />
+        <label htmlFor="file-upload" className="cursor-pointer">
+          <div className="text-gray-400 mb-2 text-4xl">📁</div>
+          <p className="text-gray-600">Click to upload multimedia files</p>
+          <p className="text-sm text-gray-500 mt-1">Supports images, videos, audio, and documents</p>
+        </label>
+      </div>
+
+      {files.length > 0 && (
+        <div className="space-y-2">
+          {files.map(fileData => (
+            <div key={fileData.id} className="border rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-10 h-10 rounded flex items-center justify-center ${
+                    fileData.type === 'image' ? 'bg-blue-100' :
+                    fileData.type === 'video' ? 'bg-purple-100' :
+                    fileData.type === 'audio' ? 'bg-green-100' :
+                    'bg-gray-100'
+                  }`}>
+                    {fileData.type === 'image' && '🖼️'}
+                    {fileData.type === 'video' && '🎬'}
+                    {fileData.type === 'audio' && '🎵'}
+                    {fileData.type === 'document' && '📄'}
+                  </div>
+                  <div>
+                    <p className="font-medium truncate">{fileData.title}</p>
+                    <p className="text-xs text-gray-500">
+                      {fileData.type} • {(fileData.file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  {fileData.status === 'completed' && (
+                    <Badge variant="success">Uploaded</Badge>
+                  )}
+                  {fileData.status === 'uploading' && (
+                    <span className="text-sm text-gray-600">{fileData.progress}%</span>
+                  )}
+                  {fileData.status === 'error' && (
+                    <Badge variant="destructive">Error</Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          <Button
+            onClick={uploadFiles}
+            disabled={uploading}
+            className="w-full"
+          >
+            {uploading ? 'Uploading...' : 'Upload All Files'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 export default function OnboardingModule() {
   const navigate = useNavigate();
   const [userRole, setUserRole] = useState('');

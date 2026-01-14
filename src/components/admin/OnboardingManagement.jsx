@@ -316,17 +316,14 @@ export default function OnboardingManagement() {
                       <TableHead>Duration</TableHead>
                       <TableHead>Assigned To</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredModules.map((module) => (
                       <TableRow key={module.id}>
                         <TableCell>
-                          <div>
-                            <p className="font-medium">{module.title}</p>
-                            <p className="text-sm text-gray-600">{module.description}</p>
-                          </div>
+                          <p className="font-medium">{module.title}</p>
                         </TableCell>
                         <TableCell>
                           <Badge variant={module.module_type === 'core' ? 'default' : 'secondary'}>
@@ -340,20 +337,7 @@ export default function OnboardingManagement() {
                             {module.is_active ? 'Active' : 'Inactive'}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
-                              <Edit />
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => deleteModule(module.id)}
-                            >
-                              <Trash2 />
-                            </Button>
-                          </div>
-                        </TableCell>
+                       
                       </TableRow>
                     ))}
                   </TableBody>

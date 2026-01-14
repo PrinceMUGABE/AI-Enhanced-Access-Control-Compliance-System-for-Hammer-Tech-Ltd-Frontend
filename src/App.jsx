@@ -9,6 +9,7 @@ import LandingPage from './components/LandingPage';
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
 import ResetPasswordPage from './components/auth/ResetPassword';
+import ProtectedRoute from './components/common/ProtectedRoute';
 
 // Layouts
 import AdminLayout from './components/admin/AdminLayout';
@@ -23,7 +24,7 @@ import AdminOnboardingManagement from './components/admin/OnboardingManagement';
 import AdminProfile from './components/admin/UserProfile';
 import AdminMentorshipManagement from './components/admin/MentorshipManagement';
 import MentorshipDetailPage from './components/admin/MentorshipDetailPage';
-import OnboardingProgramManagement from './components/admin/ProgramManagement';
+import OnboardingProgramManagement from './components/admin/OnboardingProgramManagement';
 import DepartmentsManagement from './components/admin/ManageDepartments';
 import AdminChatManagement from './components/admin/CommunicationCenter';
 import AdminAssistanceDashboard from './components/admin/AIChatbot';
@@ -43,8 +44,10 @@ import UserAssistancePage from './components/mentee/AIChatbot';
 import UserProfile from './components/mentee/UserProfile';
 
 // Mentor Pages
-import MentorDashboard from './components/mentor/MentorDashboard';
-import MentorMentorshipDashboard from './components/mentor/ManageMentorships';
+import MentorManageMentorships from './components/mentor/ManageMentorships';
+import MentorChatManagement from './components/mentor/My_Communications';
+import MentorAssistancePage from './components/mentor/AIChatbot';
+import MentorProfile from './components/mentor/UserProfile';
 
 // Context Providers
 import { AuthProvider } from './context/AuthContext';
@@ -52,7 +55,6 @@ import { AuthProvider } from './context/AuthContext';
 // Custom Toaster Component
 const Toaster = () => {
   const [toasts, setToasts] = useState([]);
-
 
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2">
@@ -82,18 +84,6 @@ const Toaster = () => {
       ))}
     </div>
   );
-};
-
-// Simple Toaster Hook (optional - can be used by components)
-export const useToast = () => {
-  // This would need to be connected to a global state
-  // For simplicity, we'll just return placeholder functions
-  return {
-    success: (message) => console.log('Success:', message),
-    error: (message) => console.error('Error:', message),
-    warning: (message) => console.warn('Warning:', message),
-    info: (message) => console.log('Info:', message),
-  };
 };
 
 function App() {
@@ -127,11 +117,34 @@ function App() {
             <Route path="/help" element={<LandingPage />} />
 
             {/* ==================== ADMIN ROUTES ==================== */}
-            <Route path="/admin" element={<AdminLayout />}>
+            <Route path="/admin" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminLayout />
+              </ProtectedRoute>
+            }>
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="onboarding-management" element={<AdminOnboardingManagement />} />
               <Route path="mentorship" element={<AdminMentorshipManagement />} />
+              <Route path="profile" element={<AdminProfile />} />
+              <Route path="mentorships/:id" element={<MentorshipDetailPage />} />
+              <Route path="onboarding-programs" element={<OnboardingProgramManagement />} />
+              <Route path="departments" element={<DepartmentsManagement />} />
+              <Route path="communication-center" element={<AdminChatManagement />} />
+              <Route path="chatbot" element={<AdminAssistanceDashboard />} />
+            </Route>
+
+            {/* ==================== HR ROUTES ==================== */}
+            <Route path="/hr" element={
+              <ProtectedRoute allowedRoles={['hr']}>
+                <HRLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<HRDashboard />} />
+              <Route path="users" element={<HRUsers />} />
+              <Route path='onboarding-management' element={<HROnboardingModule />} />
+              <Route path='mentorship' element={<HRMentorshipManagement />} />
+
               <Route path="profile" element={<AdminProfile />} />
               <Route path="mentorships/:id" element={<MentorshipDetailPage />} />
               <Route path="programs" element={<OnboardingProgramManagement />} />
@@ -140,22 +153,26 @@ function App() {
               <Route path="chatbot" element={<AdminAssistanceDashboard />} />
             </Route>
 
-            {/* ==================== HR ROUTES ==================== */}
-            <Route path="/hr" element={<HRLayout />}>
-              <Route index element={<HRDashboard />} />
-              <Route path="users" element={<HRUsers />} />
-              <Route path='onboarding-management' element={<HROnboardingModule />} />
-              <Route path='mentorship' element={<HRMentorshipManagement />} />
-            </Route>
-
             {/* ==================== MENTOR ROUTES ==================== */}
-            <Route path="/mentor" element={<MentorLayout />}>
-              <Route index element={<MentorMentorshipDashboard />} />
+            <Route path="/mentor" element={
+              <ProtectedRoute allowedRoles={['mentor']}>
+                <MentorLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<MentorManageMentorships />} />
+              <Route path="mentorship" element={<MentorManageMentorships />} />
+              <Route path="communication" element={<MentorChatManagement/>} />
+              <Route path="chatbot" element={<MentorAssistancePage />} />
+              <Route path="profile" element={<MentorProfile />} />
             </Route>
 
             {/* ==================== MENTEE ROUTES ==================== */}
-            <Route path="/mentee" element={<MenteeLayout />}>
-              <Route index element={<MenteeDashboard />} />
+            <Route path="/mentee" element={
+              <ProtectedRoute allowedRoles={['mentee']}>
+                <MenteeLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<MenteeMentorshipDashboard />} />
               <Route path="dashboard" element={<MenteeDashboard />} />
               <Route path="onboarding-management" element={<MenteeOnboardingDashboard />} />
               <Route path="mentorship" element={<MenteeMentorshipDashboard />} />
