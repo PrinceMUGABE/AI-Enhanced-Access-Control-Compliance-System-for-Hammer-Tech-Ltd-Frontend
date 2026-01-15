@@ -28,6 +28,7 @@ import OnboardingProgramManagement from './components/admin/OnboardingProgramMan
 import DepartmentsManagement from './components/admin/ManageDepartments';
 import AdminChatManagement from './components/admin/CommunicationCenter';
 import AdminAssistanceDashboard from './components/admin/AIChatbot';
+import AdminReports from './components/admin/ReportPage';
 
 // HR Pages
 import HRDashboard from './components/hr/HRDashboard';
@@ -48,6 +49,7 @@ import MentorManageMentorships from './components/mentor/ManageMentorships';
 import MentorChatManagement from './components/mentor/My_Communications';
 import MentorAssistancePage from './components/mentor/AIChatbot';
 import MentorProfile from './components/mentor/UserProfile';
+import MentorDashboard from './components/mentor/MentorDashboard';
 
 // Context Providers
 import { AuthProvider } from './context/AuthContext';
@@ -132,6 +134,8 @@ function App() {
               <Route path="departments" element={<DepartmentsManagement />} />
               <Route path="communication-center" element={<AdminChatManagement />} />
               <Route path="chatbot" element={<AdminAssistanceDashboard />} />
+              <Route path="reports" element={<AdminReports />} />
+   
             </Route>
 
             {/* ==================== HR ROUTES ==================== */}
@@ -159,7 +163,7 @@ function App() {
                 <MentorLayout />
               </ProtectedRoute>
             }>
-              <Route index element={<MentorManageMentorships />} />
+              <Route index element={<MentorDashboard />} />
               <Route path="mentorship" element={<MentorManageMentorships />} />
               <Route path="communication" element={<MentorChatManagement/>} />
               <Route path="chatbot" element={<MentorAssistancePage />} />
@@ -172,7 +176,7 @@ function App() {
                 <MenteeLayout />
               </ProtectedRoute>
             }>
-              <Route index element={<MenteeMentorshipDashboard />} />
+              <Route index element={<MenteeDashboard />} />
               <Route path="dashboard" element={<MenteeDashboard />} />
               <Route path="onboarding-management" element={<MenteeOnboardingDashboard />} />
               <Route path="mentorship" element={<MenteeMentorshipDashboard />} />

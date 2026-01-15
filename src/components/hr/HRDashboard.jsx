@@ -1,388 +1,864 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Camera, Mail, Phone, MapPin, Briefcase, Award, Save, Edit } from 'lucide-react';
+import { 
+  Users, UserCheck, UserPlus, TrendingUp, Building, 
+  BookOpen, Clock, Target, Award, AlertTriangle,
+  RefreshCw, Loader2, CheckCircle, XCircle,
+  Activity, BarChart2, PieChart, Calendar,
+  FileText, Settings, Database, MessageCircle,
+  ChevronRight, ChevronDown, User
+} from 'lucide-react';
 
-export default function HRDashboard() {
-  const { user } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    name: user?.full_name || user?.name || '',
-    email: user?.email || '',
-    work_mail_address: user?.work_mail_address || '',
-    phone: user?.phone_number || '+1 (555) 123-4567',
-    location: 'San Francisco, CA',
-    department: user?.department || '',
-    role: user?.role || 'mentee',
-    bio: 'Passionate software engineer with 5 years of experience in full-stack development. Currently focusing on React and Node.js.',
-    skills: ['React', 'TypeScript', 'Node.js', 'Python', 'AWS'],
-    interests: ['Machine Learning', 'Leadership', 'Product Management']
-  });
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart as RePieChart, Pie, Cell,
+  LineChart, Line,
+  AreaChart, Area
+} from 'recharts';
 
-  const handleSave = () => {
-    // In production, this would call an API
-    setIsEditing(false);
-    // Here you would update the user data in the backend
-    console.log('Saving profile data:', formData);
+// API Service
+const apiService = {
+  async fetchHRDashboard() {
+    const response = await fetch('http://127.0.0.1:8000/report/hr/dashboard/', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch HR dashboard data');
+    }
+    
+    return await response.json();
+  },
+
+  async fetchOnboardingReport() {
+    const response = await fetch('http://127.0.0.1:8000/report/hr/onboarding/', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch onboarding report');
+    }
+    
+    return await response.json();
+  }
+};
+
+// Custom Components
+const SummaryCard = ({ title, value, icon: Icon, change, description, color = 'blue' }) => {
+  const colors = {
+    blue: 'bg-blue-500',
+    green: 'bg-green-500',
+    purple: 'bg-purple-500',
+    orange: 'bg-orange-500',
+    red: 'bg-red-500',
+    indigo: 'bg-indigo-500',
+    teal: 'bg-teal-500'
   };
 
-  const achievements = [
-    { title: 'First Session Complete', description: 'Completed your first mentorship session', icon: Award, date: 'Dec 2024' },
-    { title: 'Knowledge Contributor', description: 'Added 10 articles to knowledge base', icon: Award, date: 'Nov 2024' },
-    { title: 'Early Adopter', description: 'One of the first 100 users on the platform', icon: Award, date: 'Oct 2024' }
-  ];
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <p className="text-sm text-gray-600 mb-1">{title}</p>
+          <div className="flex items-baseline">
+            <h3 className="text-2xl font-bold text-gray-900">{value}</h3>
+            {change !== undefined && (
+              <span className={`ml-2 text-sm font-medium ${change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                {change > 0 ? '+' : ''}{change}%
+              </span>
+            )}
+          </div>
+          {description && (
+            <p className="text-xs text-gray-500 mt-2">{description}</p>
+          )}
+        </div>
+        <div className={`${colors[color]} p-3 rounded-lg`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+      </div>
+    </div>
+  );
+};
 
-  const activityHistory = [
-    { action: 'Completed mentorship session with Dr. Amanda Foster', date: '2 hours ago' },
-    { action: 'Uploaded article: "React Best Practices"', date: '1 day ago' },
-    { action: 'Achieved learning goal: Master React Hooks', date: '3 days ago' },
-    { action: 'Started new mentorship with Robert Martinez', date: '1 week ago' },
-    { action: 'Completed skill assessment: TypeScript', date: '2 weeks ago' }
-  ];
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center p-8">
+    <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+    <span className="ml-2 text-gray-600">Loading HR dashboard data...</span>
+  </div>
+);
 
-  // Function to handle user data from backend
-  const getUserDisplayInfo = () => {
+const ErrorMessage = ({ message, onRetry }) => (
+  <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+    <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+    <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Data</h3>
+    <p className="text-red-600 mb-4">{message}</p>
+    <button
+      onClick={onRetry}
+      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+    >
+      Retry
+    </button>
+  </div>
+);
+
+const DataCard = ({ title, children, icon: Icon }) => (
+  <div className="bg-gray-50 rounded-lg p-6">
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      </div>
+      {Icon && <Icon className="w-6 h-6 text-gray-400" />}
+    </div>
+    {children}
+  </div>
+);
+
+export default function HRDashboard() {
+  const { user, logout } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [onboardingReport, setOnboardingReport] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const [dashboard, onboarding] = await Promise.all([
+        apiService.fetchHRDashboard(),
+        apiService.fetchOnboardingReport()
+      ]);
+
+      console.log('Dashboard Data:', dashboard); // Debug log
+      console.log('Onboarding Data:', onboarding); // Debug log
+
+      if (dashboard.success) {
+        setDashboardData(dashboard);
+        setLastUpdated(new Date(dashboard.generated_at));
+      }
+      if (onboarding.success) setOnboardingReport(onboarding);
+      
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err.message || 'Failed to load dashboard data');
+      
+      if (err.message.includes('401') || err.message.includes('403')) {
+        setError('Authentication failed. Please log in again.');
+        setTimeout(() => logout(), 2000);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  const formatNumber = (num) => {
+    if (num === undefined || num === null) return '0';
+    return num.toLocaleString();
+  };
+
+  // FIXED: Use real-time data from backend directly
+  const calculateRealUserStats = () => {
+    if (!dashboardData) return { total: 0, mentors: 0, mentees: 0 };
+    
+    // Use the total_users directly from user_management
+    const totalUsers = dashboardData.user_management?.total_users || 0;
+    const totalMentorUsers = dashboardData.user_management?.mentor_users || 0;
+    const totalMenteeUsers = dashboardData.user_management?.mentee_users || 0;
+    
+    // Calculate mentors and mentees from department distribution
+    let totalMentors = 0;
+    let totalMentees = 0;
+    
+    if (dashboardData.department_distribution) {
+      dashboardData.department_distribution.forEach(dept => {
+        totalMentors += dept.mentors || 0;
+        totalMentees += dept.mentees || 0;
+      });
+    }
+    
     return {
-      displayName: user?.full_name || user?.name || 'User',
-      displayEmail: user?.work_mail_address || user?.email || '',
-      displayRole: user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1) || 'User',
-      displayDepartment: user?.department || 'Not specified'
+      total: totalUsers, // Use the real total from backend
+      mentors: totalMentorUsers,
+      mentees: totalMenteeUsers
     };
   };
 
-  const { displayName, displayEmail, displayRole, displayDepartment } = getUserDisplayInfo();
+  const prepareDepartmentDistributionData = () => {
+    if (!dashboardData?.department_distribution) return [];
+    return dashboardData.department_distribution.map(dept => ({
+      name: dept.department.length > 15 ? dept.department.substring(0, 15) + '...' : dept.department,
+      mentors: dept.mentors || 0,
+      mentees: dept.mentees || 0,
+      activeMentorships: dept.active_mentorships || 0,
+      fullName: dept.department
+    }));
+  };
+
+  const prepareModuleStatisticsData = () => {
+    if (!onboardingReport?.modules_statistics) return [];
+    return onboardingReport.modules_statistics.map(module => ({
+      title: module.title,
+      completion_rate: module.completion_rate || 0,
+      module_type: module.module_type || 'core',
+      estimated_duration: module.estimated_duration || 30,
+      average_completion_time: module.average_completion_time
+    }));
+  };
+
+  const prepareOnboardingStatusData = () => {
+    if (!dashboardData?.onboarding) return [];
+    
+    const statusData = [
+      { name: 'Completed', value: dashboardData.onboarding.completed || 0 },
+      { name: 'In Progress', value: dashboardData.onboarding.in_progress || 0 },
+      { name: 'Overdue', value: dashboardData.onboarding.overdue || 0 }
+    ];
+    
+    // Filter out zero values for better visualization
+    return statusData.filter(item => item.value > 0);
+  };
+
+  const getTopDepartments = (count = 0) => {
+    if (!dashboardData?.department_distribution) return [];
+    return [...dashboardData.department_distribution]
+      .sort((a, b) => (b.mentees + b.mentors) - (a.mentees + a.mentors))
+      .slice(0, count);
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      completed: 'bg-green-100 text-green-800',
+      'in_progress': 'bg-blue-100 text-blue-800',
+      overdue: 'bg-red-100 text-red-800',
+      pending: 'bg-yellow-100 text-yellow-800',
+      active: 'bg-green-100 text-green-800',
+      inactive: 'bg-gray-100 text-gray-800'
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return <ErrorMessage message={error} onRetry={fetchAllData} />;
+  }
+
+  if (!dashboardData) {
+    return <ErrorMessage message="No data available" onRetry={fetchAllData} />;
+  }
+
+  const userStats = calculateRealUserStats();
+  const departmentDistributionData = prepareDepartmentDistributionData();
+  const moduleStatsData = prepareModuleStatisticsData();
+  const onboardingStatusData = prepareOnboardingStatusData();
+  const topDepartments = getTopDepartments();
+
+  console.log('User Stats:', userStats); // Debug log
+  console.log('Dashboard Data:', dashboardData); // Debug log
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
   return (
-    <div className="space-y-6 max-w-5xl p-4">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile Settings</h1>
-        <p className="text-gray-600">Manage your account information and preferences</p>
-      </div>
-
-      {/* Tabs Navigation */}
-      <div className="border-b">
-        <div className="flex space-x-4">
-          <button className="px-4 py-2 font-medium border-b-2 border-blue-500 text-blue-600">
-            Profile
-          </button>
-          <button className="px-4 py-2 font-medium text-gray-500 hover:text-gray-700">
-            Activity
-          </button>
-          <button className="px-4 py-2 font-medium text-gray-500 hover:text-gray-700">
-            Achievements
-          </button>
-          <button className="px-4 py-2 font-medium text-gray-500 hover:text-gray-700">
-            Settings
-          </button>
-        </div>
-      </div>
-
-      {/* Profile Tab Content */}
-      <div className="space-y-6">
-        {/* Profile Card */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-          <div className="p-6 border-b">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Personal Information</h2>
-                <p className="text-gray-600">Update your profile details and public information</p>
-              </div>
-              {!isEditing ? (
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2"
-                >
-                  <Edit className="size-4" />
-                  Edit Profile
-                </button>
-              ) : (
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setIsEditing(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={handleSave}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Save className="size-4" />
-                    Save Changes
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className="p-6 space-y-6">
-            {/* Avatar */}
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center">
-                  <span className="text-white text-2xl font-semibold">
-                    {displayName.charAt(0)}
-                  </span>
-                </div>
-                {isEditing && (
-                  <button className="absolute bottom-0 right-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center p-0">
-                    <Camera className="size-4" />
-                  </button>
-                )}
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">{displayName}</h3>
-                <p className="text-sm text-gray-600 mb-2">{displayRole}</p>
-                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full capitalize">
-                  {displayDepartment || 'No department'}
-                </span>
-              </div>
-            </div>
-
-            {/* Basic Information */}
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label htmlFor="name" className="text-sm font-medium text-gray-700">Full Name</label>
-                <input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  disabled={!isEditing}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="work_mail_address" className="text-sm font-medium text-gray-700">Work Email Address</label>
-                <div className="relative">
-                  <Mail className="size-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    id="work_mail_address"
-                    type="email"
-                    value={formData.work_mail_address}
-                    onChange={(e) => setFormData({ ...formData, work_mail_address: e.target.value })}
-                    disabled={!isEditing}
-                    className="w-full pl-10 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="phone" className="text-sm font-medium text-gray-700">Phone Number</label>
-                <div className="relative">
-                  <Phone className="size-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    disabled={!isEditing}
-                    className="w-full pl-10 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="location" className="text-sm font-medium text-gray-700">Location</label>
-                <div className="relative">
-                  <MapPin className="size-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    id="location"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    disabled={!isEditing}
-                    className="w-full pl-10 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="department" className="text-sm font-medium text-gray-700">Department</label>
-                <select
-                  value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  disabled={!isEditing}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                >
-                  <option value="">Select Department</option>
-                  <option value="Engineering">Engineering</option>
-                  <option value="Product">Product</option>
-                  <option value="Design">Design</option>
-                  <option value="Marketing">Marketing</option>
-                  <option value="Sales">Sales</option>
-                  <option value="HR">HR</option>
-                  <option value="Finance">Finance</option>
-                  <option value="Administration">Administration</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="role" className="text-sm font-medium text-gray-700">Role Type</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  disabled={true} // Role cannot be changed by user
-                  className="w-full px-3 py-2 border rounded-md bg-gray-100 cursor-not-allowed"
-                >
-                  <option value="mentee">Mentee</option>
-                  <option value="mentor">Mentor</option>
-                  <option value="hr">HR</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Bio */}
-            <div className="space-y-2">
-              <label htmlFor="bio" className="text-sm font-medium text-gray-700">Bio</label>
-              <textarea
-                id="bio"
-                value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                disabled={!isEditing}
-                rows={4}
-                placeholder="Tell us about yourself..."
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-              />
-            </div>
-
-            {/* Skills */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Skills</label>
-              <div className="flex flex-wrap gap-2">
-                {formData.skills.map((skill, index) => (
-                  <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                    {skill}
-                  </span>
-                ))}
-                {isEditing && (
-                  <button className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
-                    + Add Skill
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Interests */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Interests</label>
-              <div className="flex flex-wrap gap-2">
-                {formData.interests.map((interest, index) => (
-                  <span key={index} className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded-full">
-                    {interest}
-                  </span>
-                ))}
-                {isEditing && (
-                  <button className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
-                    + Add Interest
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Activity History Card (would be conditionally rendered based on active tab) */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-900">Activity History</h2>
-          <p className="text-gray-600">Your recent platform activity and interactions</p>
-        </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            {activityHistory.map((activity, index) => (
-              <div key={index} className="flex items-start gap-3 pb-4 border-b last:border-0">
-                <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900">{activity.action}</p>
-                  <p className="text-xs text-gray-500 mt-1">{activity.date}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Achievements Card */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-900">Achievements & Badges</h2>
-          <p className="text-gray-600">Your accomplishments and milestones</p>
-        </div>
-        <div className="p-6">
-          <div className="grid md:grid-cols-2 gap-4">
-            {achievements.map((achievement, index) => (
-              <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <achievement.icon className="size-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-1">{achievement.title}</h4>
-                    <p className="text-xs text-gray-600 mb-2">{achievement.description}</p>
-                    <p className="text-xs text-gray-500">{achievement.date}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Settings Card */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-900">Account Settings</h2>
-          <p className="text-gray-600">Manage your account preferences and security</p>
-        </div>
-        <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-4">Change Password</h4>
-            <div className="space-y-4">
-              <input 
-                type="password" 
-                placeholder="Current password" 
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input 
-                type="password" 
-                placeholder="New password" 
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input 
-                type="password" 
-                placeholder="Confirm new password" 
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Update Password
+            <h1 className="text-2xl font-bold text-gray-900">HR Dashboard</h1>
+            <p className="text-sm text-gray-600">
+              Welcome back, {dashboardData.user_info?.name || 'HR Manager'}
+            </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={fetchAllData}
+              className="flex items-center px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </button>
+            {lastUpdated && (
+              <div className="text-sm text-gray-500">
+                Last updated: {lastUpdated.toLocaleString()}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="p-6 space-y-6">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <SummaryCard
+            title="Total Users"
+            value={formatNumber(userStats.total)}
+            icon={Users}
+            description="All registered users in the system"
+            color="blue"
+          />
+          <SummaryCard
+            title="Mentors"
+            value={formatNumber(userStats.mentors)}
+            icon={UserCheck}
+            description="Active mentors across departments"
+            color="green"
+          />
+          <SummaryCard
+            title="Mentees"
+            value={formatNumber(userStats.mentees)}
+            icon={UserPlus}
+            description="Active mentees in the system"
+            color="purple"
+          />
+          <SummaryCard
+            title="Onboarding Completion"
+            value={`${(dashboardData.onboarding?.completion_rate || 0).toFixed(1)}%`}
+            icon={TrendingUp}
+            description="Overall onboarding completion rate"
+            color="teal"
+          />
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="border-b border-gray-200">
+            <div className="flex space-x-8 px-6">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'overview'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveTab('onboarding')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'onboarding'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Onboarding
+              </button>
+              <button
+                onClick={() => setActiveTab('departments')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'departments'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Departments
               </button>
             </div>
           </div>
 
-          <div className="pt-6 border-t">
-            <h4 className="text-sm font-medium text-gray-900 mb-4">Notification Preferences</h4>
-            <div className="space-y-3">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" defaultChecked className="rounded text-blue-600" />
-                <span className="text-sm text-gray-700">Email notifications for new messages</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" defaultChecked className="rounded text-blue-600" />
-                <span className="text-sm text-gray-700">Reminders for upcoming sessions</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" className="rounded text-blue-600" />
-                <span className="text-sm text-gray-700">Weekly progress reports</span>
-              </label>
-            </div>
-          </div>
+          <div className="p-6">
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                {/* Charts Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Onboarding Status Distribution */}
+                  <DataCard title="Onboarding Status" icon={PieChart}>
+                    <p className="text-sm text-gray-600 mb-4">Module completion status distribution</p>
+                    <div className="h-64">
+                      {onboardingStatusData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RePieChart>
+                            <Pie
+                              data={onboardingStatusData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {onboardingStatusData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => [formatNumber(value), 'Count']} />
+                          </RePieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-gray-500">
+                          No onboarding data available
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      {onboardingStatusData.map((item, index) => (
+                        <div key={index} className="flex items-center">
+                          <div 
+                            className="w-3 h-3 rounded-full mr-2" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-sm text-gray-600">{item.name}: {formatNumber(item.value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </DataCard>
 
-          <div className="pt-6 border-t">
-            <h4 className="text-sm font-medium text-red-600 mb-2">Danger Zone</h4>
-            <p className="text-sm text-gray-600 mb-4">Once you delete your account, there is no going back.</p>
-            <button className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
-              Delete Account
-            </button>
+                  {/* Department Distribution */}
+                  <DataCard title="Department Distribution" icon={BarChart2}>
+                    <p className="text-sm text-gray-600 mb-4">Mentors and mentees by department (Top 5)</p>
+                    <div className="h-64">
+                      {departmentDistributionData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={departmentDistributionData.slice(0, 5)}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="name" />
+                            <YAxis />
+                            <Tooltip formatter={(value) => [formatNumber(value), 'Count']} />
+                            <Legend />
+                            <Bar dataKey="mentors" name="Mentors" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="mentees" name="Mentees" fill="#10B981" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-gray-500">
+                          No department data available
+                        </div>
+                      )}
+                    </div>
+                  </DataCard>
+                </div>
+
+                {/* Statistics Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* User Statistics */}
+                  <DataCard title="User Statistics" icon={Users}>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Total Users</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatNumber(userStats.total)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Mentors</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatNumber(userStats.mentors)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Mentees</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatNumber(userStats.mentees)}
+                        </span>
+                      </div>
+                      <div className="pt-4 border-t border-gray-200">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium text-gray-700">Approved Users</span>
+                          <span className="font-semibold text-green-600">
+                            {formatNumber(dashboardData.user_management?.approved || 0)}
+                          </span>
+                        </div>
+                        {dashboardData.user_management?.pending > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Pending Approval</span>
+                            <span className="font-semibold text-orange-600">
+                              {formatNumber(dashboardData.user_management.pending)}
+                            </span>
+                          </div>
+                        )}
+                        {dashboardData.user_management?.rejected > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Rejected</span>
+                            <span className="font-semibold text-red-600">
+                              {formatNumber(dashboardData.user_management.rejected)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </DataCard>
+
+                  {/* Onboarding Overview */}
+                  <DataCard title="Onboarding Progress" icon={BookOpen}>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Total Modules</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatNumber(dashboardData.onboarding?.total || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Completed</span>
+                        <span className="font-semibold text-green-600">
+                          {formatNumber(dashboardData.onboarding?.completed || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">In Progress</span>
+                        <span className="font-semibold text-blue-600">
+                          {formatNumber(dashboardData.onboarding?.in_progress || 0)}
+                        </span>
+                      </div>
+                      {dashboardData.onboarding?.overdue > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Overdue</span>
+                          <span className="font-semibold text-red-600">
+                            {formatNumber(dashboardData.onboarding.overdue)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="pt-4 border-t border-gray-200">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Completion Rate</span>
+                          <span className="font-semibold text-teal-600">
+                            {dashboardData.onboarding?.completion_rate?.toFixed(1) || '0.0'}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </DataCard>
+
+                  {/* Mentorship Metrics */}
+                  <DataCard title="Mentorship Overview" icon={Target}>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Active Mentorships</span>
+                        <span className="font-semibold text-green-600">
+                          {formatNumber(dashboardData.mentorship?.active || 0)}
+                        </span>
+                      </div>
+                      {dashboardData.mentorship?.pending > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Pending Requests</span>
+                          <span className="font-semibold text-orange-600">
+                            {formatNumber(dashboardData.mentorship.pending)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Total Departments</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatNumber(dashboardData.department_distribution?.length || 0)}
+                        </span>
+                      </div>
+                      <div className="pt-4 border-t border-gray-200">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium text-gray-700">Mentorship Coverage</span>
+                          <span className="font-semibold text-purple-600">
+                            {userStats.mentees > 0 
+                              ? Math.round((dashboardData.mentorship?.active / userStats.mentees) * 100) 
+                              : 0
+                            }%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-purple-500 h-2 rounded-full" 
+                            style={{ 
+                              width: `${userStats.mentees > 0 
+                                ? Math.min(100, Math.round((dashboardData.mentorship?.active / userStats.mentees) * 100))
+                                : 0
+                              }%` 
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </DataCard>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'onboarding' && (
+              <div className="space-y-6">
+                {/* Module Statistics */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top Performing Modules */}
+                  <DataCard title="Module Performance" icon={Award}>
+                    <div className="space-y-3">
+                      {moduleStatsData.length > 0 ? (
+                        moduleStatsData.map((module, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                                <span className="text-sm font-semibold text-blue-600">{index + 1}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 truncate">{module.title}</p>
+                                <div className="flex items-center space-x-2">
+                                  <span className={`text-xs px-2 py-1 rounded ${getStatusColor(module.module_type === 'core' ? 'active' : 'completed')}`}>
+                                    {module.module_type}
+                                  </span>
+                                  <span className="text-xs text-gray-500">{module.completion_rate}% completion</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-semibold text-gray-900">{module.completion_rate}%</div>
+                              <div className="text-xs text-gray-500">Rate</div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                          <p>No module data available</p>
+                        </div>
+                      )}
+                    </div>
+                  </DataCard>
+
+                  {/* Onboarding Summary */}
+                  <DataCard title="Onboarding Summary" icon={FileText}>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Total Modules</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatNumber(onboardingReport?.summary?.total_modules || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Total Mentees</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatNumber(onboardingReport?.summary?.total_mentees || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Completed Modules</span>
+                        <span className="font-semibold text-green-600">
+                          {formatNumber(
+                            onboardingReport?.summary?.progress_by_status?.find(s => s.status === 'completed')?.count || 0
+                          )}
+                        </span>
+                      </div>
+                      
+                      {/* Module Types Breakdown */}
+                      <div className="pt-4 border-t border-gray-200">
+                        <h4 className="text-sm font-medium text-gray-700 mb-3">Module Types</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Core Modules</span>
+                            <span className="font-semibold text-blue-600">
+                              {moduleStatsData.filter(m => m.module_type === 'core').length}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Department Modules</span>
+                            <span className="font-semibold text-purple-600">
+                              {moduleStatsData.filter(m => m.module_type === 'department').length}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mentees Needing Attention */}
+                      <div className="pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">Mentees Needing Attention</span>
+                          <span className="text-sm font-semibold text-red-600">
+                            {formatNumber(onboardingReport?.mentees_needing_attention?.length || 0)}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {onboardingReport?.mentees_needing_attention?.slice(0, 3).map((mentee, index) => (
+                            <div key={index} className="flex items-center p-2 bg-red-50 rounded border border-red-100">
+                              <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />
+                              <span className="text-sm text-gray-700">{mentee.mentee__full_name || 'Unknown mentee'}</span>
+                              <span className="ml-auto text-xs text-gray-500">{mentee.module__title}</span>
+                            </div>
+                          ))}
+                          {(!onboardingReport?.mentees_needing_attention || onboardingReport.mentees_needing_attention.length === 0) && (
+                            <div className="text-center py-2 text-gray-500 text-sm bg-green-50 rounded">
+                              <CheckCircle className="w-4 h-4 inline mr-1 text-green-500" />
+                              All mentees are up to date
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </DataCard>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'departments' && (
+              <div className="space-y-6">
+                {/* Department Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {topDepartments.map((dept, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">{dept.department}</h3>
+                        <Building className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Total Users</span>
+                          <span className="font-semibold text-gray-900">
+                            {formatNumber((dept.mentees || 0) + (dept.mentors || 0))}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Mentors</span>
+                          <span className="font-semibold text-blue-600">{formatNumber(dept.mentors || 0)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Mentees</span>
+                          <span className="font-semibold text-purple-600">{formatNumber(dept.mentees || 0)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Active Mentorships</span>
+                          <span className="font-semibold text-green-600">
+                            {formatNumber(dept.active_mentorships || 0)}
+                          </span>
+                        </div>
+                        
+                        {/* Utilization Rate */}
+                        <div className="pt-3 border-t border-gray-200">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs text-gray-600">Mentorship Coverage</span>
+                            <span className="text-xs font-semibold text-gray-900">
+                              {dept.mentees > 0 && dept.active_mentorships > 0 
+                                ? Math.round((dept.active_mentorships / dept.mentees) * 100)
+                                : 0
+                              }%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-500 h-2 rounded-full" 
+                              style={{ 
+                                width: `${dept.mentees > 0 && dept.active_mentorships > 0 
+                                  ? Math.min(100, Math.round((dept.active_mentorships / dept.mentees) * 100))
+                                  : 0
+                                }%` 
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* Mentee to Mentor Ratio */}
+                        <div className="flex justify-between items-center text-xs text-gray-500">
+                          <span>Mentee:Mentor Ratio</span>
+                          <span>
+                            {dept.mentees || 0}:{dept.mentors || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* All Departments Table */}
+                <DataCard title="All Departments Overview">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead>
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Department
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Mentors
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Mentees
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Active Mentorships
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Coverage
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {dashboardData.department_distribution?.map((dept, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{dept.department}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{dept.mentors || 0}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{dept.mentees || 0}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`text-sm font-medium ${dept.active_mentorships > 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                                {dept.active_mentorships || 0}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="w-24 bg-gray-200 rounded-full h-2 mr-2">
+                                  <div 
+                                    className="bg-blue-500 h-2 rounded-full" 
+                                    style={{ 
+                                      width: `${dept.mentees > 0 && dept.active_mentorships > 0 
+                                        ? Math.min(100, Math.round((dept.active_mentorships / dept.mentees) * 100))
+                                        : 0
+                                      }%` 
+                                    }}
+                                  ></div>
+                                </div>
+                                <span className="text-xs text-gray-500">
+                                  {dept.mentees > 0 && dept.active_mentorships > 0 
+                                    ? Math.round((dept.active_mentorships / dept.mentees) * 100)
+                                    : 0
+                                  }%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </DataCard>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-900">System Information</h4>
+              <p className="text-sm text-gray-600">
+                Data last updated: {lastUpdated ? lastUpdated.toLocaleString() : 'Never'}
+              </p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-500">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                Live data from production
+              </div>
+              <div className="text-sm text-gray-500">
+                Total Departments: <span className="font-semibold">{dashboardData.department_distribution?.length || 0}</span>
+              </div>
+              <div className="text-sm text-gray-500">
+                Data Version: <span className="font-semibold">v1.0</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
