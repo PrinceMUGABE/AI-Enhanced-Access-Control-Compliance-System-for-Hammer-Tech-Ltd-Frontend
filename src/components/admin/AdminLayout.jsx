@@ -114,20 +114,6 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden md:block relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-48 lg:w-64"
-              />
-            </div>
-
-            <button className="relative inline-flex items-center justify-center p-2 text-gray-700 bg-white rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
-            </button>
-
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -208,40 +194,57 @@ export default function AdminLayout() {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className={`fixed lg:sticky top-16 left-0 z-30 h-[calc(100vh-4rem)] w-64 bg-white border-r overflow-y-auto transition-transform duration-200 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-          <nav className="p-4 space-y-1">
-            {navigationItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                    isActive
-                      ? "bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium border-l-4 border-blue-500"
-                      : "text-gray-700 hover:bg-gray-50 border-l-4 border-transparent"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                  {isActive && <div className="ml-auto w-2 h-2 bg-blue-500 rounded-full"></div>}
-                </Link>
-              );
-            })}
-          </nav>
+        <aside
+  className={`fixed lg:sticky top-16 left-0 z-30 h-[calc(100vh-4rem)] w-64 
+  bg-white border-r overflow-y-auto transition-transform duration-200 
+  flex flex-col
+  ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+>
+  {/* Navigation (top) */}
+  <div className="flex-1">
+    <nav className="p-4 space-y-1">
+      {navigationItems.map((item) => {
+        const isActive = location.pathname === item.path;
+        const Icon = item.icon;
 
-          <div className="px-4 mt-8 mb-4">
-            <div className="bg-gradient-to-br from-blue-50 to-pink-50 rounded-lg p-4 border border-blue-100">
-              <div className="flex items-center gap-2 mb-2">
-                <Shield className="w-4 h-4 text-blue-700" />
-                <h3 className="text-sm font-medium text-blue-900">Admin Access</h3>
-              </div>
-              <p className="text-xs text-blue-700">You have full system control. Manage programs, users, and all settings.</p>
-            </div>
-          </div>
-        </aside>
+        return (
+          <Link
+            key={item.path}
+            to={item.path}
+            onClick={() => setIsSidebarOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+              isActive
+                ? "bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium border-l-4 border-blue-500"
+                : "text-gray-700 hover:bg-gray-50 border-l-4 border-transparent"
+            }`}
+          >
+            <Icon className="w-5 h-5" />
+            <span>{item.label}</span>
+            {isActive && (
+              <div className="ml-auto w-2 h-2 bg-blue-500 rounded-full"></div>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  </div>
+
+  {/* Admin Access (bottom – always pinned) */}
+  <div className="px-4 mb-4">
+    <div className="bg-gradient-to-br from-blue-50 to-pink-50 rounded-lg p-4 border border-blue-100">
+      <div className="flex items-center gap-2 mb-2">
+        <Shield className="w-4 h-4 text-blue-700" />
+        <h3 className="text-sm font-medium text-blue-900">
+          Admin Access
+        </h3>
+      </div>
+      <p className="text-xs text-blue-700">
+        You have full system control. Manage programs, users, and all settings.
+      </p>
+    </div>
+  </div>
+</aside>
+
 
         {isSidebarOpen && (
           <div

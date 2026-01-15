@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 
@@ -87,9 +87,29 @@ const Toaster = () => {
   );
 };
 
-function App() {
-  const [showChatButton, setShowChatButton] = useState(true);
+// Component to control floating button visibility
+const FloatingButtonController = () => {
+  const location = useLocation();
+  const [showChatButton, setShowChatButton] = useState(false);
 
+  useEffect(() => {
+    // Check if user is authenticated
+    const token = localStorage.getItem('access_token');
+    const isAuthenticated = !!token;
+
+    // Public pages where we want to show the floating button
+    const publicPages = ['/', '/login', '/register', '/reset-password', '/help'];
+    const isPublicPage = publicPages.includes(location.pathname);
+
+    // Show floating button ONLY on public pages for non-authenticated users
+    setShowChatButton(isPublicPage && !isAuthenticated);
+
+  }, [location.pathname]);
+
+  return showChatButton ? <FloatingChatButton /> : null;
+};
+
+function App() {
   useEffect(() => {
     AOS.init({
       offset: 100,
@@ -98,11 +118,6 @@ function App() {
       delay: 100,
     });
     AOS.refresh();
-
-    // Check if we're on login/register pages (hide chat button)
-    const path = window.location.pathname;
-    const hideOnPaths = ['/login', '/register', '/reset-password'];
-    setShowChatButton(!hideOnPaths.includes(path));
   }, []);
 
   return (
@@ -133,7 +148,6 @@ function App() {
               <Route path="communication-center" element={<AdminChatManagement />} />
               <Route path="chatbot" element={<AdminAssistanceDashboard />} />
               <Route path="reports" element={<AdminReports />} />
-   
             </Route>
 
             {/* ==================== HR ROUTES ==================== */}
@@ -146,7 +160,6 @@ function App() {
               <Route path="users" element={<HRUsers />} />
               <Route path='onboarding-management' element={<HROnboardingModule />} />
               <Route path='mentorship' element={<HRMentorshipManagement />} />
-
               <Route path="profile" element={<AdminProfile />} />
               <Route path="programs" element={<OnboardingProgramManagement />} />
               <Route path="departments" element={<DepartmentsManagement />} />
@@ -186,8 +199,8 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           
-          {/* Floating Chat Button - Conditionally rendered */}
-          {showChatButton && <FloatingChatButton />}
+          {/* Floating Chat Button - Only shown for non-authenticated users on public pages */}
+          <FloatingButtonController />
           
           <Toaster />
         </AuthProvider>

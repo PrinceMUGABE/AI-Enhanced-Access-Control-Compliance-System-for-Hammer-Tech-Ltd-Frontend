@@ -98,10 +98,10 @@ export default function MentorLayout() {
               />
             </div>
 
-            <button className="relative inline-flex items-center justify-center p-2 text-gray-700 bg-white rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            {/* <button className="relative inline-flex items-center justify-center p-2 text-gray-700 bg-white rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
-            </button>
+            </button> */}
 
             <div className="relative" ref={dropdownRef}>
               <button

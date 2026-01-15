@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
     Users,
     Eye,
     Clock,
@@ -121,11 +121,11 @@ export default function HROnboardingManagement() {
             }
 
             // Fetch all APPROVED mentee users to populate dropdown
-            const usersResponse = await fetch(`${BASE_URL}/users/mentees/`, { 
+            const usersResponse = await fetch(`${BASE_URL}/users/mentees/`, {
                 headers,
                 params: { status: 'approved' }
             });
-            
+
             if (usersResponse.ok) {
                 const usersData = await usersResponse.json();
                 setAllUsers(usersData.users || []);
@@ -175,17 +175,17 @@ export default function HROnboardingManagement() {
                     `${BASE_URL}/onboarding/progress/?mentee_id=${mentee.id}`,
                     { headers }
                 );
-                
+
                 if (progressResponse.ok) {
                     const menteeProgress = await progressResponse.json();
-                    
+
                     // Find modules not started for a long time
                     menteeProgress.forEach((progress) => {
                         if (progress.status === 'not_started' && progress.assigned_at) {
                             const assignedDate = new Date(progress.assigned_at);
                             const today = new Date();
                             const daysSinceAssigned = Math.floor((today.getTime() - assignedDate.getTime()) / (1000 * 60 * 60 * 24));
-                            
+
                             if (daysSinceAssigned >= 3) {
                                 let status;
                                 if (daysSinceAssigned >= 7) {
@@ -195,7 +195,7 @@ export default function HROnboardingManagement() {
                                 } else {
                                     status = 'inactive';
                                 }
-                                
+
                                 deadlines.push({
                                     mentee_id: mentee.id,
                                     mentee_name: mentee.full_name,
@@ -212,11 +212,11 @@ export default function HROnboardingManagement() {
                     });
                 }
             }
-            
+
             // Sort by days since assigned (highest first)
             deadlines.sort((a, b) => b.days_since_assigned - a.days_since_assigned);
             setUpcomingDeadlines(deadlines);
-            
+
         } catch (error) {
             console.error('Error fetching deadlines:', error);
         }
@@ -233,7 +233,7 @@ export default function HROnboardingManagement() {
             }
 
             const menteeId = parseInt(newMenteeForm.mentee_id);
-            
+
             // Check if mentee is already in onboarding
             const existingMentee = menteesSummary.find(m => m.id === menteeId);
             if (existingMentee) {
@@ -273,17 +273,80 @@ export default function HROnboardingManagement() {
             if (!menteeToRemove) return;
 
             const token = getAuthToken();
-            
-            // This would need a proper API endpoint - for now simulating removal
-            setMenteesSummary(prev => prev.filter(m => m.id !== menteeToRemove));
-            
-            alert("Mentee removed from onboarding successfully!");
+
+            // Find the mentee details before removal
+            const mentee = menteesSummary.find(m => m.id === menteeToRemove);
+            if (!mentee) {
+                alert("Mentee not found");
+                setIsConfirmRemoveModalOpen(false);
+                setMenteeToRemove(null);
+                return;
+            }
+
+            // setIsRemoving(true);
+
+            // Call the API endpoint to remove mentee from onboarding
+            const response = await fetch(
+                `${BASE_URL}/onboarding/mentees/${menteeToRemove}/remove/`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        remove_all: true  // Remove all modules from this mentee
+                    })
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to remove mentee from onboarding');
+            }
+
+            // Show detailed success message
+            const successMessage = `
+Successfully Removed from Onboarding:
+
+Name: ${data.mentee_name}
+Modules Removed: ${data.modules_removed}
+Removed By: ${data.removed_by}
+
+${data.removed_modules && data.removed_modules.length > 0 ?
+                    `\nRemoved Modules:\n${data.removed_modules.map(m => `• ${m}`).join('\n')}` :
+                    ''
+                }
+        `.trim();
+
+            alert(successMessage);
+
+            // Close modal and reset state
             setIsConfirmRemoveModalOpen(false);
             setMenteeToRemove(null);
-            fetchAllData();
-            
+
+            // Remove from selected mentees if it was selected
+            setSelectedMentees(prev => prev.filter(id => id !== menteeToRemove));
+
+            // Refresh all data to reflect changes
+            await fetchAllData();
+
+            console.log('✅ Mentee removed successfully:', data);
+
         } catch (error) {
-            alert(error.message || "Failed to remove mentee");
+            console.error('❌ Error removing mentee from onboarding:', error);
+
+            // Show user-friendly error message
+            const errorMessage = error.message || "Failed to remove mentee from onboarding. Please try again.";
+            alert(`Error: ${errorMessage}`);
+
+            // Close modal on error to allow user to retry
+            setIsConfirmRemoveModalOpen(false);
+            setMenteeToRemove(null);
+        } finally {
+            // Reset loading state if you added it
+            // setIsRemoving(false);
         }
     };
 
@@ -292,30 +355,52 @@ export default function HROnboardingManagement() {
         try {
             const token = getAuthToken();
 
+            // Determine mentees to use
+            const menteeIds =
+                moduleAssignmentForm.mentee_ids.length > 0
+                    ? moduleAssignmentForm.mentee_ids
+                    : selectedMentees;
 
-            // Use selectedMentees if mentee_ids is empty
-            const menteeIds = moduleAssignmentForm.mentee_ids.length > 0 
-                ? moduleAssignmentForm.mentee_ids 
-                : selectedMentees;
+            console.log("📤 Mentee IDs to assign:", menteeIds);
 
             // Get modules to assign
             const modulesToAssign = await getModulesForAssignment();
+
+            console.log("📤 Modules to assign:", modulesToAssign);
 
             if (modulesToAssign.length === 0) {
                 alert("No modules found matching your criteria");
                 return;
             }
 
-            // Assign each module to selected mentees
             let assignedCount = 0;
+
             for (const module of modulesToAssign) {
-                const response = await fetch(`${BASE_URL}/onboarding/modules/${module.id}/assign/`, {
-                    method: 'POST',
+                const requestUrl = `${BASE_URL}/onboarding/modules/${module.id}/assign/`;
+                const requestBody = { mentee_ids: menteeIds };
+
+                console.log("➡️ Sending request:", {
+                    url: requestUrl,
+                    method: "POST",
+                    body: requestBody
+                });
+
+                const response = await fetch(requestUrl, {
+                    method: "POST",
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({ mentee_ids: moduleAssignmentForm.mentee_ids })
+                    body: JSON.stringify(requestBody),
+                });
+
+                const responseData = await response.json();
+
+                console.log("⬅️ Response received:", {
+                    moduleId: module.id,
+                    status: response.status,
+                    ok: response.ok,
+                    data: responseData,
                 });
 
                 if (response.ok) {
@@ -323,15 +408,26 @@ export default function HROnboardingManagement() {
                 }
             }
 
-            alert(`Successfully assigned ${assignedCount} modules to ${moduleAssignmentForm.mentee_ids.length} mentees`);
+            console.log("✅ Assignment summary:", {
+                totalModules: modulesToAssign.length,
+                totalMentees: menteeIds.length,
+                successfullyAssigned: assignedCount,
+            });
+
+            alert(
+                `Successfully assigned ${assignedCount} modules to ${menteeIds.length} mentees`
+            );
+
             setIsAssignModuleModalOpen(false);
             resetModuleAssignmentForm();
             fetchAllData();
 
         } catch (error) {
+            console.error("❌ Error assigning modules:", error);
             alert(error.message || "Failed to assign modules");
         }
     };
+
 
     const getModulesForAssignment = async () => {
         const token = getAuthToken();
@@ -442,7 +538,7 @@ export default function HROnboardingManagement() {
         const filtered = allUsers
             .filter(user => user.role === 'mentee' && user.status === 'approved')
             .filter(user => user.department === parseInt(newMenteeForm.department_id))
-            .filter(user => 
+            .filter(user =>
                 !menteesSummary.some(mentee => mentee.id === user.id)
             )
             .filter(user => {
@@ -562,10 +658,10 @@ export default function HROnboardingManagement() {
         const totalMentees = menteesSummary.length;
         const approvedMentees = allUsers.filter(u => u.role === 'mentee' && u.status === 'approved').length;
         const pendingMentees = approvedMentees - totalMentees;
-        
+
         const avgProgress = statistics?.average_mentee_progress || 0;
         const criticalDeadlines = upcomingDeadlines.filter(d => d.days_since_assigned >= 7).length;
-        
+
         return {
             totalMentees,
             approvedMentees,
@@ -669,8 +765,8 @@ export default function HROnboardingManagement() {
                         </div>
                         <div className="mt-4">
                             <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div 
-                                    className="bg-amber-500 h-2 rounded-full" 
+                                <div
+                                    className="bg-amber-500 h-2 rounded-full"
                                     style={{ width: `${stats.avgProgress}%` }}
                                 ></div>
                             </div>
@@ -775,11 +871,10 @@ export default function HROnboardingManagement() {
                                                     <p className="text-xs text-gray-600 truncate">{mentee.department_name || 'No Department'}</p>
                                                 </div>
                                                 <div className="flex-shrink-0 text-right">
-                                                    <div className={`text-lg font-bold ${
-                                                        mentee.overall_progress_percentage >= 70 ? 'text-green-600' :
+                                                    <div className={`text-lg font-bold ${mentee.overall_progress_percentage >= 70 ? 'text-green-600' :
                                                         mentee.overall_progress_percentage >= 30 ? 'text-amber-600' :
-                                                        'text-red-600'
-                                                    }`}>
+                                                            'text-red-600'
+                                                        }`}>
                                                         {mentee.overall_progress_percentage}%
                                                     </div>
                                                     <div className="text-xs text-gray-500">
@@ -806,15 +901,15 @@ export default function HROnboardingManagement() {
                                         .slice(0, 5)
                                         .map((department) => {
                                             const deptMentees = menteesSummary.filter(m => m.department_name === department.name);
-                                            const totalDeptMentees = allUsers.filter(u => 
-                                                u.role === 'mentee' && 
-                                                u.status === 'approved' && 
+                                            const totalDeptMentees = allUsers.filter(u =>
+                                                u.role === 'mentee' &&
+                                                u.status === 'approved' &&
                                                 u.department === department.id
                                             ).length;
-                                            
+
                                             const activeCount = deptMentees.length;
                                             const pendingCount = totalDeptMentees - activeCount;
-                                            
+
                                             return (
                                                 <div key={department.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                                                     <div className="flex-1 min-w-0">
@@ -1010,8 +1105,8 @@ export default function HROnboardingManagement() {
                                                         <td className="py-3 px-4">
                                                             <div className="space-y-1">
                                                                 <div className="w-24 bg-gray-200 rounded-full h-2">
-                                                                    <div 
-                                                                        className="bg-blue-500 h-2 rounded-full" 
+                                                                    <div
+                                                                        className="bg-blue-500 h-2 rounded-full"
                                                                         style={{ width: `${mentee.overall_progress_percentage}%` }}
                                                                     ></div>
                                                                 </div>
@@ -1038,7 +1133,7 @@ export default function HROnboardingManagement() {
                                                         </td>
                                                         <td className="py-3 px-4 text-right">
                                                             <div className="relative inline-block">
-                                                                <button 
+                                                                <button
                                                                     onClick={() => {
                                                                         const dropdown = document.getElementById(`dropdown-${mentee.id}`);
                                                                         if (dropdown) dropdown.classList.toggle('hidden');
@@ -1158,8 +1253,8 @@ export default function HROnboardingManagement() {
                                                         <td className="py-3 px-4">
                                                             <div className="space-y-1">
                                                                 <div className="w-24 bg-gray-200 rounded-full h-2">
-                                                                    <div 
-                                                                        className="bg-blue-500 h-2 rounded-full" 
+                                                                    <div
+                                                                        className="bg-blue-500 h-2 rounded-full"
                                                                         style={{ width: `${deadline.progress_percentage}%` }}
                                                                     ></div>
                                                                 </div>
@@ -1268,11 +1363,10 @@ export default function HROnboardingManagement() {
                                                     <div
                                                         key={user.id}
                                                         onClick={() => handleRecipientSelect(user)}
-                                                        className={`p-3 border rounded-md cursor-pointer transition-colors ${
-                                                            newMenteeForm.mentee_id === user.id
-                                                                ? 'bg-blue-50 border-blue-200'
-                                                                : 'hover:bg-gray-50'
-                                                        }`}
+                                                        className={`p-3 border rounded-md cursor-pointer transition-colors ${newMenteeForm.mentee_id === user.id
+                                                            ? 'bg-blue-50 border-blue-200'
+                                                            : 'hover:bg-gray-50'
+                                                            }`}
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex-1">
@@ -1414,7 +1508,7 @@ export default function HROnboardingManagement() {
                                     </label>
                                     <select
                                         value={moduleAssignmentForm.module_type}
-                                        onChange={(e) => setModuleAssignmentForm({...moduleAssignmentForm, module_type: e.target.value})}
+                                        onChange={(e) => setModuleAssignmentForm({ ...moduleAssignmentForm, module_type: e.target.value })}
                                         className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="all">All Modules</option>
@@ -1429,7 +1523,7 @@ export default function HROnboardingManagement() {
                                     </label>
                                     <select
                                         value={moduleAssignmentForm.department}
-                                        onChange={(e) => setModuleAssignmentForm({...moduleAssignmentForm, department: e.target.value})}
+                                        onChange={(e) => setModuleAssignmentForm({ ...moduleAssignmentForm, department: e.target.value })}
                                         className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="">All Departments</option>
@@ -1449,7 +1543,7 @@ export default function HROnboardingManagement() {
                                     <input
                                         type="checkbox"
                                         checked={moduleAssignmentForm.include_core}
-                                        onChange={(e) => setModuleAssignmentForm({...moduleAssignmentForm, include_core: e.target.checked})}
+                                        onChange={(e) => setModuleAssignmentForm({ ...moduleAssignmentForm, include_core: e.target.checked })}
                                         className="h-4 w-4 text-blue-600 rounded"
                                     />
                                     <span className="font-medium text-gray-900">Include core modules</span>
@@ -1458,7 +1552,7 @@ export default function HROnboardingManagement() {
                                     <input
                                         type="checkbox"
                                         checked={moduleAssignmentForm.include_department}
-                                        onChange={(e) => setModuleAssignmentForm({...moduleAssignmentForm, include_department: e.target.checked})}
+                                        onChange={(e) => setModuleAssignmentForm({ ...moduleAssignmentForm, include_department: e.target.checked })}
                                         className="h-4 w-4 text-blue-600 rounded"
                                     />
                                     <span className="font-medium text-gray-900">Include department-specific modules</span>
@@ -1533,8 +1627,8 @@ export default function HROnboardingManagement() {
                                     <span className="text-sm font-bold text-gray-900">{selectedMentee.overall_progress_percentage}%</span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-3">
-                                    <div 
-                                        className="bg-blue-600 h-3 rounded-full" 
+                                    <div
+                                        className="bg-blue-600 h-3 rounded-full"
                                         style={{ width: `${selectedMentee.overall_progress_percentage}%` }}
                                     ></div>
                                 </div>
@@ -1562,8 +1656,8 @@ export default function HROnboardingManagement() {
                                                         <span className="font-medium">{progress.progress_percentage}%</span>
                                                     </div>
                                                     <div className="w-full bg-gray-200 rounded-full h-2">
-                                                        <div 
-                                                            className="bg-blue-500 h-2 rounded-full" 
+                                                        <div
+                                                            className="bg-blue-500 h-2 rounded-full"
                                                             style={{ width: `${progress.progress_percentage}%` }}
                                                         ></div>
                                                     </div>
