@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
 import { 
   Users, UserCheck, UserPlus, TrendingUp, Building, 
   BookOpen, Clock, Target, Award, AlertTriangle,
@@ -15,6 +14,12 @@ import {
   LineChart, Line,
   AreaChart, Area
 } from 'recharts';
+
+// Mock Auth Context (replace with your actual implementation)
+const useAuth = () => ({
+  user: { full_name: 'HR Manager', role: 'hr' },
+  logout: () => console.log('Logout')
+});
 
 // API Service
 const apiService = {
@@ -108,11 +113,9 @@ const ErrorMessage = ({ message, onRetry }) => (
 );
 
 const DataCard = ({ title, children, icon: Icon }) => (
-  <div className="bg-gray-50 rounded-lg p-6">
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <div className="flex items-center justify-between mb-6">
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-      </div>
+      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
       {Icon && <Icon className="w-6 h-6 text-gray-400" />}
     </div>
     {children}
@@ -138,14 +141,16 @@ export default function HRDashboard() {
         apiService.fetchOnboardingReport()
       ]);
 
-      console.log('Dashboard Data:', dashboard); // Debug log
-      console.log('Onboarding Data:', onboarding); // Debug log
+      console.log('Dashboard Data:', dashboard);
+      console.log('Onboarding Data:', onboarding);
 
       if (dashboard.success) {
         setDashboardData(dashboard);
         setLastUpdated(new Date(dashboard.generated_at));
       }
-      if (onboarding.success) setOnboardingReport(onboarding);
+      if (onboarding.success) {
+        setOnboardingReport(onboarding);
+      }
       
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -169,85 +174,32 @@ export default function HRDashboard() {
     return num.toLocaleString();
   };
 
-  // FIXED: Use real-time data from backend directly
-  const calculateRealUserStats = () => {
-    if (!dashboardData) return { total: 0, mentors: 0, mentees: 0 };
-    
-    // Use the total_users directly from user_management
-    const totalUsers = dashboardData.user_management?.total_users || 0;
-    const totalMentorUsers = dashboardData.user_management?.mentor_users || 0;
-    const totalMenteeUsers = dashboardData.user_management?.mentee_users || 0;
-    
-    // Calculate mentors and mentees from department distribution
-    let totalMentors = 0;
-    let totalMentees = 0;
-    
-    if (dashboardData.department_distribution) {
-      dashboardData.department_distribution.forEach(dept => {
-        totalMentors += dept.mentors || 0;
-        totalMentees += dept.mentees || 0;
-      });
-    }
-    
-    return {
-      total: totalUsers, // Use the real total from backend
-      mentors: totalMentorUsers,
-      mentees: totalMenteeUsers
-    };
-  };
-
-  const prepareDepartmentDistributionData = () => {
-    if (!dashboardData?.department_distribution) return [];
-    return dashboardData.department_distribution.map(dept => ({
-      name: dept.department.length > 15 ? dept.department.substring(0, 15) + '...' : dept.department,
-      mentors: dept.mentors || 0,
-      mentees: dept.mentees || 0,
-      activeMentorships: dept.active_mentorships || 0,
-      fullName: dept.department
-    }));
-  };
-
-  const prepareModuleStatisticsData = () => {
-    if (!onboardingReport?.modules_statistics) return [];
-    return onboardingReport.modules_statistics.map(module => ({
-      title: module.title,
-      completion_rate: module.completion_rate || 0,
-      module_type: module.module_type || 'core',
-      estimated_duration: module.estimated_duration || 30,
-      average_completion_time: module.average_completion_time
-    }));
-  };
-
+  // Prepare onboarding status data for pie chart
   const prepareOnboardingStatusData = () => {
     if (!dashboardData?.onboarding) return [];
     
     const statusData = [
-      { name: 'Completed', value: dashboardData.onboarding.completed || 0 },
-      { name: 'In Progress', value: dashboardData.onboarding.in_progress || 0 },
-      { name: 'Overdue', value: dashboardData.onboarding.overdue || 0 }
+      { name: 'In Progress', value: dashboardData.onboarding.in_progress || 0, color: '#3B82F6' },
+      { name: 'Overdue', value: dashboardData.onboarding.overdue || 0, color: '#EF4444' },
+      { name: 'Recent Completions', value: dashboardData.onboarding.recent_completions || 0, color: '#10B981' }
     ];
     
-    // Filter out zero values for better visualization
     return statusData.filter(item => item.value > 0);
   };
 
-  const getTopDepartments = (count = 0) => {
-    if (!dashboardData?.department_distribution) return [];
-    return [...dashboardData.department_distribution]
-      .sort((a, b) => (b.mentees + b.mentors) - (a.mentees + a.mentors))
-      .slice(0, count);
-  };
-
-  const getStatusColor = (status) => {
-    const colors = {
-      completed: 'bg-green-100 text-green-800',
-      'in_progress': 'bg-blue-100 text-blue-800',
-      overdue: 'bg-red-100 text-red-800',
-      pending: 'bg-yellow-100 text-yellow-800',
-      active: 'bg-green-100 text-green-800',
-      inactive: 'bg-gray-100 text-gray-800'
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+  // Prepare module completion data
+  const prepareModuleCompletionData = () => {
+    if (!onboardingReport?.modules) return [];
+    
+    return onboardingReport.modules.map(module => ({
+      name: module.module_title.length > 20 ? module.module_title.substring(0, 20) + '...' : module.module_title,
+      fullName: module.module_title,
+      completed: module.completed || 0,
+      inProgress: module.in_progress || 0,
+      notStarted: module.not_started || 0,
+      completionRate: module.completion_rate || 0,
+      moduleType: module.module_type
+    }));
   };
 
   if (loading) {
@@ -262,16 +214,9 @@ export default function HRDashboard() {
     return <ErrorMessage message="No data available" onRetry={fetchAllData} />;
   }
 
-  const userStats = calculateRealUserStats();
-  const departmentDistributionData = prepareDepartmentDistributionData();
-  const moduleStatsData = prepareModuleStatisticsData();
   const onboardingStatusData = prepareOnboardingStatusData();
-  const topDepartments = getTopDepartments();
-
-  console.log('User Stats:', userStats); // Debug log
-  console.log('Dashboard Data:', dashboardData); // Debug log
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+  const moduleCompletionData = prepareModuleCompletionData();
+  const COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -281,7 +226,7 @@ export default function HRDashboard() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">HR Dashboard</h1>
             <p className="text-sm text-gray-600">
-              Welcome back, {dashboardData.user_info?.name || 'HR Manager'}
+              Welcome back, {user?.full_name || 'HR Manager'}
             </p>
           </div>
           <div className="flex items-center space-x-4">
@@ -306,32 +251,32 @@ export default function HRDashboard() {
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <SummaryCard
-            title="Total Users"
-            value={formatNumber(userStats.total)}
-            icon={Users}
-            description="All registered users in the system"
+            title="Pending Approvals"
+            value={formatNumber(dashboardData.pending_approvals || 0)}
+            icon={UserCheck}
+            description="Users waiting for approval"
+            color="orange"
+          />
+          <SummaryCard
+            title="Total Modules"
+            value={formatNumber(dashboardData.onboarding?.total_modules || 0)}
+            icon={BookOpen}
+            description="Active onboarding modules"
             color="blue"
           />
           <SummaryCard
-            title="Mentors"
-            value={formatNumber(userStats.mentors)}
-            icon={UserCheck}
-            description="Active mentors across departments"
-            color="green"
-          />
-          <SummaryCard
-            title="Mentees"
-            value={formatNumber(userStats.mentees)}
-            icon={UserPlus}
-            description="Active mentees in the system"
+            title="In Progress"
+            value={formatNumber(dashboardData.onboarding?.in_progress || 0)}
+            icon={Clock}
+            description="Modules currently in progress"
             color="purple"
           />
           <SummaryCard
-            title="Onboarding Completion"
-            value={`${(dashboardData.onboarding?.completion_rate || 0).toFixed(1)}%`}
-            icon={TrendingUp}
-            description="Overall onboarding completion rate"
-            color="teal"
+            title="Recent Completions"
+            value={formatNumber(dashboardData.onboarding?.recent_completions || 0)}
+            icon={CheckCircle}
+            description="Completed in last 7 days"
+            color="green"
           />
         </div>
 
@@ -357,17 +302,7 @@ export default function HRDashboard() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Onboarding
-              </button>
-              <button
-                onClick={() => setActiveTab('departments')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'departments'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Departments
+                Onboarding Details
               </button>
             </div>
           </div>
@@ -378,8 +313,8 @@ export default function HRDashboard() {
                 {/* Charts Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Onboarding Status Distribution */}
-                  <DataCard title="Onboarding Status" icon={PieChart}>
-                    <p className="text-sm text-gray-600 mb-4">Module completion status distribution</p>
+                  <DataCard title="Onboarding Status Distribution" icon={PieChart}>
+                    <p className="text-sm text-gray-600 mb-4">Current status of onboarding activities</p>
                     <div className="h-64">
                       {onboardingStatusData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
@@ -395,7 +330,7 @@ export default function HRDashboard() {
                               dataKey="value"
                             >
                               {onboardingStatusData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                <Cell key={`cell-${index}`} fill={entry.color} />
                               ))}
                             </Pie>
                             <Tooltip formatter={(value) => [formatNumber(value), 'Count']} />
@@ -403,7 +338,10 @@ export default function HRDashboard() {
                         </ResponsiveContainer>
                       ) : (
                         <div className="h-full flex items-center justify-center text-gray-500">
-                          No onboarding data available
+                          <div className="text-center">
+                            <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                            <p>No onboarding data available</p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -412,7 +350,7 @@ export default function HRDashboard() {
                         <div key={index} className="flex items-center">
                           <div 
                             className="w-3 h-3 rounded-full mr-2" 
-                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                            style={{ backgroundColor: item.color }}
                           />
                           <span className="text-sm text-gray-600">{item.name}: {formatNumber(item.value)}</span>
                         </div>
@@ -420,410 +358,212 @@ export default function HRDashboard() {
                     </div>
                   </DataCard>
 
-                  {/* Department Distribution */}
-                  <DataCard title="Department Distribution" icon={BarChart2}>
-                    <p className="text-sm text-gray-600 mb-4">Mentors and mentees by department (Top 5)</p>
-                    <div className="h-64">
-                      {departmentDistributionData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={departmentDistributionData.slice(0, 5)}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip formatter={(value) => [formatNumber(value), 'Count']} />
-                            <Legend />
-                            <Bar dataKey="mentors" name="Mentors" fill="#4F46E5" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="mentees" name="Mentees" fill="#10B981" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-gray-500">
-                          No department data available
-                        </div>
-                      )}
-                    </div>
-                  </DataCard>
-                </div>
-
-                {/* Statistics Cards */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* User Statistics */}
-                  <DataCard title="User Statistics" icon={Users}>
+                  {/* Quick Stats */}
+                  <DataCard title="Quick Statistics" icon={BarChart2}>
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Users</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatNumber(userStats.total)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Mentors</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatNumber(userStats.mentors)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Mentees</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatNumber(userStats.mentees)}
-                        </span>
-                      </div>
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-700">Approved Users</span>
-                          <span className="font-semibold text-green-600">
-                            {formatNumber(dashboardData.user_management?.approved || 0)}
-                          </span>
+                      <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                        <div className="flex items-center">
+                          <Users className="w-5 h-5 text-blue-600 mr-2" />
+                          <span className="text-sm font-medium text-gray-700">Pending Approvals</span>
                         </div>
-                        {dashboardData.user_management?.pending > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Pending Approval</span>
-                            <span className="font-semibold text-orange-600">
-                              {formatNumber(dashboardData.user_management.pending)}
-                            </span>
-                          </div>
-                        )}
-                        {dashboardData.user_management?.rejected > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Rejected</span>
-                            <span className="font-semibold text-red-600">
-                              {formatNumber(dashboardData.user_management.rejected)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </DataCard>
-
-                  {/* Onboarding Overview */}
-                  <DataCard title="Onboarding Progress" icon={BookOpen}>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Modules</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatNumber(dashboardData.onboarding?.total || 0)}
+                        <span className="text-lg font-bold text-blue-600">
+                          {formatNumber(dashboardData.pending_approvals || 0)}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Completed</span>
-                        <span className="font-semibold text-green-600">
-                          {formatNumber(dashboardData.onboarding?.completed || 0)}
+                      
+                      <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                        <div className="flex items-center">
+                          <BookOpen className="w-5 h-5 text-purple-600 mr-2" />
+                          <span className="text-sm font-medium text-gray-700">Total Modules</span>
+                        </div>
+                        <span className="text-lg font-bold text-purple-600">
+                          {formatNumber(dashboardData.onboarding?.total_modules || 0)}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">In Progress</span>
-                        <span className="font-semibold text-blue-600">
+                      
+                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                        <div className="flex items-center">
+                          <Clock className="w-5 h-5 text-orange-600 mr-2" />
+                          <span className="text-sm font-medium text-gray-700">In Progress</span>
+                        </div>
+                        <span className="text-lg font-bold text-orange-600">
                           {formatNumber(dashboardData.onboarding?.in_progress || 0)}
                         </span>
                       </div>
+                      
                       {dashboardData.onboarding?.overdue > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Overdue</span>
-                          <span className="font-semibold text-red-600">
+                        <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                          <div className="flex items-center">
+                            <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
+                            <span className="text-sm font-medium text-gray-700">Overdue</span>
+                          </div>
+                          <span className="text-lg font-bold text-red-600">
                             {formatNumber(dashboardData.onboarding.overdue)}
                           </span>
                         </div>
                       )}
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-gray-700">Completion Rate</span>
-                          <span className="font-semibold text-teal-600">
-                            {dashboardData.onboarding?.completion_rate?.toFixed(1) || '0.0'}%
-                          </span>
+                      
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                        <div className="flex items-center">
+                          <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                          <span className="text-sm font-medium text-gray-700">Recent Completions (7d)</span>
                         </div>
-                      </div>
-                    </div>
-                  </DataCard>
-
-                  {/* Mentorship Metrics */}
-                  <DataCard title="Mentorship Overview" icon={Target}>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Active Mentorships</span>
-                        <span className="font-semibold text-green-600">
-                          {formatNumber(dashboardData.mentorship?.active || 0)}
+                        <span className="text-lg font-bold text-green-600">
+                          {formatNumber(dashboardData.onboarding?.recent_completions || 0)}
                         </span>
-                      </div>
-                      {dashboardData.mentorship?.pending > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Pending Requests</span>
-                          <span className="font-semibold text-orange-600">
-                            {formatNumber(dashboardData.mentorship.pending)}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Departments</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatNumber(dashboardData.department_distribution?.length || 0)}
-                        </span>
-                      </div>
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-700">Mentorship Coverage</span>
-                          <span className="font-semibold text-purple-600">
-                            {userStats.mentees > 0 
-                              ? Math.round((dashboardData.mentorship?.active / userStats.mentees) * 100) 
-                              : 0
-                            }%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-purple-500 h-2 rounded-full" 
-                            style={{ 
-                              width: `${userStats.mentees > 0 
-                                ? Math.min(100, Math.round((dashboardData.mentorship?.active / userStats.mentees) * 100))
-                                : 0
-                              }%` 
-                            }}
-                          ></div>
-                        </div>
                       </div>
                     </div>
                   </DataCard>
                 </div>
+
+                {/* Alert Section */}
+                {dashboardData.pending_approvals > 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3" />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-yellow-800">Action Required</h4>
+                        <p className="text-sm text-yellow-700 mt-1">
+                          You have {formatNumber(dashboardData.pending_approvals)} user approval{dashboardData.pending_approvals !== 1 ? 's' : ''} pending. 
+                          Please review and approve them to allow users to access the system.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {dashboardData.onboarding?.overdue > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <XCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3" />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-red-800">Overdue Items</h4>
+                        <p className="text-sm text-red-700 mt-1">
+                          There are {formatNumber(dashboardData.onboarding.overdue)} overdue onboarding module{dashboardData.onboarding.overdue !== 1 ? 's' : ''}. 
+                          Please follow up with the relevant mentees.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'onboarding' && (
               <div className="space-y-6">
                 {/* Module Statistics */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Top Performing Modules */}
-                  <DataCard title="Module Performance" icon={Award}>
-                    <div className="space-y-3">
-                      {moduleStatsData.length > 0 ? (
-                        moduleStatsData.map((module, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                            <div className="flex items-center space-x-3">
-                              <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-                                <span className="text-sm font-semibold text-blue-600">{index + 1}</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 truncate">{module.title}</p>
-                                <div className="flex items-center space-x-2">
-                                  <span className={`text-xs px-2 py-1 rounded ${getStatusColor(module.module_type === 'core' ? 'active' : 'completed')}`}>
-                                    {module.module_type}
-                                  </span>
-                                  <span className="text-xs text-gray-500">{module.completion_rate}% completion</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-semibold text-gray-900">{module.completion_rate}%</div>
-                              <div className="text-xs text-gray-500">Rate</div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
+                <DataCard title="Module Completion Statistics" icon={BarChart2}>
+                  <p className="text-sm text-gray-600 mb-4">Completion status for each onboarding module</p>
+                  <div className="h-80">
+                    {moduleCompletionData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={moduleCompletionData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip 
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+                                    <p className="font-semibold text-gray-900 mb-2">{data.fullName}</p>
+                                    <p className="text-sm text-gray-600">Type: {data.moduleType}</p>
+                                    <p className="text-sm text-green-600">Completed: {data.completed}</p>
+                                    <p className="text-sm text-blue-600">In Progress: {data.inProgress}</p>
+                                    <p className="text-sm text-gray-600">Not Started: {data.notStarted}</p>
+                                    <p className="text-sm font-semibold text-gray-900 mt-2">
+                                      Completion Rate: {data.completionRate}%
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Legend />
+                          <Bar dataKey="completed" name="Completed" fill="#10B981" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="inProgress" name="In Progress" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="notStarted" name="Not Started" fill="#9CA3AF" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-500">
+                        <div className="text-center">
                           <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                           <p>No module data available</p>
                         </div>
-                      )}
-                    </div>
-                  </DataCard>
+                      </div>
+                    )}
+                  </div>
+                </DataCard>
 
-                  {/* Onboarding Summary */}
-                  <DataCard title="Onboarding Summary" icon={FileText}>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Modules</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatNumber(onboardingReport?.summary?.total_modules || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Mentees</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatNumber(onboardingReport?.summary?.total_mentees || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Completed Modules</span>
-                        <span className="font-semibold text-green-600">
-                          {formatNumber(
-                            onboardingReport?.summary?.progress_by_status?.find(s => s.status === 'completed')?.count || 0
-                          )}
-                        </span>
-                      </div>
-                      
-                      {/* Module Types Breakdown */}
-                      <div className="pt-4 border-t border-gray-200">
-                        <h4 className="text-sm font-medium text-gray-700 mb-3">Module Types</h4>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Core Modules</span>
-                            <span className="font-semibold text-blue-600">
-                              {moduleStatsData.filter(m => m.module_type === 'core').length}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Department Modules</span>
-                            <span className="font-semibold text-purple-600">
-                              {moduleStatsData.filter(m => m.module_type === 'department').length}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Mentees Needing Attention */}
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">Mentees Needing Attention</span>
-                          <span className="text-sm font-semibold text-red-600">
-                            {formatNumber(onboardingReport?.mentees_needing_attention?.length || 0)}
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          {onboardingReport?.mentees_needing_attention?.slice(0, 3).map((mentee, index) => (
-                            <div key={index} className="flex items-center p-2 bg-red-50 rounded border border-red-100">
-                              <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />
-                              <span className="text-sm text-gray-700">{mentee.mentee__full_name || 'Unknown mentee'}</span>
-                              <span className="ml-auto text-xs text-gray-500">{mentee.module__title}</span>
-                            </div>
-                          ))}
-                          {(!onboardingReport?.mentees_needing_attention || onboardingReport.mentees_needing_attention.length === 0) && (
-                            <div className="text-center py-2 text-gray-500 text-sm bg-green-50 rounded">
-                              <CheckCircle className="w-4 h-4 inline mr-1 text-green-500" />
-                              All mentees are up to date
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </DataCard>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'departments' && (
-              <div className="space-y-6">
-                {/* Department Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {topDepartments.map((dept, index) => (
-                    <div key={index} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">{dept.department}</h3>
-                        <Building className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Total Users</span>
-                          <span className="font-semibold text-gray-900">
-                            {formatNumber((dept.mentees || 0) + (dept.mentors || 0))}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Mentors</span>
-                          <span className="font-semibold text-blue-600">{formatNumber(dept.mentors || 0)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Mentees</span>
-                          <span className="font-semibold text-purple-600">{formatNumber(dept.mentees || 0)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Active Mentorships</span>
-                          <span className="font-semibold text-green-600">
-                            {formatNumber(dept.active_mentorships || 0)}
-                          </span>
-                        </div>
-                        
-                        {/* Utilization Rate */}
-                        <div className="pt-3 border-t border-gray-200">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs text-gray-600">Mentorship Coverage</span>
-                            <span className="text-xs font-semibold text-gray-900">
-                              {dept.mentees > 0 && dept.active_mentorships > 0 
-                                ? Math.round((dept.active_mentorships / dept.mentees) * 100)
-                                : 0
-                              }%
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-blue-500 h-2 rounded-full" 
-                              style={{ 
-                                width: `${dept.mentees > 0 && dept.active_mentorships > 0 
-                                  ? Math.min(100, Math.round((dept.active_mentorships / dept.mentees) * 100))
-                                  : 0
-                                }%` 
-                              }}
-                            ></div>
-                          </div>
-                        </div>
-
-                        {/* Mentee to Mentor Ratio */}
-                        <div className="flex justify-between items-center text-xs text-gray-500">
-                          <span>Mentee:Mentor Ratio</span>
-                          <span>
-                            {dept.mentees || 0}:{dept.mentors || 0}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* All Departments Table */}
-                <DataCard title="All Departments Overview">
+                {/* Module Details Table */}
+                <DataCard title="Module Details" icon={FileText}>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead>
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Department
+                            Module Title
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Mentors
+                            Type
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Mentees
+                            Total Assigned
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Active Mentorships
+                            Completed
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Coverage
+                            In Progress
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Not Started
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Completion Rate
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {dashboardData.department_distribution?.map((dept, index) => (
+                        {onboardingReport?.modules?.map((module, index) => (
                           <tr key={index} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">{dept.department}</div>
+                              <div className="text-sm font-medium text-gray-900">{module.module_title}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="text-sm text-gray-900">{dept.mentors || 0}</span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="text-sm text-gray-900">{dept.mentees || 0}</span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`text-sm font-medium ${dept.active_mentorships > 0 ? 'text-green-600' : 'text-gray-500'}`}>
-                                {dept.active_mentorships || 0}
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                module.module_type === 'core' 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-purple-100 text-purple-800'
+                              }`}>
+                                {module.module_type}
                               </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatNumber(module.total_assigned)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                              {formatNumber(module.completed)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+                              {formatNumber(module.in_progress)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                              {formatNumber(module.not_started)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
-                                <div className="w-24 bg-gray-200 rounded-full h-2 mr-2">
+                                <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2">
                                   <div 
-                                    className="bg-blue-500 h-2 rounded-full" 
-                                    style={{ 
-                                      width: `${dept.mentees > 0 && dept.active_mentorships > 0 
-                                        ? Math.min(100, Math.round((dept.active_mentorships / dept.mentees) * 100))
-                                        : 0
-                                      }%` 
-                                    }}
-                                  ></div>
+                                    className="bg-green-500 h-2 rounded-full" 
+                                    style={{ width: `${module.completion_rate}%` }}
+                                  />
                                 </div>
-                                <span className="text-xs text-gray-500">
-                                  {dept.mentees > 0 && dept.active_mentorships > 0 
-                                    ? Math.round((dept.active_mentorships / dept.mentees) * 100)
-                                    : 0
-                                  }%
+                                <span className="text-sm font-medium text-gray-900">
+                                  {module.completion_rate}%
                                 </span>
                               </div>
                             </td>
@@ -831,6 +571,12 @@ export default function HRDashboard() {
                         ))}
                       </tbody>
                     </table>
+                    {(!onboardingReport?.modules || onboardingReport.modules.length === 0) && (
+                      <div className="text-center py-8 text-gray-500">
+                        <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                        <p>No module data available</p>
+                      </div>
+                    )}
                   </div>
                 </DataCard>
               </div>
@@ -853,10 +599,7 @@ export default function HRDashboard() {
                 Live data from production
               </div>
               <div className="text-sm text-gray-500">
-                Total Departments: <span className="font-semibold">{dashboardData.department_distribution?.length || 0}</span>
-              </div>
-              <div className="text-sm text-gray-500">
-                Data Version: <span className="font-semibold">v1.0</span>
+                Total Modules: <span className="font-semibold">{formatNumber(onboardingReport?.total_modules || 0)}</span>
               </div>
             </div>
           </div>

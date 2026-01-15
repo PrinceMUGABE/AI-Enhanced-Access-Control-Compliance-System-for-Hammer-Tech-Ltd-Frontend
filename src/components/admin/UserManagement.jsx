@@ -91,7 +91,6 @@ export default function UserManagementPage() {
 
   // Custom API service using fetch
   const apiService = {
-    // Users API endpoints
     users: {
       getUsers: async () => {
         try {
@@ -139,7 +138,6 @@ export default function UserManagementPage() {
       
       createUser: async (userData) => {
         try {
-          // For self-registration endpoint
           const endpoint = authToken ? `${BASE_URL}/users/` : `${BASE_URL}/auth/register/`;
           
           const response = await fetch(endpoint, {
@@ -282,7 +280,6 @@ export default function UserManagementPage() {
       }
     },
     
-    // Departments API endpoints
     departments: {
       getDepartments: async () => {
         try {
@@ -487,7 +484,7 @@ export default function UserManagementPage() {
     } else if (user.role === 'mentor') {
       return user.departments_details?.map(dept => dept.name).join(', ');
     }
-    return 'N/A';
+    return 'None';
   };
 
   // Modal Handlers
@@ -657,7 +654,7 @@ export default function UserManagementPage() {
       errors.departments = 'At least one department is required for mentor';
     }
     
-    if (!authToken) { // Self-registration requires password
+    if (!authToken) {
       if (!newUserForm.password) {
         errors.password = 'Password is required';
       } else if (newUserForm.password.length < 8) {
@@ -712,7 +709,6 @@ export default function UserManagementPage() {
     setSubmitting(true);
     
     try {
-      // Prepare user data based on role
       const userData = {
         phone_number: newUserForm.phone_number,
         email: newUserForm.email,
@@ -734,7 +730,6 @@ export default function UserManagementPage() {
         await loadData();
         setTimeout(() => setSuccessMessage(''), 3000);
         
-        // Reset form
         setNewUserForm({
           phone_number: '',
           email: '',
@@ -771,7 +766,6 @@ export default function UserManagementPage() {
     setSubmitting(true);
     
     try {
-      // Prepare update data
       const updateData = {
         phone_number: editUserForm.phone_number,
         email: editUserForm.email,
@@ -909,9 +903,9 @@ export default function UserManagementPage() {
     }
   };
 
-  // Custom Components
+  // Fixed Button Component
   const Button = ({ children, variant = 'default', onClick, className = '', style = {}, disabled = false }) => {
-    const baseStyle = {
+    const buttonStyle = {
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -925,29 +919,26 @@ export default function UserManagementPage() {
       opacity: disabled ? 0.6 : 1
     };
 
-    const variants = {
-      default: {
-        backgroundColor: '#3b82f6',
-        color: 'white',
-        '&:hover': { backgroundColor: '#2563eb' }
-      },
-      outline: {
-        backgroundColor: 'transparent',
-        color: '#374151',
-        border: '1px solid #d1d5db',
-        '&:hover': { backgroundColor: '#f9fafb' }
-      },
-      ghost: {
-        backgroundColor: 'transparent',
-        color: '#374151',
-        border: 'none',
-        '&:hover': { backgroundColor: '#f9fafb' }
-      }
-    };
+    // Set base styles based on variant
+    if (variant === 'default') {
+      buttonStyle.backgroundColor = '#3b82f6';
+      buttonStyle.color = 'white';
+    } else if (variant === 'outline') {
+      buttonStyle.backgroundColor = 'transparent';
+      buttonStyle.color = '#374151';
+      buttonStyle.border = '1px solid #d1d5db';
+    } else if (variant === 'ghost') {
+      buttonStyle.backgroundColor = 'transparent';
+      buttonStyle.color = '#374151';
+      buttonStyle.border = 'none';
+    }
+
+    // Merge with custom style
+    Object.assign(buttonStyle, style);
 
     return (
       <button
-        style={{ ...baseStyle, ...variants[variant], ...style }}
+        style={buttonStyle}
         onClick={disabled ? undefined : onClick}
         className={className}
         disabled={disabled}
@@ -1012,7 +1003,7 @@ export default function UserManagementPage() {
     );
   };
 
-  // Modal Component
+  // Fixed Modal Component
   const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
     if (!isOpen) return null;
     
@@ -1055,12 +1046,12 @@ export default function UserManagementPage() {
             <button
               onClick={onClose}
               style={{
-                backgroundColor: 'transparent',
+                background: 'none',
                 border: 'none',
                 cursor: 'pointer',
                 padding: '4px',
                 borderRadius: '4px',
-                '&:hover': { backgroundColor: '#f9fafb' }
+                lineHeight: 0
               }}
             >
               <X style={{ height: '20px', width: '20px', color: '#6b7280' }} />
@@ -1121,55 +1112,6 @@ export default function UserManagementPage() {
               <RefreshCw style={{ height: '16px', width: '16px', marginRight: '8px' }} />
               Refresh
             </Button>
-            
-            <Button variant="outline" onClick={() => setShowExportMenu(!showExportMenu)}>
-              <Download style={{ height: '16px', width: '16px', marginRight: '8px' }} />
-              Export
-              <ChevronDown style={{ height: '16px', width: '16px', marginLeft: '8px' }} />
-            </Button>
-            
-            {showExportMenu && (
-              <div style={{
-                position: 'absolute',
-                right: '0',
-                top: '100%',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
-                border: '1px solid #e5e7eb',
-                padding: '8px',
-                minWidth: '160px',
-                zIndex: 50,
-                marginTop: '8px'
-              }}>
-                <div style={{
-                  padding: '8px 12px',
-                  fontSize: '14px',
-                  color: '#6b7280',
-                  borderBottom: '1px solid #e5e7eb'
-                }}>
-                  Export Options
-                </div>
-                <button
-                  onClick={exportToCSV}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '8px 12px',
-                    fontSize: '14px',
-                    color: '#374151',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    borderRadius: '4px',
-                    '&:hover': { backgroundColor: '#f9fafb' }
-                  }}
-                >
-                  Export as CSV
-                </button>
-              </div>
-            )}
-
             <Button onClick={handleAddUser}>
               <UserPlus style={{ height: '16px', width: '16px', marginRight: '8px' }} />
               Add User
@@ -1321,7 +1263,8 @@ export default function UserManagementPage() {
                   padding: '10px 12px 10px 40px',
                   borderRadius: '6px',
                   border: '1px solid #d1d5db',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  outline: 'none'
                 }}
               />
             </div>
@@ -1372,7 +1315,8 @@ export default function UserManagementPage() {
                         borderRadius: '6px',
                         border: '1px solid #d1d5db',
                         fontSize: '14px',
-                        backgroundColor: 'white'
+                        backgroundColor: 'white',
+                        outline: 'none'
                       }}
                       disabled={loadingDepartments}
                     >
@@ -1399,7 +1343,8 @@ export default function UserManagementPage() {
                         borderRadius: '6px',
                         border: '1px solid #d1d5db',
                         fontSize: '14px',
-                        backgroundColor: 'white'
+                        backgroundColor: 'white',
+                        outline: 'none'
                       }}
                     >
                       <option value="all">All Roles</option>
@@ -1424,7 +1369,8 @@ export default function UserManagementPage() {
                         borderRadius: '6px',
                         border: '1px solid #d1d5db',
                         fontSize: '14px',
-                        backgroundColor: 'white'
+                        backgroundColor: 'white',
+                        outline: 'none'
                       }}
                     >
                       <option value="all">All Status</option>
@@ -1450,7 +1396,8 @@ export default function UserManagementPage() {
                             padding: '8px 12px',
                             borderRadius: '6px',
                             border: '1px solid #d1d5db',
-                            fontSize: '14px'
+                            fontSize: '14px',
+                            outline: 'none'
                           }}
                         />
                       </div>
@@ -1464,7 +1411,8 @@ export default function UserManagementPage() {
                             padding: '8px 12px',
                             borderRadius: '6px',
                             border: '1px solid #d1d5db',
-                            fontSize: '14px'
+                            fontSize: '14px',
+                            outline: 'none'
                           }}
                         />
                       </div>
@@ -1546,7 +1494,7 @@ export default function UserManagementPage() {
                 </tr>
               ) : (
                 paginatedUsers.map((user) => (
-                  <tr key={user.id} style={{ borderBottom: '1px solid #e5e7eb', transition: 'background-color 0.2s' }}>
+                  <tr key={user.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                     <td style={{ padding: '12px 16px' }}>
                       <input
                         type="checkbox"
@@ -1599,7 +1547,7 @@ export default function UserManagementPage() {
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Building style={{ height: '12px', width: '12px', color: '#9ca3af' }} />
-                        <span>{getUserDepartment(user) || 'N/A'}</span>
+                        <span>{getUserDepartment(user) || 'None'}</span>
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
@@ -1673,7 +1621,8 @@ export default function UserManagementPage() {
                 borderRadius: '6px',
                 border: '1px solid #d1d5db',
                 fontSize: '14px',
-                backgroundColor: 'white'
+                backgroundColor: 'white',
+                outline: 'none'
               }}
             >
               <option value={5}>5</option>
@@ -1963,7 +1912,8 @@ export default function UserManagementPage() {
                       padding: '8px 12px',
                       borderRadius: '6px',
                       border: `1px solid ${formErrors.full_name ? '#ef4444' : '#d1d5db'}`,
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      outline: 'none'
                     }}
                   />
                   {formErrors.full_name && (
@@ -1987,7 +1937,8 @@ export default function UserManagementPage() {
                       padding: '8px 12px',
                       borderRadius: '6px',
                       border: `1px solid ${formErrors.email ? '#ef4444' : '#d1d5db'}`,
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      outline: 'none'
                     }}
                   />
                   {formErrors.email && (
@@ -2012,7 +1963,8 @@ export default function UserManagementPage() {
                       padding: '8px 12px',
                       borderRadius: '6px',
                       border: `1px solid ${formErrors.phone_number ? '#ef4444' : '#d1d5db'}`,
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      outline: 'none'
                     }}
                   />
                   {formErrors.phone_number && (
@@ -2045,7 +1997,8 @@ export default function UserManagementPage() {
                       borderRadius: '6px',
                       border: '1px solid #d1d5db',
                       fontSize: '14px',
-                      backgroundColor: 'white'
+                      backgroundColor: 'white',
+                      outline: 'none'
                     }}
                   >
                     <option value="admin">Administrator</option>
@@ -2070,7 +2023,8 @@ export default function UserManagementPage() {
                         borderRadius: '6px',
                         border: `1px solid ${formErrors.department ? '#ef4444' : '#d1d5db'}`,
                         fontSize: '14px',
-                        backgroundColor: 'white'
+                        backgroundColor: 'white',
+                        outline: 'none'
                       }}
                     >
                       <option value="">Select Department</option>
@@ -2154,7 +2108,8 @@ export default function UserManagementPage() {
                       borderRadius: '6px',
                       border: '1px solid #d1d5db',
                       fontSize: '14px',
-                      backgroundColor: 'white'
+                      backgroundColor: 'white',
+                      outline: 'none'
                     }}
                   >
                     <option value="pending">Pending</option>
@@ -2177,7 +2132,8 @@ export default function UserManagementPage() {
                       borderRadius: '6px',
                       border: '1px solid #d1d5db',
                       fontSize: '14px',
-                      backgroundColor: 'white'
+                      backgroundColor: 'white',
+                      outline: 'none'
                     }}
                   >
                     <option value="active">Active</option>
@@ -2273,7 +2229,8 @@ export default function UserManagementPage() {
                       padding: '8px 12px',
                       borderRadius: '6px',
                       border: `1px solid ${formErrors.full_name ? '#ef4444' : '#d1d5db'}`,
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      outline: 'none'
                     }}
                   />
                   {formErrors.full_name && (
@@ -2297,7 +2254,8 @@ export default function UserManagementPage() {
                       padding: '8px 12px',
                       borderRadius: '6px',
                       border: `1px solid ${formErrors.email ? '#ef4444' : '#d1d5db'}`,
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      outline: 'none'
                     }}
                   />
                   {formErrors.email && (
@@ -2322,7 +2280,8 @@ export default function UserManagementPage() {
                       padding: '8px 12px',
                       borderRadius: '6px',
                       border: `1px solid ${formErrors.phone_number ? '#ef4444' : '#d1d5db'}`,
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      outline: 'none'
                     }}
                   />
                   {formErrors.phone_number && (
@@ -2355,7 +2314,8 @@ export default function UserManagementPage() {
                       borderRadius: '6px',
                       border: '1px solid #d1d5db',
                       fontSize: '14px',
-                      backgroundColor: 'white'
+                      backgroundColor: 'white',
+                      outline: 'none'
                     }}
                   >
                     <option value="admin">Administrator</option>
@@ -2380,7 +2340,8 @@ export default function UserManagementPage() {
                         borderRadius: '6px',
                         border: `1px solid ${formErrors.department ? '#ef4444' : '#d1d5db'}`,
                         fontSize: '14px',
-                        backgroundColor: 'white'
+                        backgroundColor: 'white',
+                        outline: 'none'
                       }}
                     >
                       <option value="">Select Department</option>
@@ -2465,7 +2426,8 @@ export default function UserManagementPage() {
                         padding: '8px 12px',
                         borderRadius: '6px',
                         border: `1px solid ${formErrors.password ? '#ef4444' : '#d1d5db'}`,
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        outline: 'none'
                       }}
                     />
                     {formErrors.password && (
@@ -2492,7 +2454,8 @@ export default function UserManagementPage() {
                         padding: '8px 12px',
                         borderRadius: '6px',
                         border: `1px solid ${formErrors.confirm_password ? '#ef4444' : '#d1d5db'}`,
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        outline: 'none'
                       }}
                     />
                     {formErrors.confirm_password && (
@@ -2669,20 +2632,6 @@ export default function UserManagementPage() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
-        }
-        
-        button:hover:not(:disabled) {
-          opacity: 0.9;
-        }
-        
-        select:focus, input:focus {
-          outline: none;
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        tr:hover {
-          background-color: #f9fafb;
         }
       `}</style>
     </div>

@@ -1,6 +1,49 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import {
+  Calendar,
+  Users,
+  TrendingUp,
+  Star,
+  ChevronRight,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  BarChart3,
+  FileText,
+  MessageSquare,
+  UserCheck,
+  Target,
+  Award,
+  PieChart,
+  Activity,
+  Filter,
+  Search,
+  MoreVertical,
+  Eye,
+  Edit,
+  Download,
+  Share2,
+  Bell,
+  X,
+  Video,
+  Phone,
+  BookOpen,
+  User,
+  PlayCircle,
+  PauseCircle,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  ChevronUp,
+  PlusCircle,
+  List,
+  Grid,
+  RefreshCw,
+  CalendarDays,
+  Clock as ClockIcon
+} from 'lucide-react';
 // API base URL
 const BASE_URL = "http://127.0.0.1:8000";
 
@@ -11,11 +54,16 @@ const getAuthToken = () => {
 
 const formatDate = (dateString, includeTime = false) => {
   if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  if (includeTime) {
-    return date.toLocaleString();
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    if (includeTime) {
+      return date.toLocaleString();
+    }
+    return date.toLocaleDateString();
+  } catch {
+    return 'N/A';
   }
-  return date.toLocaleDateString();
 };
 
 const getStatusBadgeProps = (status) => {
@@ -65,10 +113,15 @@ const getDepartmentName = (item) => {
   return 'N/A';
 };
 
-// API functions
+// API functions with better error handling
+// Updated fetchAPI function without credentials: 'include'
 const fetchAPI = async (endpoint, method = 'GET', data = null) => {
   try {
     const token = getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
     const headers = {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -77,21 +130,46 @@ const fetchAPI = async (endpoint, method = 'GET', data = null) => {
     const config = {
       method,
       headers
+      // Removed: credentials: 'include' - not needed when using Authorization header
     };
 
     if (data && method !== 'GET') {
       config.body = JSON.stringify(data);
     }
 
+    console.log(`Fetching ${BASE_URL}${endpoint}`, config);
     const response = await fetch(`${BASE_URL}${endpoint}`, config);
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+    if (response.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('access_token');
+      window.location.href = '/login';
+      throw new Error('Authentication failed');
     }
 
-    return await response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error (${response.status}) for ${endpoint}:`, errorText);
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log(`API response from ${endpoint}:`, result);
+    return result;
   } catch (error) {
     console.error(`Error fetching ${endpoint}:`, error);
+
+    // Check if it's a network/CORS error
+    if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
+      console.warn('Network or CORS error detected. This might be due to:');
+      console.warn('1. Backend server is not running');
+      console.warn('2. CORS misconfiguration on backend');
+      console.warn('3. Network connectivity issues');
+
+      // Provide more helpful error message
+      throw new Error(`Unable to connect to server. Please ensure the backend is running at ${BASE_URL} and CORS is properly configured.`);
+    }
+
     throw error;
   }
 };
@@ -354,7 +432,7 @@ const Progress = ({ value, className = '', showLabel = false }) => (
     <div className={`w-full bg-gray-200 rounded-full h-2 ${className}`}>
       <div
         className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(value)}`}
-        style={{ width: `${value}%` }}
+        style={{ width: `${Math.min(value, 100)}%` }}
       />
     </div>
   </div>
@@ -1209,7 +1287,7 @@ const CreateMentorshipModal = ({ open, onClose, onCreate, departments }) => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
+
     if (name === 'department_id') {
       // Reset mentor and mentee when department changes
       setFormData(prev => ({
@@ -2142,7 +2220,7 @@ export default function AdminMentorshipManagement() {
   const [showEditProgram, setShowEditProgram] = useState(false);
   const [programToEdit, setProgramToEdit] = useState(null);
 
-  // Enhanced statistics
+  // Enhanced statistics - FIXED: Initialize with proper structure
   const [dashboardStats, setDashboardStats] = useState({
     totalPrograms: 0,
     activePrograms: 0,
@@ -2179,20 +2257,22 @@ export default function AdminMentorshipManagement() {
     fetchData();
   }, []);
 
-  // Enhanced data fetching
+  // Enhanced data fetching with better error handling
   const fetchData = async () => {
     try {
       setLoading(true);
+      console.log('Starting data fetch...');
 
+      // Fetch all data in parallel
       const [
-        programsData,
-        sessionTemplatesData,
-        mentorshipsData,
-        departmentsData,
-        statsData,
-        topMentorsData,
-        activityData
-      ] = await Promise.all([
+        programsResponse,
+        sessionTemplatesResponse,
+        mentorshipsResponse,
+        departmentsResponse,
+        statsResponse,
+        topMentorsResponse,
+        activityResponse
+      ] = await Promise.allSettled([
         getMentorshipPrograms(),
         getSessionTemplates(),
         getMentorships(),
@@ -2202,63 +2282,117 @@ export default function AdminMentorshipManagement() {
         getRecentActivity()
       ]);
 
-      // Set data
-      setPrograms(Array.isArray(programsData?.programs || programsData?.data || programsData)
-        ? (programsData?.programs || programsData?.data || programsData)
-        : []);
+      console.log('All API responses received');
 
-      setSessionTemplates(Array.isArray(sessionTemplatesData?.templates || sessionTemplatesData?.data || sessionTemplatesData)
-        ? (sessionTemplatesData?.templates || sessionTemplatesData?.data || sessionTemplatesData)
-        : []);
-
-      setMentorships(Array.isArray(mentorshipsData?.mentorships || mentorshipsData?.data || mentorshipsData)
-        ? (mentorshipsData?.mentorships || mentorshipsData?.data || mentorshipsData)
-        : []);
-
-      setDepartments(Array.isArray(departmentsData?.departments || departmentsData?.data || departmentsData)
-        ? (departmentsData?.departments || departmentsData?.data || departmentsData)
-        : []);
-
-      // Set enhanced statistics
-      if (statsData) {
-        setDashboardStats(prev => ({
-          ...prev,
-          departmentStats: statsData.departments || [],
-          overallStats: statsData.overall || null
-        }));
+      // Handle programs
+      if (programsResponse.status === 'fulfilled') {
+        const programsData = programsResponse.value;
+        const programsArray = Array.isArray(programsData?.programs || programsData?.data || programsData)
+          ? (programsData?.programs || programsData?.data || programsData)
+          : [];
+        console.log(`Fetched ${programsArray.length} programs`);
+        setPrograms(programsArray);
+      } else {
+        console.error('Failed to fetch programs:', programsResponse.reason);
       }
 
-      if (topMentorsData) {
-        setDashboardStats(prev => ({
-          ...prev,
-          mentorPerformance: topMentorsData.mentors || []
-        }));
+      // Handle session templates
+      if (sessionTemplatesResponse.status === 'fulfilled') {
+        const templatesData = sessionTemplatesResponse.value;
+        const templatesArray = Array.isArray(templatesData?.templates || templatesData?.data || templatesData)
+          ? (templatesData?.templates || templatesData?.data || templatesData)
+          : [];
+        console.log(`Fetched ${templatesArray.length} session templates`);
+        setSessionTemplates(templatesArray);
+      } else {
+        console.error('Failed to fetch session templates:', sessionTemplatesResponse.reason);
       }
 
-      if (activityData) {
-        setDashboardStats(prev => ({
-          ...prev,
-          recentActivity: activityData.activities || []
-        }));
+      // Handle mentorships
+      if (mentorshipsResponse.status === 'fulfilled') {
+        const mentorshipsData = mentorshipsResponse.value;
+        const mentorshipsArray = Array.isArray(mentorshipsData?.mentorships || mentorshipsData?.data || mentorshipsData)
+          ? (mentorshipsData?.mentorships || mentorshipsData?.data || mentorshipsData)
+          : [];
+        console.log(`Fetched ${mentorshipsArray.length} mentorships`);
+        setMentorships(mentorshipsArray);
+      } else {
+        console.error('Failed to fetch mentorships:', mentorshipsResponse.reason);
       }
 
-      // Calculate basic stats from local data
+      // Handle departments
+      if (departmentsResponse.status === 'fulfilled') {
+        const departmentsData = departmentsResponse.value;
+        const departmentsArray = Array.isArray(departmentsData?.departments || departmentsData?.data || departmentsData)
+          ? (departmentsData?.departments || departmentsData?.data || departmentsData)
+          : [];
+        console.log(`Fetched ${departmentsArray.length} departments`);
+        setDepartments(departmentsArray);
+      } else {
+        console.error('Failed to fetch departments:', departmentsResponse.reason);
+      }
+
+      // Calculate enhanced stats after all data is set
       calculateEnhancedStats();
+
+      // Handle additional statistics if available
+      if (statsResponse.status === 'fulfilled' && statsResponse.value) {
+        const statsData = statsResponse.value;
+        console.log('Department statistics:', statsData);
+
+        // Use API department stats if available
+        if (statsData.departments && statsData.departments.length > 0) {
+          setDashboardStats(prev => ({
+            ...prev,
+            departmentStats: statsData.departments.map(dept => ({
+              id: dept.id,
+              name: dept.name,
+              programCount: dept.program_count || 0,
+              mentorshipCount: dept.mentorship_count || 0,
+              activeMentorships: dept.active_mentorships || 0,
+              completionRate: dept.completion_rate || 0
+            })),
+            overallStats: statsData.overall || null
+          }));
+        }
+      }
+
+      if (topMentorsResponse.status === 'fulfilled' && topMentorsResponse.value) {
+        const topMentorsData = topMentorsResponse.value;
+        console.log('Top mentors:', topMentorsData);
+        if (topMentorsData.mentors) {
+          setDashboardStats(prev => ({
+            ...prev,
+            mentorPerformance: topMentorsData.mentors
+          }));
+        }
+      }
+
+      if (activityResponse.status === 'fulfilled' && activityResponse.value) {
+        const activityData = activityResponse.value;
+        console.log('Recent activity:', activityData);
+        if (activityData.activities) {
+          setDashboardStats(prev => ({
+            ...prev,
+            recentActivity: activityData.activities
+          }));
+        }
+      }
 
     } catch (error) {
       console.error('Error fetching data:', error);
-      if (!error.message.includes('department-statistics') &&
-        !error.message.includes('top-performing-mentors') &&
-        !error.message.includes('recent-activity')) {
-        alert('Failed to load main data. Please try again.');
-      }
+      alert('Failed to load data. Please check your connection and try again.');
     } finally {
       setLoading(false);
+      console.log('Data fetch completed');
     }
   };
 
-  // Calculate enhanced statistics
+  // Calculate enhanced statistics based on fetched data
   const calculateEnhancedStats = () => {
+    console.log('Calculating enhanced stats...');
+
+    // Calculate basic stats from local data
     const totalPrograms = programs.length;
     const activePrograms = programs.filter(p => p.status === 'active').length;
 
@@ -2268,24 +2402,36 @@ export default function AdminMentorshipManagement() {
     const activeMentorships = mentorships.filter(m => m.status === 'active').length;
     const completedMentorships = mentorships.filter(m => m.status === 'completed').length;
 
-    // Use API data if available, otherwise calculate locally
-    const departmentStats = dashboardStats.departmentStats && dashboardStats.departmentStats.length > 0
-      ? dashboardStats.departmentStats
-      : departments.map(dept => {
-        const deptPrograms = programs.filter(p => getDepartmentName(p) === dept.name);
-        const deptMentorships = mentorships.filter(m => getDepartmentName(m) === dept.name);
-
-        return {
-          id: dept.id,
-          name: dept.name,
-          programCount: deptPrograms.length,
-          mentorshipCount: deptMentorships.length,
-          activeMentorships: deptMentorships.filter(m => m.status === 'active').length,
-          completionRate: deptMentorships.length > 0
-            ? Math.round((deptMentorships.filter(m => m.status === 'completed').length / deptMentorships.length) * 100)
-            : 0
-        };
+    // Calculate department stats from local data if API stats not available
+    const departmentStats = departments.map(dept => {
+      const deptPrograms = programs.filter(p => {
+        const deptName = getDepartmentName(p);
+        return deptName === dept.name;
       });
+
+      const deptMentorships = mentorships.filter(m => {
+        const deptName = getDepartmentName(m);
+        return deptName === dept.name;
+      });
+
+      const activeDeptMentorships = deptMentorships.filter(m => m.status === 'active');
+      const completedDeptMentorships = deptMentorships.filter(m => m.status === 'completed');
+
+      const completionRate = deptMentorships.length > 0
+        ? Math.round((completedDeptMentorships.length / deptMentorships.length) * 100)
+        : 0;
+
+      return {
+        id: dept.id,
+        name: dept.name,
+        programCount: deptPrograms.length,
+        mentorshipCount: deptMentorships.length,
+        activeMentorships: activeDeptMentorships.length,
+        completionRate: completionRate
+      };
+    });
+
+    console.log('Calculated department stats:', departmentStats);
 
     // Update dashboard stats
     setDashboardStats(prev => ({
@@ -2296,9 +2442,28 @@ export default function AdminMentorshipManagement() {
       totalMentorships,
       activeMentorships,
       completedMentorships,
-      departmentStats
+      departmentStats: prev.departmentStats && prev.departmentStats.length > 0
+        ? prev.departmentStats
+        : departmentStats
     }));
+
+    console.log('Updated dashboard stats:', {
+      totalPrograms,
+      activePrograms,
+      totalSessions,
+      totalMentorships,
+      activeMentorships,
+      completedMentorships,
+      departmentStatsCount: departmentStats.length
+    });
   };
+
+  // Recalculate stats when data changes
+  useEffect(() => {
+    if (programs.length > 0 || mentorships.length > 0 || sessionTemplates.length > 0) {
+      calculateEnhancedStats();
+    }
+  }, [programs, mentorships, sessionTemplates, departments]);
 
   // Filter functions
   const filteredPrograms = useMemo(() => {
@@ -2357,7 +2522,7 @@ export default function AdminMentorshipManagement() {
     }
 
     if (sessionTemplateFilters.is_active !== 'all') {
-      filtered = filtered.filter(template => 
+      filtered = filtered.filter(template =>
         sessionTemplateFilters.is_active === 'active' ? template.is_active : !template.is_active
       );
     }
@@ -2513,11 +2678,11 @@ export default function AdminMentorshipManagement() {
   // Dashboard Tab
   const renderDashboard = () => (
     <div className="space-y-8">
-      {/* Overview Cards */}
+      {/* Overview Cards - FIXED: Show actual data */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="Total Programs"
-          value={dashboardStats.totalPrograms}
+          value={dashboardStats.totalPrograms || 0}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -2527,7 +2692,7 @@ export default function AdminMentorshipManagement() {
         />
         <MetricCard
           title="Active Mentorships"
-          value={dashboardStats.activeMentorships}
+          value={dashboardStats.activeMentorships || 0}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0h-15" />
@@ -2547,7 +2712,7 @@ export default function AdminMentorshipManagement() {
         />
         <MetricCard
           title="Session Templates"
-          value={dashboardStats.totalSessions}
+          value={dashboardStats.totalSessions || 0}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2579,7 +2744,7 @@ export default function AdminMentorshipManagement() {
         </Button>
       </div>
 
-      {/* Department Performance */}
+      {/* Department Performance - FIXED: Show actual data */}
       <Card>
         <CardHeader>
           <CardTitle>Department Performance</CardTitle>
@@ -2599,60 +2764,68 @@ export default function AdminMentorshipManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dashboardStats.departmentStats.map((dept) => (
-                  <TableRow key={dept.id}>
-                    <TableCell>
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                {dashboardStats.departmentStats && dashboardStats.departmentStats.length > 0 ? (
+                  dashboardStats.departmentStats.map((dept) => (
+                    <TableRow key={dept.id}>
+                      <TableCell>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                          </div>
+                          <span className="font-medium">{dept.name || 'Unknown'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{dept.programCount || 0}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold">{dept.activeMentorships || 0}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-24 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-green-500 h-2 rounded-full"
+                              style={{ width: `${dept.completionRate || 0}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-sm font-medium">{dept.completionRate || 0}%</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold">{dept.mentorshipCount || 0}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewDepartmentPerformance(dept)}
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
-                        </div>
-                        <span className="font-medium">{dept.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{dept.programCount || 0}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold">{dept.activeMentorships || 0}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-24 bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-green-500 h-2 rounded-full"
-                            style={{ width: `${dept.completionRate || 0}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-medium">{dept.completionRate || 0}%</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold">{dept.mentorshipCount || 0}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewDepartmentPerformance(dept)}
-                      >
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        View
-                      </Button>
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <p className="text-gray-500">No department data available</p>
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </div>
         </CardContent>
       </Card>
 
-      {/* Recent Activity */}
+      {/* Recent Activity & Top Mentors */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -2724,45 +2897,38 @@ export default function AdminMentorshipManagement() {
                     <PerformanceBadge rating={mentor.average_rating || 0} size="sm" />
                   </div>
                 ))
-              ) : (
-                <div className="space-y-4">
-                  {mentorships.reduce((acc, mentorship) => {
+              ) : mentorships.length > 0 ? (
+                // Fallback: Calculate top mentors from local data
+                (() => {
+                  const mentorStats = {};
+
+                  mentorships.forEach(mentorship => {
                     const mentorId = mentorship.mentor?.id;
                     if (mentorId) {
-                      if (!acc[mentorId]) {
-                        acc[mentorId] = {
+                      if (!mentorStats[mentorId]) {
+                        mentorStats[mentorId] = {
                           id: mentorId,
-                          name: mentorship.mentor?.full_name,
+                          name: mentorship.mentor?.full_name || 'Unknown Mentor',
                           completed: 0,
                           total: 0,
                           rating: mentorship.rating || 0
                         };
                       }
-                      acc[mentorId].total++;
+                      mentorStats[mentorId].total++;
                       if (mentorship.status === 'completed') {
-                        acc[mentorId].completed++;
+                        mentorStats[mentorId].completed++;
+                      }
+                      // Average rating
+                      if (mentorship.rating) {
+                        mentorStats[mentorId].rating = (
+                          (mentorStats[mentorId].rating * (mentorStats[mentorId].total - 1) + mentorship.rating) /
+                          mentorStats[mentorId].total
+                        );
                       }
                     }
-                    return acc;
-                  }, {}) && Object.values(mentorships.reduce((acc, mentorship) => {
-                    const mentorId = mentorship.mentor?.id;
-                    if (mentorId) {
-                      if (!acc[mentorId]) {
-                        acc[mentorId] = {
-                          id: mentorId,
-                          name: mentorship.mentor?.full_name,
-                          completed: 0,
-                          total: 0,
-                          rating: mentorship.rating || 0
-                        };
-                      }
-                      acc[mentorId].total++;
-                      if (mentorship.status === 'completed') {
-                        acc[mentorId].completed++;
-                      }
-                    }
-                    return acc;
-                  }, {}))
+                  });
+
+                  return Object.values(mentorStats)
                     .sort((a, b) => (b.rating || 0) - (a.rating || 0))
                     .slice(0, 5)
                     .map((mentor, index) => (
@@ -2780,7 +2946,11 @@ export default function AdminMentorshipManagement() {
                         </div>
                         <PerformanceBadge rating={mentor.rating || 0} size="sm" />
                       </div>
-                    ))}
+                    ));
+                })()
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No mentor data available</p>
                 </div>
               )}
             </div>
@@ -3347,6 +3517,22 @@ export default function AdminMentorshipManagement() {
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
+                              </Button>
+
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                icon={MessageSquare}
+                                onClick={() => {
+                                  navigate('/admin/communication-center', {
+                                    state: {
+                                      mentorshipId: mentorship.id,
+                                      mentorshipData: mentorship
+                                    }
+                                  });
+                                }}
+                              >
+                                Message
                               </Button>
                             </div>
                           </TableCell>

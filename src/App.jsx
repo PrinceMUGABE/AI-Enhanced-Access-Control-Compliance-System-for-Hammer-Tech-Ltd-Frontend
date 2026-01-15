@@ -23,7 +23,6 @@ import AdminUsers from './components/admin/UserManagement';
 import AdminOnboardingManagement from './components/admin/OnboardingManagement';
 import AdminProfile from './components/admin/UserProfile';
 import AdminMentorshipManagement from './components/admin/MentorshipManagement';
-import MentorshipDetailPage from './components/admin/MentorshipDetailPage';
 import OnboardingProgramManagement from './components/admin/OnboardingProgramManagement';
 import DepartmentsManagement from './components/admin/ManageDepartments';
 import AdminChatManagement from './components/admin/CommunicationCenter';
@@ -129,7 +128,6 @@ function App() {
               <Route path="onboarding-management" element={<AdminOnboardingManagement />} />
               <Route path="mentorship" element={<AdminMentorshipManagement />} />
               <Route path="profile" element={<AdminProfile />} />
-              <Route path="mentorships/:id" element={<MentorshipDetailPage />} />
               <Route path="onboarding-programs" element={<OnboardingProgramManagement />} />
               <Route path="departments" element={<DepartmentsManagement />} />
               <Route path="communication-center" element={<AdminChatManagement />} />
@@ -150,7 +148,6 @@ function App() {
               <Route path='mentorship' element={<HRMentorshipManagement />} />
 
               <Route path="profile" element={<AdminProfile />} />
-              <Route path="mentorships/:id" element={<MentorshipDetailPage />} />
               <Route path="programs" element={<OnboardingProgramManagement />} />
               <Route path="departments" element={<DepartmentsManagement />} />
               <Route path="communication-center" element={<AdminChatManagement />} />

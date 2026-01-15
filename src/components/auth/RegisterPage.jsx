@@ -1,12 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Award, Mail, Lock, User, Phone, Building2, 
   AlertCircle, CheckCircle, XCircle, Eye, EyeOff, 
-  ChevronDown, Laptop, Code, Database, Server, 
-  Smartphone, Shield, Palette, 
-  Briefcase, Users, Globe, Cloud,
-  BarChart
+  ChevronDown, Loader
 } from 'lucide-react';
 
 export default function RegisterPage() {
@@ -26,101 +23,41 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [passwordFocus, setPasswordFocus] = useState(false);
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [departmentError, setDepartmentError] = useState('');
   const navigate = useNavigate();
 
-  // Department options for Big Tech Solutions Ltd in Rwanda
-  const departments = [
-    {
-      id: 'software-dev',
-      name: 'Software Development',
-      description: 'Web, Mobile, and Desktop Applications',
-      icon: <Code className="w-4 h-4" />
-    },
-    {
-      id: 'frontend-dev',
-      name: 'Frontend Development',
-      description: 'User Interface & User Experience',
-      icon: <Laptop className="w-4 h-4" />
-    },
-    {
-      id: 'backend-dev',
-      name: 'Backend Development',
-      description: 'Server-side & API Development',
-      icon: <Server className="w-4 h-4" />
-    },
-    {
-      id: 'mobile-dev',
-      name: 'Mobile Development',
-      description: 'iOS & Android Applications',
-      icon: <Smartphone className="w-4 h-4" />
-    },
-    {
-      id: 'data-science',
-      name: 'Data Science',
-      description: 'Analytics, ML & AI Solutions',
-      icon: <Database className="w-4 h-4" />
-    },
-    {
-      id: 'cybersecurity',
-      name: 'Cybersecurity',
-      description: 'Security & Threat Protection',
-      icon: <Shield className="w-4 h-4" />
-    },
-    {
-      id: 'cloud-devops',
-      name: 'Cloud & DevOps',
-      description: 'Cloud Infrastructure & Automation',
-      icon: <Cloud className="w-4 h-4" />
-    },
-    {
-      id: 'ui-ux-design',
-      name: 'UI/UX Design',
-      description: 'Design & User Research',
-      icon: <Palette className="w-4 h-4" />
-    },
-    {
-      id: 'project-mgmt',
-      name: 'Project Management',
-      description: 'Agile & Project Coordination',
-      icon: <BarChart className="w-4 h-4" />
-    },
-    {
-      id: 'business-dev',
-      name: 'Business Development',
-      description: 'Partnerships & Market Expansion',
-      icon: <Briefcase className="w-4 h-4" />
-    },
-    {
-      id: 'hr-recruitment',
-      name: 'HR & Recruitment',
-      description: 'Talent Acquisition & Management',
-      icon: <Users className="w-4 h-4" />
-    },
-    {
-      id: 'digital-marketing',
-      name: 'Digital Marketing',
-      description: 'Online Marketing & SEO',
-      icon: <Globe className="w-4 h-4" />
-    },
-    {
-      id: 'it-support',
-      name: 'IT Support',
-      description: 'Technical Support & Maintenance',
-      icon: <Laptop className="w-4 h-4" />
-    },
-    {
-      id: 'quality-assurance',
-      name: 'Quality Assurance',
-      description: 'Testing & Quality Control',
-      icon: <CheckCircle className="w-4 h-4" />
-    },
-    {
-      id: 'product-management',
-      name: 'Product Management',
-      description: 'Product Strategy & Development',
-      icon: <Briefcase className="w-4 h-4" />
-    }
-  ];
+  // Fetch departments from backend
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      setLoadingDepartments(true);
+      setDepartmentError('');
+      try {
+        const response = await fetch('http://127.0.0.1:8000/departments/all/', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          setDepartments(data.data);
+        } else {
+          setDepartmentError(data.message || 'Failed to load departments');
+        }
+      } catch (err) {
+        setDepartmentError('Unable to connect to server. Please try again.');
+        console.error('Error fetching departments:', err);
+      } finally {
+        setLoadingDepartments(false);
+      }
+    };
+
+    fetchDepartments();
+  }, []);
 
   // Password validation criteria
   const passwordCriteria = {
@@ -165,7 +102,7 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!formData.department.trim()) {
+    if (!formData.department) {
       setError('Please select your department');
       setIsLoading(false);
       return;
@@ -193,7 +130,7 @@ export default function RegisterPage() {
           phone_number: formData.phone_number,
           email: formData.email,
           full_name: formData.full_name,
-          department: formData.department,
+          department: formData.department, // This should be the department ID
           role: 'mentee',
           password: formData.password,
           confirm_password: formData.confirm_password
@@ -224,6 +161,13 @@ export default function RegisterPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Get selected department name for display
+  const getSelectedDepartmentName = () => {
+    if (!formData.department) return "";
+    const selected = departments.find(dept => dept.id === formData.department);
+    return selected ? selected.name : "";
   };
 
   return (
@@ -336,45 +280,68 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}
-                    className="w-full h-11 px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors bg-white text-left flex items-center justify-between"
+                    disabled={loadingDepartments || !!departmentError}
+                    className="w-full h-11 px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors bg-white text-left flex items-center justify-between disabled:bg-gray-50 disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center gap-2">
                       <Building2 className="w-5 h-5 text-gray-400" />
-                      <span className={formData.department ? "text-gray-900" : "text-gray-500"}>
-                        {formData.department || "Select your department"}
-                      </span>
+                      {loadingDepartments ? (
+                        <span className="text-gray-500">Loading departments...</span>
+                      ) : departmentError ? (
+                        <span className="text-red-500">Error loading departments</span>
+                      ) : (
+                        <span className={formData.department ? "text-gray-900" : "text-gray-500"}>
+                          {getSelectedDepartmentName() || "Select your department"}
+                        </span>
+                      )}
                     </div>
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                    {!loadingDepartments && !departmentError && (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    )}
+                    {loadingDepartments && (
+                      <Loader className="w-4 h-4 text-gray-400 animate-spin" />
+                    )}
                   </button>
                   
-                  {showDepartmentDropdown && (
+                  {showDepartmentDropdown && !loadingDepartments && !departmentError && departments.length > 0 && (
                     <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                       {departments.map((dept) => (
                         <button
                           key={dept.id}
                           type="button"
                           onClick={() => {
-                            setFormData({ ...formData, department: dept.name });
+                            setFormData({ ...formData, department: dept.id });
                             setShowDepartmentDropdown(false);
                           }}
-                          className="w-full px-3 py-3 hover:bg-gray-50 transition-colors text-left flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                          className="w-full px-4 py-3 hover:bg-gray-50 transition-colors text-left border-b border-gray-100 last:border-b-0"
                         >
-                          <div className="text-blue-600">
-                            {dept.icon}
-                          </div>
                           <div className="flex flex-col">
                             <span className="font-medium text-gray-900">{dept.name}</span>
-                            <span className="text-xs text-gray-500">{dept.description}</span>
+
                           </div>
                         </button>
                       ))}
                     </div>
                   )}
+
+                  {showDepartmentDropdown && !loadingDepartments && !departmentError && departments.length === 0 && (
+                    <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+                      <p className="text-gray-500 text-sm">No departments available</p>
+                    </div>
+                  )}
                 </div>
+                
+                {departmentError && (
+                  <p className="text-xs text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {departmentError}
+                  </p>
+                )}
+
                 {formData.department && (
                   <p className="text-xs text-green-600 flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" />
-                    Selected: {formData.department}
+                    Selected: {getSelectedDepartmentName()}
                   </p>
                 )}
               </div>
@@ -479,7 +446,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium text-base rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading}
+              disabled={isLoading || loadingDepartments || !!departmentError}
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">

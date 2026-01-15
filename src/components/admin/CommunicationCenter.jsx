@@ -1,5 +1,6 @@
 // AdminChatManagement.jsx - Complete Updated Version with Chat During Calls and "You" Typing
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 
 // API functions
 const fetchAPI = async (endpoint, method = 'GET', data = null, isFormData = false) => {
@@ -2274,6 +2275,7 @@ export default function AdminChatManagement() {
   // Call chat states
   const [callChatMessage, setCallChatMessage] = useState('');
   const [callChatMessages, setCallChatMessages] = useState([]);
+  const location = useLocation();
 
   const [showCreateChat, setShowCreateChat] = useState(false);
   const [showManageParticipants, setShowManageParticipants] = useState(false);
@@ -2304,6 +2306,74 @@ export default function AdminChatManagement() {
       setCallChatMessage('');
     }
   }, [isInCall, selectedChat, chatMessages]);
+
+  useEffect(() => {
+      const handleAutoOpenMentorshipChat = async () => {
+        // Check if we have mentorship data in location state
+        if (location.state?.autoOpenChat && location.state?.mentorshipId) {
+          try {
+            console.log('Auto-opening chat for mentorship:', location.state.mentorshipId);
+  
+            // Find the chat associated with this mentorship
+            const mentorshipChat = chats.find(chat =>
+              chat.mentorship?.id === location.state.mentorshipId ||
+              chat.name?.includes(`Mentorship: ${location.state.mentorshipId}`) ||
+              chat.chat_type === 'mentorship_group' &&
+              chat.participants?.some(p => {
+                const user = p.user || p;
+                return user.id === location.state.mentorshipData?.mentor?.id
+              })
+            );
+  
+            if (mentorshipChat) {
+              console.log('Found mentorship chat:', mentorshipChat);
+              await handleSelectChat(mentorshipChat);
+            } else {
+              console.log('No existing chat found, attempting to create/find...');
+              // Try to find a one-on-one chat with the mentor
+              if (location.state.mentorshipData?.mentor?.id) {
+                const mentorId = location.state.mentorshipData.mentor.id;
+  
+                // Look for existing one-on-one chat with mentor
+                const existingChat = chats.find(chat =>
+                  chat.chat_type === 'one_on_one' &&
+                  chat.participants?.some(p => {
+                    const user = p.user || p;
+                    return user.id === mentorId
+                  })
+                );
+  
+                if (existingChat) {
+                  await handleSelectChat(existingChat);
+                } else {
+                  // Create a new one-on-one chat
+                  console.log('Creating new chat with mentor:', mentorId);
+                  const response = await getOrCreateOneOnOne(mentorId);
+                  if (response.success || response.chat) {
+                    const newChat = response.chat || response;
+                    // Refresh chats list
+                    await fetchInitialData();
+                    // Select the new chat
+                    await handleSelectChat(newChat);
+                  }
+                }
+              }
+            }
+  
+            // Clear the state to prevent re-triggering
+            window.history.replaceState({}, document.title);
+  
+          } catch (error) {
+            console.error('Error auto-opening mentorship chat:', error);
+          }
+        }
+      };
+  
+      // Only run if we have chats loaded
+      if (chats.length > 0 && !loading) {
+        handleAutoOpenMentorshipChat();
+      }
+    }, [chats, loading, location.state]);
 
   const initChatWebSocket = (roomId) => {
     try {
@@ -2965,21 +3035,61 @@ export default function AdminChatManagement() {
   };
 
   const handleSelectChat = async (chat) => {
-    setSelectedChat(chat);
-    setChatMessages([]);
-    setShowAudioRecorder(false);
-
-    initChatWebSocket(chat.id);
-
     try {
-      const response = await getChatMessages(chat.id);
-      if (response && Array.isArray(response.messages)) {
-        setChatMessages(response.messages);
+      setSelectedChat(chat);
+      setChatMessages([]);
+
+      // Clear location state when a chat is selected
+      if (location.state?.autoOpenChat) {
+        window.history.replaceState({}, document.title);
+      }
+
+      // Mark messages as read
+      try {
+        await markMessagesAsRead(chat.id);
+
+        // Update chat in list to clear unread count
+        setChats(prevChats =>
+          prevChats.map(c =>
+            c.id === chat.id ? { ...c, unread_count: 0 } : c
+          )
+        );
+      } catch (error) {
+        console.error('Error marking messages as read:', error);
+      }
+
+      initChatWebSocket(chat.id);
+
+      // Fetch chat messages
+      try {
+        const response = await getChatMessages(chat.id);
+        console.log('Chat messages response:', response);
+
+        if (response && (Array.isArray(response.messages) || Array.isArray(response))) {
+          const messages = response.messages || response;
+          setChatMessages(messages);
+        } else if (response && response.data) {
+          setChatMessages(response.data);
+        } else {
+          console.warn('Unexpected messages response structure:', response);
+          setChatMessages([]);
+        }
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+        setChatMessages([]);
       }
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      console.error('Error selecting chat:', error);
+      alert(`Failed to select chat: ${error.message}`);
     }
   };
+
+   useEffect(() => {
+      if (chats.length > 0 && !selectedChat && !loading) {
+        handleSelectChat(chats[0]);
+      }
+    }, [chats, loading]);
+  
 
   const filteredChats = useMemo(() => {
     let filtered = [];
@@ -3051,8 +3161,7 @@ export default function AdminChatManagement() {
             <div className="flex items-center space-x-3">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedChat.chat_type === 'one_on_one' ? 'bg-blue-100' :
                 selectedChat.chat_type === 'mentorship_group' ? 'bg-green-100' :
-                  selectedChat.chat_type === 'department_group' ? 'bg-purple-100' :
-                    'bg-gray-100'
+                  'bg-purple-100'
                 }`}>
                 {selectedChat.chat_type === 'one_on_one' ? (
                   <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3074,27 +3183,22 @@ export default function AdminChatManagement() {
 
                   {typingUsers.length > 0 && (
                     <span className="text-blue-600 italic">
-                      {typingUsers.map(user => user.name).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+                      {typingUsers.map(user => user.name).join(', ')}
+                      {typingUsers.length === 1 ? ' is typing...' : ' are typing...'}
                     </span>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-sm">
-              <div className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                {isConnected ? 'Connected' : 'Disconnected'}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm">
+                <div className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  {isConnected ? 'Connected' : 'Disconnected'}
+                </div>
               </div>
 
-              {connectionError && (
-                <div className="text-red-600 text-xs italic">
-                  {connectionError}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center space-x-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -3118,51 +3222,30 @@ export default function AdminChatManagement() {
               </Button>
 
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={() => handleInitiateCall('video', true)}
-                title="Start Conference Call"
+                onClick={() => setShowParticipants(true)}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                 </svg>
+                Participants
               </Button>
-
-              {selectedChat.can_manage && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowManageParticipants(true)}
-                  title="Manage Participants"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </Button>
-              )}
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-            {selectedChat.mentorship && (
-              <div className="text-gray-600">
-                <span className="font-medium">Mentorship:</span>{' '}
-                {selectedChat.mentorship.mentor?.full_name || selectedChat.mentorship.mentor} → {selectedChat.mentorship.mentee?.full_name || selectedChat.mentorship.mentee}
-              </div>
-            )}
-            {selectedChat.department && (
-              <div className="text-gray-600">
-                <span className="font-medium">Department:</span>{' '}
-                {typeof selectedChat.department === 'object' ? selectedChat.department.name : selectedChat.department}
-              </div>
-            )}
-            {selectedChat.created_at && (
-              <div className="text-gray-600">
-                <span className="font-medium">Created:</span> {formatTime(selectedChat.created_at)}
-              </div>
-            )}
-          </div>
+          {selectedChat.mentorship && (
+            <div className="mt-3 text-sm text-gray-600">
+              <span className="font-medium">Mentorship:</span>{' '}
+              {selectedChat.mentorship.mentor?.full_name || selectedChat.mentorship.mentor} → {selectedChat.mentorship.mentee?.full_name || selectedChat.mentorship.mentee}
+            </div>
+          )}
+          {selectedChat.department && (
+            <div className="mt-1 text-sm text-gray-600">
+              <span className="font-medium">Department:</span>{' '}
+              {typeof selectedChat.department === 'object' ? selectedChat.department.name : selectedChat.department}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50 chat-messages-container">
@@ -3180,6 +3263,7 @@ export default function AdminChatManagement() {
                   onDelete={handleDeleteMessage}
                 />
               ))}
+              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
@@ -3193,31 +3277,18 @@ export default function AdminChatManagement() {
             )}
 
             <div className="flex space-x-2">
-              <div className="flex space-x-1">
-                <button
-                  type="button"
-                  onClick={() => setShowFileUpload(true)}
-                  className="p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-full transition-colors"
-                  title="Attach files"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                  </svg>
-                </button>
-              </div>
-
               <Input
                 type="text"
                 placeholder="Type a message..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 className="flex-1"
-                disabled={sendingMessage || showAudioRecorder}
+                disabled={sendingMessage}
               />
 
               <Button
                 type="submit"
-                disabled={sendingMessage || !newMessage.trim() || showAudioRecorder}
+                disabled={sendingMessage || !newMessage.trim()}
               >
                 {sendingMessage ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>

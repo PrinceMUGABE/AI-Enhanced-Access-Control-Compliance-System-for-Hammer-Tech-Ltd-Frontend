@@ -328,7 +328,7 @@ export default function DepartmentsManagement() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -359,17 +359,6 @@ export default function DepartmentsManagement() {
             </div>
             <div className="p-3 bg-red-100 rounded-full">
               <XCircle className="size-6 text-red-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Total Users</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.totalUsers}</p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Users className="size-6 text-purple-600" />
             </div>
           </div>
         </div>
@@ -441,11 +430,6 @@ export default function DepartmentsManagement() {
                         </div>
                       </th>
                       <th 
-                        className="py-3 px-4 text-left font-medium text-gray-900"
-                      >
-                        Description
-                      </th>
-                      <th 
                         onClick={() => handleSort('status')} 
                         className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
                       >
@@ -486,11 +470,6 @@ export default function DepartmentsManagement() {
                               </div>
                             </div>
                           </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="text-sm text-gray-600 truncate max-w-xs">
-                            {dept.description || 'No description'}
-                          </p>
                         </td>
                         <td className="py-3 px-4">
                           <span className={`px-2 py-1 text-xs rounded-full capitalize ${

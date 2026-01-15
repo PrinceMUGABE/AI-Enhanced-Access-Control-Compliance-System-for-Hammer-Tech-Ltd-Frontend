@@ -1,305 +1,418 @@
+// components/admin/UserManagementPage.jsx
 import React, { useState, useEffect } from 'react';
-import {
-  Search,
-  UserPlus,
-  Edit,
-  Trash2,
-  MoreVertical,
-  Mail,
-  Phone,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  User,
-  Calendar,
-  Building2,
-  Shield,
-  CheckCircle,
-  XCircle,
-  Loader2,
-  AlertTriangle
+import { useNavigate } from 'react-router-dom';
+import { 
+  Search, Filter, Download, ChevronDown, UserPlus, 
+  Edit, Trash2, Users, Eye, MoreVertical, Mail, 
+  Phone, Calendar, Building, Award, ArrowUpDown,
+  ChevronLeft, ChevronRight, CheckCircle, XCircle,
+  UserCheck, UserX, RefreshCw, X, Save, User,
+  Lock, Briefcase, Shield, FileText, Globe,
+  Check, AlertCircle, Plus, Minus
 } from 'lucide-react';
 
-const BASE_URL = "http://127.0.0.1:8000";
+// Base URL from your configuration
+const BASE_URL = 'http://127.0.0.1:8000';
 
-const departments = [
-  "Software Development",
-  "Frontend Development",
-  "Backend Development",
-  "Mobile Development",
-  "Data Science",
-  "Cybersecurity",
-  "Cloud & DevOps",
-  "UI/UX Design",
-  "Project Management",
-  "Business Development",
-  "HR & Recruitment",
-  "Digital Marketing",
-  "IT Support",
-  "Quality Assurance",
-  "Product Management"
-];
-
-export default function UserManagement() {
+export default function UserManagementPage() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [availabilityFilter, setAvailabilityFilter] = useState('all');
+  const [selectedRole, setSelectedRole] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [sortField, setSortField] = useState('created_at');
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  
+  // Modal states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  
+  // Selected user for operations
   const [selectedUser, setSelectedUser] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [sortField, setSortField] = useState('full_name');
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
-  const [viewUserModal, setViewUserModal] = useState(false);
-  const [userToView, setUserToView] = useState(null);
-
-  const itemsPerPage = 10;
-
-  const [formData, setFormData] = useState({
-    full_name: '',
-    email: '',
-    phone_number: '',
-    role: 'mentee',
-    department: '',
-    status: 'approved',
-    availability_status: 'active'
+  
+  // Form states
+  const [formErrors, setFormErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    mentors: 0,
+    mentees: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0
   });
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [authToken, setAuthToken] = useState(localStorage.getItem('access_token') || '');
 
-  const getAuthToken = () => {
-    return localStorage.getItem('access_token');
+  // Custom API service using fetch
+  const apiService = {
+    // Users API endpoints
+    users: {
+      getUsers: async () => {
+        try {
+          // Only fetch mentor and mentee users
+          const response = await fetch(`${BASE_URL}/users/?role=mentor,mentee`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          return { success: true, data: data.users || [] };
+        } catch (error) {
+          console.error('Error fetching users:', error);
+          return { success: false, error: error.message };
+        }
+      },
+      
+      getUserById: async (userId) => {
+        try {
+          const response = await fetch(`${BASE_URL}/users/${userId}/`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          return { success: true, data };
+        } catch (error) {
+          console.error('Error fetching user:', error);
+          return { success: false, error: error.message };
+        }
+      },
+      
+      deactivateUser: async (userId) => {
+        try {
+          const response = await fetch(`${BASE_URL}/users/${userId}/deactivate/`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            }
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          return { success: true, data };
+        } catch (error) {
+          console.error('Error deactivating user:', error);
+          return { success: false, error: error.message };
+        }
+      },
+      
+      activateUser: async (userId) => {
+        try {
+          const response = await fetch(`${BASE_URL}/users/${userId}/activate/`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            }
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          return { success: true, data };
+        } catch (error) {
+          console.error('Error activating user:', error);
+          return { success: false, error: error.message };
+        }
+      },
+      
+      updateUserStatus: async (userId, status) => {
+        try {
+          const response = await fetch(`${BASE_URL}/users/${userId}/status/`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ status })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          return { success: true, data };
+        } catch (error) {
+          console.error('Error updating user status:', error);
+          return { success: false, error: error.message };
+        }
+      }
+    }
   };
 
-  const fetchUsers = async () => {
+  // Load users on component mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Filter users when filters change
+  useEffect(() => {
+    filterUsers();
+  }, [users, searchTerm, selectedRole, selectedStatus, sortField, sortDirection]);
+
+  const loadData = async () => {
     try {
       setLoading(true);
-      const token = getAuthToken();
-
-      if (!token) {
-        alert("Please log in to access user management");
-        return;
+      setError(null);
+      
+      // Load users from backend - only mentor and mentee roles
+      const usersResponse = await apiService.users.getUsers();
+      if (usersResponse.success) {
+        const usersData = usersResponse.data || [];
+        
+        // Filter out any admin or hr users that might have been returned
+        const filteredUsersData = usersData.filter(user => 
+          user.role === 'mentor' || user.role === 'mentee'
+        );
+        
+        setUsers(filteredUsersData);
+        setFilteredUsers(filteredUsersData);
+        calculateStats(filteredUsersData);
+      } else {
+        console.error('Failed to load users:', usersResponse.error);
+        setError(`Failed to load users: ${usersResponse.error}`);
       }
-
-      const response = await fetch(`${BASE_URL}/users/`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch users: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setUsers(data.users || []);
+      
     } catch (error) {
-      console.error('Error fetching users:', error);
-      alert("Failed to load users. Please try again.");
+      console.error('Error loading data:', error);
+      setError(`Error loading data: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const createUser = async (userData) => {
-    try {
-      const token = getAuthToken();
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-
-      const apiData = {
-        ...userData,
-        phone_number: userData.phone_number,
-        email: userData.email,
-        full_name: userData.full_name,
-        department: userData.department,
-        role: userData.role,
-        status: userData.status,
-        availability_status: userData.availability_status,
-        created_by: currentUser.id
-      };
-
-      const response = await fetch(`${BASE_URL}/auth/register/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(apiData)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Failed to create user');
-      }
-
-      alert(data.message || "User created successfully");
-      fetchUsers();
-      resetForm();
-      setIsDialogOpen(false);
-
-    } catch (error) {
-      alert(error.message || "Failed to create user");
-    }
+  const calculateStats = (usersData) => {
+    const newStats = {
+      total: usersData.length,
+      active: usersData.filter(u => u.status === 'approved').length,
+      inactive: usersData.filter(u => u.status === 'rejected').length,
+      mentors: usersData.filter(u => u.role === 'mentor').length,
+      mentees: usersData.filter(u => u.role === 'mentee').length,
+      pending: usersData.filter(u => u.status === 'pending').length,
+      approved: usersData.filter(u => u.status === 'approved').length,
+      rejected: usersData.filter(u => u.status === 'rejected').length
+    };
+    setStats(newStats);
   };
 
-  const updateUser = async (userId, userData) => {
-    try {
-      const token = getAuthToken();
+  const filterUsers = () => {
+    let filtered = [...users];
 
-      const response = await fetch(`${BASE_URL}/users/${userId}/update/`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData)
-      });
+    // Search by keyword
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(user =>
+        user.full_name?.toLowerCase().includes(term) ||
+        user.work_mail_address?.toLowerCase().includes(term) ||
+        user.email?.toLowerCase().includes(term) ||
+        user.role?.toLowerCase().includes(term)
+      );
+    }
 
-      const data = await response.json();
+    // Filter by role
+    if (selectedRole !== 'all') {
+      filtered = filtered.filter(user => user.role === selectedRole);
+    }
 
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Failed to update user');
+    // Filter by status
+    if (selectedStatus !== 'all') {
+      filtered = filtered.filter(user => user.status === selectedStatus);
+    }
+
+    // Sort users
+    filtered.sort((a, b) => {
+      let aValue = a[sortField];
+      let bValue = b[sortField];
+
+      if (sortField === 'created_at') {
+        aValue = new Date(aValue || 0);
+        bValue = new Date(bValue || 0);
       }
 
-      alert("User updated successfully");
-      fetchUsers();
-      resetForm();
-      setIsDialogOpen(false);
-      setIsEditing(false);
-      setSelectedUser(null);
-
-    } catch (error) {
-      alert(error.message || "Failed to update user");
-    }
-  };
-
-  const deleteUser = async (userId) => {
-    try {
-      const token = getAuthToken();
-
-      const response = await fetch(`${BASE_URL}/users/${userId}/delete/`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        }
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Failed to delete user');
+      if (sortDirection === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
       }
-
-      alert(data.message || "User deleted successfully");
-      fetchUsers();
-      setDeleteConfirmOpen(false);
-      setUserToDelete(null);
-
-    } catch (error) {
-      alert(error.message || "Failed to delete user");
-    }
-  };
-
-  const initializeFormForEdit = (user) => {
-    setFormData({
-      full_name: user.full_name,
-      email: user.email,
-      phone_number: user.phone_number,
-      role: user.role,
-      department: user.department,
-      status: user.status,
-      availability_status: user.availability_status
     });
+
+    setFilteredUsers(filtered);
+    setCurrentPage(1);
+  };
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = Math.min(startIndex + rowsPerPage, filteredUsers.length);
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
+  // Export functions
+  const exportToCSV = () => {
+    const data = showFilters ? filteredUsers : users;
+    const headers = ['Name', 'Work Email', 'Personal Email', 'Role', 'Status', 'Phone', 'Created At'];
+    const csvContent = [
+      headers.join(','),
+      ...data.map(user => [
+        `"${user.full_name || ''}"`,
+        `"${user.work_mail_address || ''}"`,
+        `"${user.email || ''}"`,
+        `"${user.role || ''}"`,
+        `"${user.status || ''}"`,
+        `"${user.phone_number || ''}"`,
+        `"${user.created_at || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `users_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
+  // Modal Handlers
+  const handleViewUser = (user) => {
     setSelectedUser(user);
-    setIsEditing(true);
-    setIsDialogOpen(true);
+    setShowViewModal(true);
   };
 
-  const resetForm = () => {
-    setFormData({
-      full_name: '',
-      email: '',
-      phone_number: '',
-      role: 'mentee',
-      department: '',
-      status: 'approved',
-      availability_status: 'active'
-    });
-    setSelectedUser(null);
-    setIsEditing(false);
+  const handleStatusChange = (user) => {
+    setSelectedUser(user);
+    setShowStatusModal(true);
   };
 
-  const openViewModal = (user) => {
-    setUserToView(user);
-    setViewUserModal(true);
-  };
-
-  const openDeleteConfirm = (userId) => {
+  const handleDeleteUser = (userId) => {
     setUserToDelete(userId);
-    setDeleteConfirmOpen(true);
+    setShowDeleteConfirm(true);
   };
 
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-
-    if (isEditing && selectedUser) {
-      updateUser(selectedUser.id, formData);
-    } else {
-      createUser(formData);
+  const handleActivateUser = async (userId) => {
+    try {
+      const result = await apiService.users.activateUser(userId);
+      if (result.success) {
+        setSuccessMessage('User activated successfully');
+        await loadData();
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        alert(result.error || 'Failed to activate user');
+      }
+    } catch (error) {
+      console.error('Error activating user:', error);
+      alert('Failed to activate user');
     }
   };
 
-  const filteredUsers = users
-    .filter(user => {
-      const searchLower = searchTerm.toLowerCase();
-      const matchesSearch =
-        user.full_name.toLowerCase().includes(searchLower) ||
-        user.email.toLowerCase().includes(searchLower) ||
-        user.work_mail_address.toLowerCase().includes(searchLower) ||
-        user.phone_number.toLowerCase().includes(searchLower) ||
-        user.created_at.toLowerCase().includes(searchLower) ||
-        user.role.toLowerCase().includes(searchLower) ||
-        (user.created_by_name && user.created_by_name.toLowerCase().includes(searchLower)) ||
-        user.status.toLowerCase().includes(searchLower) ||
-        user.availability_status.toLowerCase().includes(searchLower) ||
-        user.department.toLowerCase().includes(searchLower);
-
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-      const matchesDepartment = departmentFilter === 'all' || user.department === departmentFilter;
-      const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-      const matchesAvailability = availabilityFilter === 'all' || user.availability_status === availabilityFilter;
-
-      return matchesSearch && matchesRole && matchesDepartment && matchesStatus && matchesAvailability;
-    })
-    .sort((a, b) => {
-      const aValue = a[sortField];
-      const bValue = b[sortField];
-      const modifier = sortDirection === 'asc' ? 1 : -1;
-
-      if (aValue == null && bValue == null) return 0;
-      if (aValue == null) return -1 * modifier;
-      if (bValue == null) return 1 * modifier;
-
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return aValue.localeCompare(bValue) * modifier;
+  const handleDeactivateUser = async (userId) => {
+    try {
+      const result = await apiService.users.deactivateUser(userId);
+      if (result.success) {
+        setSuccessMessage('User deactivated successfully');
+        await loadData();
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        alert(result.error || 'Failed to deactivate user');
       }
-      return (aValue > bValue ? 1 : -1) * modifier;
-    });
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      alert('Failed to deactivate user');
+    }
+  };
 
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const paginatedUsers = filteredUsers.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const confirmDeleteUser = async () => {
+    try {
+      if (!userToDelete) return;
+      
+      const result = await apiService.users.updateUserStatus(userToDelete, 'rejected');
+      if (result.success) {
+        setSuccessMessage('User deactivated successfully');
+        await loadData();
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        alert(result.error || 'Failed to deactivate user');
+      }
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      alert('Failed to deactivate user');
+    } finally {
+      setShowDeleteConfirm(false);
+      setUserToDelete(null);
+    }
+  };
 
+  const handleStatusUpdate = async (status) => {
+    if (!selectedUser) return;
+    
+    try {
+      const result = await apiService.users.updateUserStatus(selectedUser.id, status);
+      if (result.success) {
+        setSuccessMessage(`User status updated to ${status}`);
+        setShowStatusModal(false);
+        await loadData();
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        alert(result.error || 'Failed to update status');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status');
+    }
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedUsers(paginatedUsers.map(user => user.id));
+    } else {
+      setSelectedUsers([]);
+    }
+  };
+
+  const handleSelectUser = (userId) => {
+    if (selectedUsers.includes(userId)) {
+      setSelectedUsers(selectedUsers.filter(id => id !== userId));
+    } else {
+      setSelectedUsers([...selectedUsers, userId]);
+    }
+  };
+
+  // Sort handler
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -309,575 +422,982 @@ export default function UserManagement() {
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedRole('all');
+    setSelectedStatus('all');
+  };
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, roleFilter, departmentFilter, statusFilter, availabilityFilter]);
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Get status badge variant
+  const getStatusVariant = (status) => {
+    switch (status) {
+      case 'approved': return 'active';
+      case 'active': return 'active';
+      case 'rejected': return 'inactive';
+      case 'pending': return 'pending';
+      default: return 'default';
+    }
+  };
+
+  // Get role badge variant
+  const getRoleVariant = (role) => {
+    switch (role) {
+      case 'mentor': return 'mentor';
+      case 'mentee': return 'mentee';
+      default: return 'default';
+    }
+  };
+
+  // Custom Components
+  const Button = ({ children, variant = 'default', onClick, className = '', style = {}, disabled = false }) => {
+    const baseStyle = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '8px 16px',
+      borderRadius: '6px',
+      fontSize: '14px',
+      fontWeight: '500',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      border: 'none',
+      transition: 'all 0.2s',
+      opacity: disabled ? 0.6 : 1
+    };
+
+    const variants = {
+      default: {
+        backgroundColor: '#3b82f6',
+        color: 'white',
+        '&:hover': { backgroundColor: '#2563eb' }
+      },
+      outline: {
+        backgroundColor: 'transparent',
+        color: '#374151',
+        border: '1px solid #d1d5db',
+        '&:hover': { backgroundColor: '#f9fafb' }
+      },
+      ghost: {
+        backgroundColor: 'transparent',
+        color: '#374151',
+        border: 'none',
+        '&:hover': { backgroundColor: '#f9fafb' }
+      }
+    };
+
+    return (
+      <button
+        style={{ ...baseStyle, ...variants[variant], ...style }}
+        onClick={disabled ? undefined : onClick}
+        className={className}
+        disabled={disabled}
+      >
+        {children}
+      </button>
+    );
+  };
+
+  const Card = ({ children, className = '' }) => (
+    <div style={{
+      backgroundColor: 'white',
+      borderRadius: '8px',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)',
+      overflow: 'hidden'
+    }} className={className}>
+      {children}
+    </div>
+  );
+
+  const Badge = ({ children, variant = 'default' }) => {
+    const styles = {
+      default: {
+        backgroundColor: '#e5e7eb',
+        color: '#374151',
+        padding: '4px 12px',
+        borderRadius: '9999px',
+        fontSize: '12px',
+        fontWeight: '500',
+        display: 'inline-block'
+      },
+      active: {
+        backgroundColor: '#d1fae5',
+        color: '#065f46'
+      },
+      inactive: {
+        backgroundColor: '#fee2e2',
+        color: '#991b1b'
+      },
+      pending: {
+        backgroundColor: '#fef3c7',
+        color: '#92400e'
+      },
+      mentor: {
+        backgroundColor: '#dbeafe',
+        color: '#1e40af'
+      },
+      mentee: {
+        backgroundColor: '#d1fae5',
+        color: '#065f46'
+      }
+    };
+
+    return (
+      <span style={styles[variant] || styles.default}>
+        {children}
+      </span>
+    );
+  };
+
+  // Modal Component
+  const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
+    if (!isOpen) return null;
+    
+    const sizeStyles = {
+      sm: { maxWidth: '400px' },
+      md: { maxWidth: '600px' },
+      lg: { maxWidth: '800px' },
+      xl: { maxWidth: '1000px' }
+    };
+    
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+        padding: '16px'
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          width: '100%',
+          maxHeight: '90vh',
+          overflow: 'auto',
+          ...sizeStyles[size]
+        }}>
+          <div style={{
+            padding: '24px',
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+              {title}
+            </h2>
+            <button
+              onClick={onClose}
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                '&:hover': { backgroundColor: '#f9fafb' }
+              }}
+            >
+              <X style={{ height: '20px', width: '20px', color: '#6b7280' }} />
+            </button>
+          </div>
+          <div style={{ padding: '24px' }}>
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Loading users...</span>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '400px'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            animation: 'spin 1s linear infinite',
+            borderRadius: '50%',
+            height: '48px',
+            width: '48px',
+            borderBottom: '2px solid #2563eb',
+            margin: '0 auto'
+          }}></div>
+          <p style={{ marginTop: '16px', color: '#4b5563', fontWeight: '500' }}>
+            Loading users...
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">User Management</h1>
-          <p className="text-gray-600">Manage users, roles, and permissions</p>
-        </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setIsDialogOpen(true);
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-        >
-          <UserPlus className="size-4" />
-          Add New User
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            <div className="lg:col-span-2">
-              <label htmlFor="search" className="sr-only">Search</label>
-              <div className="relative">
-                <Search className="size-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  id="search"
-                  placeholder="Search by name, email, phone, role..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Roles</option>
-                <option value="admin">Admin</option>
-                <option value="hr">HR</option>
-                <option value="mentor">Mentor</option>
-                <option value="mentee">Mentee</option>
-              </select>
-            </div>
-            <div>
-              <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Departments</option>
-                {departments.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </div>
-            <div>
-              <select
-                value={availabilityFilter}
-                onChange={(e) => setAvailabilityFilter(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
+              User Management
+            </h1>
+            <p style={{ color: '#4b5563' }}>
+              Manage mentors and mentees (Administrator and HR roles are managed separately)
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <Button variant="outline" onClick={loadData}>
+              <RefreshCw style={{ height: '16px', width: '16px', marginRight: '8px' }} />
+              Refresh
+            </Button>
+            {/* <Button variant="outline" onClick={exportToCSV}>
+              <Download style={{ height: '16px', width: '16px', marginRight: '8px' }} />
+              Export CSV
+            </Button> */}
           </div>
         </div>
+        
+        {error && (
+          <div style={{
+            backgroundColor: '#fee2e2',
+            border: '1px solid #fecaca',
+            borderRadius: '6px',
+            padding: '12px 16px',
+            color: '#991b1b'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{error}</span>
+              <button
+                onClick={loadData}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#991b1b',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {successMessage && (
+          <div style={{
+            backgroundColor: '#d1fae5',
+            border: '1px solid #a7f3d0',
+            borderRadius: '6px',
+            padding: '12px 16px',
+            color: '#065f46'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{successMessage}</span>
+              <button
+                onClick={() => setSuccessMessage('')}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#065f46',
+                  cursor: 'pointer'
+                }}
+              >
+                <X style={{ height: '16px', width: '16px' }} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Summary Cards */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '16px'
+      }}>
+        <Card>
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '14px', color: '#6b7280' }}>Total Users</p>
+                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>{stats.total}</p>
+              </div>
+              <Users style={{ height: '24px', width: '24px', color: '#3b82f6' }} />
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '14px', color: '#6b7280' }}>Active Users</p>
+                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>{stats.approved}</p>
+              </div>
+              <CheckCircle style={{ height: '24px', width: '24px', color: '#10b981' }} />
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '14px', color: '#6b7280' }}>Pending Approval</p>
+                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>{stats.pending}</p>
+              </div>
+              <UserX style={{ height: '24px', width: '24px', color: '#f59e0b' }} />
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '14px', color: '#6b7280' }}>Mentors</p>
+                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>{stats.mentors}</p>
+              </div>
+              <Award style={{ height: '24px', width: '24px', color: '#8b5cf6' }} />
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: '14px', color: '#6b7280' }}>Mentees</p>
+                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>{stats.mentees}</p>
+              </div>
+              <Users style={{ height: '24px', width: '24px', color: '#10b981' }} />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Search and Filters */}
+      <Card>
+        <div style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Search Bar */}
+            <div style={{ position: 'relative' }}>
+              <Search style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                height: '16px',
+                width: '16px',
+                color: '#9ca3af'
+              }} />
+              <input
+                type="text"
+                placeholder="Search users by name, email, or role..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px 10px 40px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+
+            {/* Filter Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Button
+                variant="ghost"
+                onClick={() => setShowFilters(!showFilters)}
+                style={{ padding: '6px 12px' }}
+              >
+                <Filter style={{ height: '16px', width: '16px', marginRight: '8px' }} />
+                {showFilters ? 'Hide Filters' : 'Show Filters'}
+              </Button>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '14px', color: '#6b7280' }}>
+                  Showing {filteredUsers.length} of {users.length} users
+                </span>
+                {(searchTerm || selectedRole !== 'all' || selectedStatus !== 'all') && (
+                  <Button variant="ghost" onClick={clearFilters} style={{ padding: '6px 12px' }}>
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Advanced Filters */}
+            {showFilters && (
+              <div style={{
+                padding: '16px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '6px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                  {/* Role Filter */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                      Role
+                    </label>
+                    <select
+                      value={selectedRole}
+                      onChange={(e) => setSelectedRole(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #d1d5db',
+                        fontSize: '14px',
+                        backgroundColor: 'white'
+                      }}
+                    >
+                      <option value="all">All Roles</option>
+                      <option value="mentor">Mentor</option>
+                      <option value="mentee">Mentee</option>
+                    </select>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                      Status
+                    </label>
+                    <select
+                      value={selectedStatus}
+                      onChange={(e) => setSelectedStatus(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #d1d5db',
+                        fontSize: '14px',
+                        backgroundColor: 'white'
+                      }}
+                    >
+                      <option value="all">All Status</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {/* Users Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-        <div className="p-6 border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">All Users ({filteredUsers.length})</h2>
-              <p className="text-gray-600">Manage and monitor user accounts</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-0">
-          {filteredUsers.length === 0 ? (
-            <div className="text-center py-8">
-              <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
-              <p className="text-gray-500">Try adjusting your search or filters</p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th 
-                        onClick={() => handleSort('full_name')} 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center">
-                          <User className="size-4 mr-2" />
-                          User {sortField === 'full_name' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort('role')} 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center">
-                          <Shield className="size-4 mr-2" />
-                          Role {sortField === 'role' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort('department')} 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center">
-                          <Building2 className="size-4 mr-2" />
-                          Department {sortField === 'department' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </div>
-                      </th>
-                      <th 
-                        onClick={() => handleSort('status')} 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
-                      </th>
-                      <th 
-                        onClick={() => handleSort('availability_status')} 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        Availability {sortField === 'availability_status' && (sortDirection === 'asc' ? '↑' : '↓')}
-                      </th>
-                      <th 
-                        onClick={() => handleSort('created_at')} 
-                        className="py-3 px-4 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                      >
-                        <div className="flex items-center">
-                          <Calendar className="size-4 mr-2" />
-                          Joined {sortField === 'created_at' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </div>
-                      </th>
-                      <th className="py-3 px-4 text-right font-medium text-gray-900">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedUsers.map((user) => (
-                      <tr key={user.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                              <User className="size-5 text-blue-600" />
-                            </div>
-                            <div>
-                              <p className="font-medium text-gray-900">{user.full_name}</p>
-                              <div className="flex flex-col text-xs text-gray-500">
-                                <span>{user.email}</span>
-                                <span className="flex items-center gap-1">
-                                  <Mail className="size-3" />
-                                  {user.work_mail_address}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Phone className="size-3" />
-                                  {user.phone_number}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 text-xs rounded-full capitalize ${user.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-sm">{user.department}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 text-xs rounded-full capitalize ${
-                            user.status === 'approved' ? 'bg-green-100 text-green-800' :
-                            user.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {user.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            {user.availability_status === 'active' ? (
-                              <CheckCircle className="size-4 text-green-500" />
-                            ) : (
-                              <XCircle className="size-4 text-red-500" />
-                            )}
-                            <span className="capitalize">{user.availability_status}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {new Date(user.created_at).toLocaleDateString()}
-                          </div>
-                          {user.created_by_name && (
-                            <div className="text-xs text-gray-500">
-                              By: {user.created_by_name}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => openViewModal(user)}
-                              title="View Details"
-                              className="p-1 hover:bg-gray-100 rounded"
-                            >
-                              <Eye className="size-4" />
-                            </button>
-                            <button
-                              onClick={() => initializeFormForEdit(user)}
-                              title="Edit User"
-                              className="p-1 hover:bg-gray-100 rounded"
-                            >
-                              <Edit className="size-4" />
-                            </button>
-                            <button
-                              onClick={() => openDeleteConfirm(user.id)}
-                              title="Delete User"
-                              className="p-1 hover:bg-red-50 text-red-600 rounded"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              <div className="flex items-center justify-between p-6 border-t">
-                <p className="text-sm text-gray-600">
-                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className={`px-3 py-1 border rounded-md text-sm ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
-                  >
-                    <ChevronLeft className="size-4" />
-                    Previous
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`w-8 h-8 rounded-md text-sm ${currentPage === page ? 'bg-blue-600 text-white' : 'border hover:bg-gray-50'}`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className={`px-3 py-1 border rounded-md text-sm ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
-                  >
-                    Next
-                    <ChevronRight className="size-4" />
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Add/Edit User Modal */}
-      {isDialogOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">
-                {isEditing ? 'Edit User' : 'Add New User'}
-              </h2>
-              <p className="text-gray-600">
-                {isEditing ? 'Update user information and roles' : 'Create a new user account and assign roles'}
-              </p>
-            </div>
-            <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="full_name" className="text-sm font-medium text-gray-700">Full Name *</label>
+      <Card>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f9fafb' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
                   <input
-                    id="full_name"
-                    value={formData.full_name}
-                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                    placeholder="John Doe"
-                    required
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    type="checkbox"
+                    checked={selectedUsers.length === paginatedUsers.length && paginatedUsers.length > 0}
+                    onChange={handleSelectAll}
                   />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-gray-700">Personal Email (Gmail) *</label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="user@gmail.com"
-                    required
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="phone_number" className="text-sm font-medium text-gray-700">Phone Number *</label>
-                  <input
-                    id="phone_number"
-                    value={formData.phone_number}
-                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                    placeholder="+250 XXX XXX XXX"
-                    required
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="role" className="text-sm font-medium text-gray-700">Role *</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="mentee">Mentee</option>
-                    <option value="mentor">Mentor</option>
-                    <option value="hr">HR</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="department" className="text-sm font-medium text-gray-700">Department *</label>
-                  <select
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select department</option>
-                    {departments.map(dept => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="status" className="text-sm font-medium text-gray-700">Status *</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="availability_status" className="text-sm font-medium text-gray-700">Availability Status *</label>
-                  <select
-                    value={formData.availability_status}
-                    onChange={(e) => setFormData({ ...formData, availability_status: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsDialogOpen(false);
-                    resetForm();
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                </th>
+                <th 
+                  style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', cursor: 'pointer' }}
+                  onClick={() => handleSort('full_name')}
                 >
-                  Cancel
-                </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                  {isEditing ? 'Update User' : 'Create User'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* View User Details Modal */}
-      {viewUserModal && userToView && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">User Details</h2>
-              <p className="text-gray-600">Complete information about the user</p>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="size-8 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold">{userToView.full_name}</h3>
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className={`px-2 py-1 text-xs rounded-full ${userToView.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                      {userToView.role}
-                    </span>
-                    <span className={`px-2 py-1 text-xs rounded-full ${userToView.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {userToView.status}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {userToView.availability_status === 'active' ? (
-                        <CheckCircle className="size-4 text-green-500" />
-                      ) : (
-                        <XCircle className="size-4 text-red-500" />
-                      )}
-                      <span className="text-sm capitalize">{userToView.availability_status}</span>
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Name
+                    <ArrowUpDown style={{ height: '14px', width: '14px' }} />
                   </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-2">Contact Information</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Mail className="size-4 text-gray-400" />
-                        <span className="text-sm">{userToView.email}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Mail className="size-4 text-gray-400" />
-                        <span className="text-sm">{userToView.work_mail_address}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Phone className="size-4 text-gray-400" />
-                        <span className="text-sm">{userToView.phone_number}</span>
-                      </div>
-                    </div>
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
+                  Contact
+                </th>
+                <th 
+                  style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', cursor: 'pointer' }}
+                  onClick={() => handleSort('role')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Role
+                    <ArrowUpDown style={{ height: '14px', width: '14px' }} />
                   </div>
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-2">Department</h4>
-                    <div className="flex items-center gap-2">
-                      <Building2 className="size-4 text-gray-400" />
-                      <span>{userToView.department}</span>
-                    </div>
+                </th>
+                <th 
+                  style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', cursor: 'pointer' }}
+                  onClick={() => handleSort('status')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Status
+                    <ArrowUpDown style={{ height: '14px', width: '14px' }} />
                   </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-2">Account Information</h4>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-sm text-gray-500">Joined Date:</span>
-                        <p className="text-sm">{new Date(userToView.created_at).toLocaleDateString()}</p>
-                      </div>
-                      {userToView.created_by_name && (
+                </th>
+                <th 
+                  style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', cursor: 'pointer' }}
+                  onClick={() => handleSort('created_at')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Created At
+                    <ArrowUpDown style={{ height: '14px', width: '14px' }} />
+                  </div>
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedUsers.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ padding: '40px 16px', textAlign: 'center', color: '#6b7280' }}>
+                    {loading ? 'Loading users...' : 'No mentors or mentees found. Try adjusting your filters.'}
+                  </td>
+                </tr>
+              ) : (
+                paginatedUsers.map((user) => (
+                  <tr key={user.id} style={{ borderBottom: '1px solid #e5e7eb', transition: 'background-color 0.2s' }}>
+                    <td style={{ padding: '12px 16px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.includes(user.id)}
+                        onChange={() => handleSelectUser(user.id)}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '9999px',
+                          backgroundColor: '#dbeafe',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: '600',
+                          color: '#2563eb'
+                        }}>
+                          {user.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
                         <div>
-                          <span className="text-sm text-gray-500">Created By:</span>
-                          <p className="text-sm">{userToView.created_by_name}</p>
+                          <div style={{ fontWeight: '500', color: '#111827' }}>
+                            {user.full_name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                            ID: {user.id}
+                          </div>
                         </div>
-                      )}
-                      <div>
-                        <span className="text-sm text-gray-500">Account Status:</span>
-                        <p className="text-sm capitalize">{userToView.is_active ? 'Active' : 'Inactive'}</p>
                       </div>
-                    </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Mail style={{ height: '12px', width: '12px', color: '#9ca3af' }} />
+                          <span style={{ fontSize: '14px' }}>{user.work_mail_address}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Phone style={{ height: '12px', width: '12px', color: '#9ca3af' }} />
+                          <span style={{ fontSize: '12px', color: '#6b7280' }}>{user.phone_number || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <Badge variant={getRoleVariant(user.role)}>
+                        {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)}
+                      </Badge>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <Badge variant={getStatusVariant(user.status)}>
+                        {user.status?.charAt(0).toUpperCase() + user.status?.slice(1)}
+                      </Badge>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Calendar style={{ height: '12px', width: '12px', color: '#9ca3af' }} />
+                        <span>{formatDate(user.created_at)}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleViewUser(user)}
+                          style={{ padding: '4px 8px' }}
+                        >
+                          <Eye style={{ height: '14px', width: '14px' }} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleStatusChange(user)}
+                          style={{ padding: '4px 8px', color: user.status === 'approved' ? '#ef4444' : '#10b981' }}
+                        >
+                          {user.status === 'approved' ? <UserX style={{ height: '14px', width: '14px' }} /> : <UserCheck style={{ height: '14px', width: '14px' }} />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleDeleteUser(user.id)}
+                          style={{ padding: '4px 8px', color: '#ef4444' }}
+                        >
+                          <Trash2 style={{ height: '14px', width: '14px' }} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination and Rows Per Page */}
+        <div style={{
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderTop: '1px solid #e5e7eb'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '14px', color: '#6b7280' }}>Rows per page:</span>
+            <select
+              value={rowsPerPage}
+              onChange={(e) => {
+                setRowsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid #d1d5db',
+                fontSize: '14px',
+                backgroundColor: 'white'
+              }}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={30}>30</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span style={{ fontSize: '14px', color: '#6b7280' }}>
+              {startIndex + 1}-{endIndex} of {filteredUsers.length}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              style={{ padding: '6px 12px', opacity: currentPage === 1 ? 0.5 : 1 }}
+            >
+              <ChevronLeft style={{ height: '16px', width: '16px' }} />
+            </Button>
+            
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return (
+                <Button
+                  key={pageNum}
+                  variant={currentPage === pageNum ? 'default' : 'outline'}
+                  onClick={() => setCurrentPage(pageNum)}
+                  style={{ padding: '6px 12px', minWidth: '32px' }}
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+            
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              style={{ padding: '6px 12px', opacity: currentPage === totalPages ? 0.5 : 1 }}
+            >
+              <ChevronRight style={{ height: '16px', width: '16px' }} />
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* View User Modal */}
+      <Modal
+        isOpen={showViewModal}
+        onClose={() => setShowViewModal(false)}
+        title="User Details"
+      >
+        {selectedUser && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* User Profile Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '9999px',
+                backgroundColor: '#dbeafe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '600',
+                fontSize: '32px',
+                color: '#2563eb'
+              }}>
+                {selectedUser.full_name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div>
+                <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
+                  {selectedUser.full_name}
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+                  <Badge variant={getRoleVariant(selectedUser.role)}>
+                    {selectedUser.role?.charAt(0).toUpperCase() + selectedUser.role?.slice(1)}
+                  </Badge>
+                  <Badge variant={getStatusVariant(selectedUser.status)}>
+                    {selectedUser.status?.charAt(0).toUpperCase() + selectedUser.status?.slice(1)}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* User Information Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              {/* Contact Information */}
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Mail style={{ height: '16px', width: '16px' }} />
+                  Contact Information
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Work Email</div>
+                    <div style={{ fontSize: '14px', color: '#111827' }}>{selectedUser.work_mail_address}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Personal Email</div>
+                    <div style={{ fontSize: '14px', color: '#111827' }}>{selectedUser.email}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Phone Number</div>
+                    <div style={{ fontSize: '14px', color: '#111827' }}>{selectedUser.phone_number || 'N/A'}</div>
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <button
-                  onClick={() => setViewUserModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    setViewUserModal(false);
-                    initializeFormForEdit(userToView);
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Edit className="size-4" />
-                  Edit User
-                </button>
+
+              {/* Account Information */}
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <User style={{ height: '16px', width: '16px' }} />
+                  Account Information
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Account Status</div>
+                    <div style={{ fontSize: '14px', color: '#111827' }}>
+                      <span style={{
+                        color: selectedUser.status === 'approved' ? '#10b981' : 
+                               selectedUser.status === 'pending' ? '#f59e0b' : '#ef4444'
+                      }}>
+                        {selectedUser.status?.charAt(0).toUpperCase() + selectedUser.status?.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Availability</div>
+                    <div style={{ fontSize: '14px', color: '#111827' }}>
+                      <span style={{
+                        color: selectedUser.availability_status === 'active' ? '#10b981' : '#ef4444'
+                      }}>
+                        {selectedUser.availability_status?.charAt(0).toUpperCase() + selectedUser.availability_status?.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Created At</div>
+                    <div style={{ fontSize: '14px', color: '#111827' }}>{formatDate(selectedUser.created_at)}</div>
+                  </div>
+                  {selectedUser.created_by && (
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>Created By</div>
+                      <div style={{ fontSize: '14px', color: '#111827' }}>{selectedUser.created_by_name || 'System'}</div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
+              <Button variant="outline" onClick={() => {
+                setShowViewModal(false);
+                handleStatusChange(selectedUser);
+              }}>
+                {selectedUser.status === 'approved' ? (
+                  <>
+                    <UserX style={{ height: '16px', width: '16px', marginRight: '8px' }} />
+                    Deactivate
+                  </>
+                ) : (
+                  <>
+                    <UserCheck style={{ height: '16px', width: '16px', marginRight: '8px' }} />
+                    Activate
+                  </>
+                )}
+              </Button>
+              <Button variant="default" onClick={() => setShowViewModal(false)}>
+                Close
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
+
+      {/* Status Change Modal */}
+      <Modal
+        isOpen={showStatusModal}
+        onClose={() => setShowStatusModal(false)}
+        title="Change User Status"
+        size="sm"
+      >
+        {selectedUser && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '9999px',
+                backgroundColor: selectedUser.status === 'approved' ? '#fee2e2' : '#d1fae5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                color: selectedUser.status === 'approved' ? '#ef4444' : '#10b981'
+              }}>
+                {selectedUser.status === 'approved' ? (
+                  <UserX style={{ height: '32px', width: '32px' }} />
+                ) : (
+                  <UserCheck style={{ height: '32px', width: '32px' }} />
+                )}
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                {selectedUser.status === 'approved' ? 'Deactivate User' : 'Activate User'}
+              </h3>
+              <p style={{ color: '#6b7280' }}>
+                Are you sure you want to {selectedUser.status === 'approved' ? 'deactivate' : 'activate'} 
+                <strong> {selectedUser.full_name}</strong>?
+              </p>
+              <div style={{ backgroundColor: '#f9fafb', borderRadius: '6px', padding: '12px', marginTop: '16px' }}>
+                <div style={{ fontSize: '14px', color: '#6b7280' }}>Current Status:</div>
+                <Badge variant={getStatusVariant(selectedUser.status)}>
+                  {selectedUser.status?.charAt(0).toUpperCase() + selectedUser.status?.slice(1)}
+                </Badge>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <Button variant="outline" onClick={() => setShowStatusModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => handleStatusUpdate(selectedUser.status === 'approved' ? 'rejected' : 'approved')}
+                style={{ backgroundColor: selectedUser.status === 'approved' ? '#ef4444' : '#10b981' }}
+              >
+                {selectedUser.status === 'approved' ? 'Deactivate User' : 'Activate User'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirmOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">Confirm Deletion</h2>
-              <p className="text-gray-600">
-                Are you sure you want to delete this user? This action cannot be undone.
-              </p>
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Confirm Deactivation"
+        size="sm"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '9999px',
+              backgroundColor: '#fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              color: '#ef4444'
+            }}>
+              <Trash2 style={{ height: '32px', width: '32px' }} />
             </div>
-            <div className="p-6 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setDeleteConfirmOpen(false);
-                  setUserToDelete(null);
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (userToDelete) {
-                    deleteUser(userToDelete);
-                  }
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
-              >
-                <Trash2 className="size-4" />
-                Delete User
-              </button>
-            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+              Deactivate User
+            </h3>
+            <p style={{ color: '#6b7280' }}>
+              Are you sure you want to deactivate this user? They will no longer be able to access the system.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmDeleteUser} style={{ backgroundColor: '#ef4444', color: 'white' }}>
+              Deactivate User
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
+
+      {/* Add CSS for spinner animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        
+        button:hover:not(:disabled) {
+          opacity: 0.9;
+        }
+        
+        select:focus, input:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        tr:hover {
+          background-color: #f9fafb;
+        }
+      `}</style>
     </div>
   );
 }
