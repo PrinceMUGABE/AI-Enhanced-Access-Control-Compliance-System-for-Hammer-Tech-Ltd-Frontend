@@ -1002,9 +1002,9 @@ export default function AdminReports() {
               >
                 <option value="">All Departments</option>
                 {departments.map((dept) => (
-                  <option key={dept.id} value={dept.name}>
+                 <span className='text-gray-700'><option key={dept.id} value={dept.name}>
                     {dept.name}
-                  </option>
+                  </option></span> 
                 ))}
               </select>
             </div>

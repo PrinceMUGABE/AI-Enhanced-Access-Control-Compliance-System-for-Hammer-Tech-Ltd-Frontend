@@ -1,4 +1,3 @@
-// MentorMenteeChatManagement.jsx - Complete Updated Version
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -55,7 +54,7 @@ const joinConferenceCall = async (data) => fetchAPI('/chats/join-conference/', '
 // User Data APIs
 const getCurrentUser = async () => fetchAPI('/profile/');
 
-// UI Components (simplified)
+// UI Components
 const Button = ({ children, onClick, variant = 'default', size = 'default', className = '', disabled = false, type = 'button', title = '' }) => {
   const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -269,18 +268,532 @@ const getChatTypeBadge = (chatType) => {
   }
 };
 
-// Chat Message Component
-const ChatMessage = ({ message, isOwn, onDelete }) => {
+// WhatsApp-style Audio Recorder Component
+const AudioRecorder = ({ onRecordingComplete, onCancel, maxDuration = 300 }) => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioURL, setAudioURL] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentPlayTime, setCurrentPlayTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const audioRef = useRef(null);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioURL = URL.createObjectURL(audioBlob);
+        setAudioBlob(audioBlob);
+        setAudioURL(audioURL);
+
+        // Clean up stream
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      // Start recording
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => {
+          if (prev >= maxDuration) {
+            stopRecording();
+            return maxDuration;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+
+      // Initialize audio visualization
+      initializeAudioVisualization(stream);
+
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      // alert('Failed to access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      clearInterval(timerRef.current);
+    }
+  };
+
+  const playRecording = () => {
+    if (audioRef.current) {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const pauseRecording = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentPlayTime(audioRef.current.currentTime);
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleSend = () => {
+    if (audioBlob) {
+      onRecordingComplete(audioBlob);
+    }
+  };
+
+  const handleCancel = () => {
+    stopRecording();
+    if (audioURL) {
+      URL.revokeObjectURL(audioURL);
+    }
+    onCancel();
+  };
+
+  const handleDelete = () => {
+    stopRecording();
+    if (audioURL) {
+      URL.revokeObjectURL(audioURL);
+    }
+    setAudioBlob(null);
+    setAudioURL('');
+    setCurrentPlayTime(0);
+    setIsPlaying(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      if (audioURL) {
+        URL.revokeObjectURL(audioURL);
+      }
+    };
+  }, []);
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">Record Voice Message</h3>
+        <button
+          onClick={handleCancel}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {/* Timer Display */}
+        <div className="text-center">
+          <div className="text-2xl font-mono">
+            {formatTime(isRecording ? recordingTime : currentPlayTime)}
+          </div>
+          <div className="text-sm text-gray-500">
+            {isRecording ? 'Recording...' : audioBlob ? 'Preview' : 'Ready to record'}
+          </div>
+        </div>
+
+        {/* Audio Controls - WhatsApp Style */}
+        <div className="flex justify-center space-x-4 items-center">
+          {!audioBlob ? (
+            <>
+              {isRecording ? (
+                <div className="flex items-center space-x-4">
+                  {/* Visual indicator for recording */}
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-red-500 text-sm">Recording</span>
+                  </div>
+
+                  <button
+                    onClick={stopRecording}
+                    className="flex items-center justify-center bg-red-500 text-white px-6 py-3 rounded-full hover:bg-red-600 transition-colors"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    </svg>
+                    Stop
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={startRecording}
+                  className="flex items-center justify-center bg-blue-500 text-white px-6 py-3 rounded-full hover:bg-blue-600 transition-colors"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  Start Recording
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={isPlaying ? pauseRecording : playRecording}
+                  className="flex items-center justify-center bg-green-500 text-white px-4 py-3 rounded-full hover:bg-green-600 transition-colors"
+                >
+                  {isPlaying ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* Progress bar for playback */}
+                <div className="flex-1 max-w-xs">
+                  <div className="w-full bg-gray-200 rounded-full h-1">
+                    <div
+                      className="bg-blue-500 h-1 rounded-full transition-all duration-100"
+                      style={{ width: `${(currentPlayTime / (duration || 1)) * 100}%` }}
+                    ></div>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>{formatTime(currentPlayTime)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        {audioBlob && (
+          <div className="flex justify-center space-x-2 pt-4">
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Delete
+            </button>
+            <button
+              onClick={handleSend}
+              className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+            >
+              Send Voice Message
+            </button>
+          </div>
+        )}
+
+        {/* Hidden audio element for playback */}
+        {audioURL && (
+          <audio
+            ref={audioRef}
+            src={audioURL}
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoadedMetadata}
+            onEnded={() => setIsPlaying(false)}
+            className="hidden"
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+// File Preview Modal
+const FilePreviewModal = ({ file, open, onClose, onDownload, onView }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const isImage = file?.type?.startsWith('image/');
+  const isVideo = file?.type?.startsWith('video/');
+  const isPDF = file?.type === 'application/pdf';
+  const isAudio = file?.type?.startsWith('audio/');
+
+  const handleDownload = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(file.url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      onDownload?.();
+    } catch (err) {
+      setError('Failed to download file');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewInBrowser = () => {
+    window.open(file.url, '_blank');
+  };
+
+  if (!open) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <DialogTitle>{file.name}</DialogTitle>
+              <DialogDescription>
+                {formatFileSize(file.size)} • {formatDate(file.uploadedAt, true)}
+              </DialogDescription>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge variant="info">
+                {getFileIcon(file.name)}
+              </Badge>
+              <button
+                onClick={onClose}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="p-6">
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+
+          <div className="flex flex-col items-center justify-center">
+            {isImage ? (
+              <div className="max-w-3xl max-h-[60vh] overflow-auto">
+                <img
+                  src={file.url}
+                  alt={file.name}
+                  className="w-full h-auto rounded-lg"
+                />
+              </div>
+            ) : isVideo ? (
+              <div className="max-w-3xl w-full">
+                <video
+                  src={file.url}
+                  controls
+                  className="w-full rounded-lg"
+                  poster={file.thumbnail}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            ) : isPDF ? (
+              <div className="w-full h-[60vh]">
+                <iframe
+                  src={file.url}
+                  title={file.name}
+                  className="w-full h-full border rounded-lg"
+                />
+              </div>
+            ) : isAudio ? (
+              <div className="w-full max-w-md bg-gray-50 p-6 rounded-lg">
+                <div className="text-center mb-4">
+                  <div className="text-4xl mb-2">{getFileIcon(file.name)}</div>
+                  <h4 className="font-medium">{file.name}</h4>
+                </div>
+                <audio
+                  src={file.url}
+                  controls
+                  className="w-full"
+                />
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">{getFileIcon(file.name)}</div>
+                <h4 className="text-xl font-semibold mb-2">{file.name}</h4>
+                <p className="text-gray-600">{formatFileSize(file.size)}</p>
+                <p className="text-sm text-gray-500 mt-1">Preview not available for this file type</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <div className="flex justify-between w-full">
+            <div className="flex space-x-2">
+              {!isPDF && !isImage && !isVideo && (
+                <Button
+                  variant="outline"
+                  onClick={handleViewInBrowser}
+                >
+                  Open in Browser
+                </Button>
+              )}
+            </div>
+            <div className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={onClose}
+              >
+                Close
+              </Button>
+              <Button
+                onClick={handleDownload}
+                disabled={loading}
+              >
+                {loading ? 'Downloading...' : 'Download'}
+              </Button>
+            </div>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Enhanced Chat Message Component with WhatsApp-style audio player
+const ChatMessage = ({ message, isOwn, onDelete, onMessageSent }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showPreview, setShowPreview] = useState(false);
+  const [waveformData, setWaveformData] = useState([]);
   const audioRef = useRef(null);
+  const videoRef = useRef(null);
+  const progressBarRef = useRef(null);
 
-  const isAudio = message.message_type === 'file' &&
-    message.attachment?.match(/\.(mp3|wav|ogg|m4a|webm)$/i);
+  // Enhanced file type detection - handle both sent and received messages consistently
+  const getMessageType = () => {
+    // For sent messages (is_own_message: true) or messages we sent
+    // For received messages (is_own_message: false)
+    
+    const attachment = message.attachment || message.file_url;
+    const messageType = message.message_type || message.type;
+    const content = message.content || '';
+    
+    // Audio detection
+    if (messageType === 'audio' || 
+        (attachment && attachment.match(/\.(mp3|wav|ogg|m4a|webm|opus)$/i)) ||
+        content.toLowerCase().includes('audio') ||
+        content.toLowerCase().includes('voice')) {
+      return 'audio';
+    }
+    
+    // Video detection
+    if (messageType === 'video' ||
+        (attachment && attachment.match(/\.(mp4|avi|mov|webm|mkv)$/i)) ||
+        content.toLowerCase().includes('video')) {
+      return 'video';
+    }
+    
+    // Image detection
+    if (messageType === 'image' ||
+        (attachment && attachment.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) ||
+        content.toLowerCase().includes('image')) {
+      return 'image';
+    }
+    
+    // PDF detection
+    if (messageType === 'file' && attachment && attachment.match(/\.pdf$/i)) {
+      return 'pdf';
+    }
+    
+    // Other files
+    if (messageType === 'file' || (attachment && !message.content)) {
+      return 'file';
+    }
+    
+    return 'text';
+  };
 
-  const isImage = message.message_type === 'image' && message.attachment;
-  const isFile = message.message_type === 'file' && !isAudio && !isImage;
+  const messageType = getMessageType();
+  const isAudio = messageType === 'audio';
+  const isVideo = messageType === 'video';
+  const isImage = messageType === 'image';
+  const isPDF = messageType === 'pdf';
+  const isFile = messageType === 'file';
+  const isText = messageType === 'text';
+
+  // Get the actual file URL - handle different API response structures
+  const getFileUrl = () => {
+    if (message.attachment) {
+      // If it's a full URL
+      if (message.attachment.startsWith('http')) {
+        return message.attachment;
+      }
+      // If it's a relative path, construct the full URL
+      return `http://127.0.0.1:8000${message.attachment.startsWith('/') ? '' : '/'}${message.attachment}`;
+    }
+    
+    if (message.file_url) {
+      if (message.file_url.startsWith('http')) {
+        return message.file_url;
+      }
+      return `http://127.0.0.1:8000${message.file_url.startsWith('/') ? '' : '/'}${message.file_url}`;
+    }
+    
+    return '';
+  };
+
+  // Get file name
+  const getFileName = () => {
+    const url = getFileUrl();
+    if (url) {
+      return url.split('/').pop() || 'file';
+    }
+    return message.file_name || message.content || 'attachment';
+  };
+
+  // Get file size
+  const getFileSize = () => {
+    return message.file_size || message.size || 0;
+  };
+
+  // Generate fake waveform data for audio messages
+  useEffect(() => {
+    if (isAudio && !waveformData.length) {
+      const fakeWaveform = Array.from({ length: 50 }, () => Math.random() * 40 + 10);
+      setWaveformData(fakeWaveform);
+    }
+  }, [isAudio, waveformData.length]);
 
   const handlePlayPause = () => {
     if (!audioRef.current) return;
@@ -304,12 +817,15 @@ const ChatMessage = ({ message, isOwn, onDelete }) => {
     if (audioRef.current) {
       setDuration(audioRef.current.duration);
     }
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+    }
   };
 
   const handleProgressClick = (e) => {
     if (!audioRef.current || !duration) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = progressBarRef.current.getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
     audioRef.current.currentTime = percent * duration;
   };
@@ -321,156 +837,335 @@ const ChatMessage = ({ message, isOwn, onDelete }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleDownload = (url, filename) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename || 'download';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (url, filename) => {
+    try {
+      const fileUrl = url || getFileUrl();
+      const response = await fetch(fileUrl, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || getFileName();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Failed to download file. Please check your authentication.');
+    }
   };
 
+  const handlePreview = () => {
+    setShowPreview(true);
+  };
+
+  const getFileData = () => ({
+    name: getFileName(),
+    url: getFileUrl(),
+    size: getFileSize(),
+    type: isAudio ? 'audio/*' :
+      isVideo ? 'video/*' :
+        isImage ? 'image/*' :
+          isPDF ? 'application/pdf' : 'application/octet-stream',
+    uploadedAt: message.created_at || message.timestamp || message.sent_at
+  });
+
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isOwn ? 'bg-blue-100 rounded-br-none' : 'bg-gray-100 rounded-bl-none'}`}>
-        <div className="flex items-center justify-between mb-1">
-          <span className={`text-sm font-medium ${isOwn ? 'text-blue-800' : 'text-gray-800'}`}>
-            {isOwn ? 'You' : message.sender?.full_name || 'Unknown'}
-          </span>
-          <span className="text-xs text-gray-500 ml-2">
-            {formatTime(message.created_at)}
-          </span>
-        </div>
-
-        {message.content && !isAudio && !isFile && !isImage && (
-          <p className="text-gray-800 whitespace-pre-wrap">{message.content}</p>
-        )}
-
-        {isAudio && (
-          <div className="mt-2 p-3 bg-white rounded-lg border">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handlePlayPause}
-                className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center hover:bg-blue-600 flex-shrink-0 transition-colors"
-              >
-                {isPlaying ? (
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  </svg>
-                )}
-              </button>
-
-              <div className="flex-1">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium">Voice message</span>
-                  <span className="text-xs text-gray-500">
-                    {formatAudioTime(currentTime)} / {formatAudioTime(duration)}
-                  </span>
-                </div>
-
-                <div className="relative group" onClick={handleProgressClick}>
-                  <div className="w-full h-1.5 bg-gray-300 rounded-full cursor-pointer"></div>
-                  <div
-                    className="absolute top-0 left-0 h-1.5 bg-blue-500 rounded-full"
-                    style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
-                  ></div>
-                  <div
-                    className="absolute top-0 w-3 h-3 bg-blue-600 rounded-full transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ left: `${(currentTime / (duration || 1)) * 100}%`, marginTop: '0.375rem' }}
-                  ></div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => handleDownload(message.attachment, message.attachment.split('/').pop())}
-                className="p-2 text-gray-600 hover:text-blue-600"
-                title="Download"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </button>
-            </div>
-
-            <audio
-              ref={audioRef}
-              src={message.attachment}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              onEnded={() => setIsPlaying(false)}
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-              className="hidden"
-            />
+    <>
+      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
+        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isOwn ? 'bg-green-100 rounded-br-none' : 'bg-gray-100 rounded-bl-none'}`}>
+          <div className="flex items-center justify-between mb-1">
+            <span className={`text-sm font-medium ${isOwn ? 'text-green-800' : 'text-gray-800'}`}>
+              {isOwn ? 'You' : message.sender?.full_name || message.sender_name || 'Unknown'}
+            </span>
+            <span className="text-xs text-gray-500 ml-2">
+              {formatTime(message.created_at || message.timestamp)}
+            </span>
           </div>
-        )}
 
-        {isFile && (
-          <div className="mt-2 p-3 border rounded-lg bg-white">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{getFileIcon(message.attachment)}</span>
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate max-w-[200px]">
-                    {message.attachment.split('/').pop()}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {formatFileSize(message.file_size || 0)}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => handleDownload(message.attachment, message.attachment.split('/').pop())}
-                className="p-2 hover:bg-gray-100 rounded transition-colors"
-                title="Download"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isImage && (
-          <div className="mt-2">
-            <img
-              src={message.attachment}
-              alt="Attachment"
-              className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => window.open(message.attachment, '_blank')}
-            />
-          </div>
-        )}
-
-        <div className="flex justify-end mt-2 space-x-2 opacity-0 hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => navigator.clipboard.writeText(message.content)}
-            className="text-xs text-gray-500 hover:text-gray-700 p-1"
-            title="Copy"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-          </button>
-          {onDelete && (
-            <button
-              onClick={() => onDelete(message.id)}
-              className="text-xs text-red-500 hover:text-red-700 p-1"
-              title="Delete"
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+          {/* Text Message */}
+          {isText && message.content && (
+            <p className="text-gray-800 whitespace-pre-wrap">{message.content}</p>
           )}
+
+          {/* WhatsApp-style Audio Message */}
+          {isAudio && (
+            <div className="mt-2 p-3 bg-white rounded-lg border border-gray-200">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handlePlayPause}
+                  className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center hover:bg-green-600 flex-shrink-0 transition-colors"
+                >
+                  {isPlaying ? (
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    </svg>
+                  )}
+                </button>
+
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-medium">Voice message</span>
+                    <span className="text-xs text-gray-500">
+                      {formatAudioTime(currentTime)} / {formatAudioTime(duration)}
+                    </span>
+                  </div>
+
+                  {/* WhatsApp-style waveform visualization */}
+                  <div className="flex items-center h-6 mb-1 gap-0.5">
+                    {waveformData.map((height, index) => (
+                      <div
+                        key={index}
+                        className="w-1 bg-gray-300 rounded-full transition-all duration-100"
+                        style={{
+                          height: `${height}%`,
+                          backgroundColor: (index / waveformData.length) < (currentTime / (duration || 1))
+                            ? '#10B981'
+                            : '#D1D5DB'
+                        }}
+                      ></div>
+                    ))}
+                  </div>
+
+                  {/* Progress bar */}
+                  <div
+                    ref={progressBarRef}
+                    className="relative w-full h-1.5 bg-gray-300 rounded-full cursor-pointer"
+                    onClick={handleProgressClick}
+                  >
+                    <div
+                      className="absolute top-0 left-0 h-1.5 bg-green-500 rounded-full"
+                      style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleDownload(getFileUrl(), getFileName())}
+                  className="p-2 text-gray-600 hover:text-green-600"
+                  title="Download"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </button>
+              </div>
+
+              <audio
+                ref={audioRef}
+                src={getFileUrl()}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                className="hidden"
+              />
+            </div>
+          )}
+
+          {/* Video Message */}
+          {isVideo && (
+            <div className="mt-2">
+              <div className="relative rounded-lg overflow-hidden bg-black">
+                <video
+                  ref={videoRef}
+                  src={getFileUrl()}
+                  controls
+                  className="w-full max-h-64"
+                  onLoadedMetadata={handleLoadedMetadata}
+                  poster={message.thumbnail}
+                />
+              </div>
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-sm text-gray-600">
+                  Video • {formatFileSize(getFileSize())}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handlePreview()}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Preview
+                  </button>
+                  <button
+                    onClick={() => handleDownload(getFileUrl(), getFileName())}
+                    className="text-sm text-green-600 hover:text-green-800"
+                  >
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Image Message */}
+          {isImage && (
+            <div className="mt-2">
+              <img
+                src={getFileUrl()}
+                alt="Attachment"
+                className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity object-cover"
+                onClick={handlePreview}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://via.placeholder.com/300x200?text=Image+Not+Found';
+                }}
+              />
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-sm text-gray-600">
+                  Image • {formatFileSize(getFileSize())}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handlePreview()}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={() => handleDownload(getFileUrl(), getFileName())}
+                    className="text-sm text-green-600 hover:text-green-800"
+                  >
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PDF Message */}
+          {isPDF && (
+            <div className="mt-2 p-3 border rounded-lg bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">📄</span>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate max-w-[200px]">
+                      {getFileName()}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      PDF • {formatFileSize(getFileSize())}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePreview}
+                    className="p-2 hover:bg-gray-100 rounded transition-colors"
+                    title="Preview"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDownload(getFileUrl(), getFileName())}
+                    className="p-2 hover:bg-gray-100 rounded transition-colors"
+                    title="Download"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Other Files */}
+          {isFile && (
+            <div className="mt-2 p-3 border rounded-lg bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{getFileIcon(getFileName())}</span>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate max-w-[200px]">
+                      {getFileName()}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatFileSize(getFileSize())}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePreview}
+                    className="p-2 hover:bg-gray-100 rounded transition-colors"
+                    title="Preview"
+                    disabled={!['jpg', 'jpeg', 'png', 'gif', 'pdf', 'txt'].includes(getFileName().split('.').pop().toLowerCase())}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDownload(getFileUrl(), getFileName())}
+                    className="p-2 hover:bg-gray-100 rounded transition-colors"
+                    title="Download"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end mt-2 space-x-2 opacity-0 hover:opacity-100 transition-opacity">
+            {message.content && (
+              <button
+                onClick={() => navigator.clipboard.writeText(message.content)}
+                className="text-xs text-gray-500 hover:text-gray-700 p-1"
+                title="Copy"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+            )}
+            {onDelete && isOwn && (
+              <button
+                onClick={() => onDelete(message.id)}
+                className="text-xs text-red-500 hover:text-red-700 p-1"
+                title="Delete"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* File Preview Modal */}
+      {showPreview && (
+        <FilePreviewModal
+          file={getFileData()}
+          open={showPreview}
+          onClose={() => setShowPreview(false)}
+          onDownload={() => handleDownload(getFileUrl(), getFileName())}
+        />
+      )}
+    </>
   );
 };
 
@@ -1311,7 +2006,7 @@ const VideoCallModal = ({
   );
 };
 
-// Main MentorMenteeChatManagement Component
+// Main MenteeChatManagement Component
 export default function MentorMenteeChatManagement() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -1322,13 +2017,11 @@ export default function MentorMenteeChatManagement() {
   const [sendingMessage, setSendingMessage] = useState(false);
 
   const [ws, setWs] = useState(null);
-  const [callWs, setCallWs] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState('');
 
   const [typingUsers, setTypingUsers] = useState([]);
   const typingTimeoutRef = useRef(null);
-
   const [showParticipants, setShowParticipants] = useState(false);
   const [showIncomingCall, setShowIncomingCall] = useState(false);
 
@@ -1351,13 +2044,22 @@ export default function MentorMenteeChatManagement() {
   const [callChatMessages, setCallChatMessages] = useState([]);
   const location = useLocation();
 
+  const [showAudioRecorder, setShowAudioRecorder] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState([]);
+  const [showUploadProgress, setShowUploadProgress] = useState(false);
+  const [callWs, setCallWs] = useState(null);
+  const timerRef = useRef(null);
+
+
+
   const [filters, setFilters] = useState({
     search: '',
     chat_type: 'all'
   });
 
   const messagesEndRef = useRef(null);
-  const timerRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const messageInputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1493,74 +2195,10 @@ export default function MentorMenteeChatManagement() {
     }
   };
 
-  const handleWebSocketMessage = (data) => {
-    console.log('📨 Chat WebSocket message received:', data);
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages]);
 
-    switch (data.type) {
-      case 'chat_message':
-        console.log('💬 New chat message:', {
-          sender: data.sender_name,
-          message: data.message,
-          type: data.message_type
-        });
-        handleIncomingMessage(data);
-        break;
-      case 'typing_status':
-        console.log('⌨️ Typing status update:', {
-          user: data.full_name,
-          is_typing: data.is_typing
-        });
-        handleTypingStatus(data);
-        break;
-      case 'video_call_offer':
-        console.log('📞 Incoming video call offer:', {
-          call_id: data.call_id,
-          caller_name: data.caller_name,
-          call_type: data.call_type,
-          chat_room: data.chat_room
-        });
-        setIncomingCallData({
-          call_id: data.call_id,
-          caller_id: data.caller_id,
-          caller_name: data.caller_name,
-          call_type: data.call_type,
-          chat_room: data.chat_room
-        });
-        setShowIncomingCall(true);
-        break;
-      case 'conference_call_incoming':
-        console.log('👥 Incoming conference call:', {
-          call_id: data.call_id,
-          caller_name: data.caller_name,
-          participants_count: data.participants_count,
-          is_conference: true
-        });
-        setIncomingCallData({
-          call_id: data.call_id,
-          caller_id: data.caller_id,
-          caller_name: data.caller_name,
-          call_type: data.call_type,
-          chat_room: data.chat_room,
-          participants_count: data.participants_count,
-          is_conference: true
-        });
-        setShowIncomingCall(true);
-        break;
-      case 'user_joined':
-        console.log('👤 User joined chat:', {
-          user_id: data.user_id,
-          full_name: data.full_name
-        });
-        break;
-      case 'user_left':
-        console.log('👤 User left chat:', {
-          user_id: data.user_id
-        });
-        break;
-      default:
-        console.log('❓ Unknown WebSocket message type:', data.type);
-    }
-  };
 
   const handleIncomingMessage = (data) => {
     const newMessage = {
@@ -1577,235 +2215,237 @@ export default function MentorMenteeChatManagement() {
     };
 
     setChatMessages(prev => [...prev, newMessage]);
+    scrollToBottom();
 
-    // Also add to call chat messages if we're in a call
-    if (isInCall) {
-      setCallChatMessages(prev => [...prev, newMessage]);
-    }
+    // Refresh chats to update last message preview
+    fetchChats();
   };
 
-  const handleTypingStatus = (data) => {
-    const currentUserId = currentUser?.id;
-    const isCurrentUser = data.user_id === currentUserId;
+  const handleInitiateCall = async (callType = 'video', isConference = false, specificUserId = null) => {
+    try {
+      console.log('🎬 Starting call initiation process...');
 
-    setTypingUsers(prev => {
-      const existingIndex = prev.findIndex(user => user.id === data.user_id);
+      // If we need to create a one-on-one chat first
+      let chatRoomId = selectedChat?.id;
 
-      if (data.is_typing) {
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = {
-            id: data.user_id,
-            name: isCurrentUser ? 'You' : data.full_name || data.full_name,
-            lastTyping: Date.now()
-          };
-          return updated;
+      if (specificUserId && !selectedChat) {
+        console.log('👤 Creating one-on-one chat with user:', specificUserId);
+        const chatResponse = await getOrCreateOneOnOne(specificUserId);
+
+        if (chatResponse.success || chatResponse.chat) {
+          const newChat = chatResponse.chat || chatResponse;
+          chatRoomId = newChat.id;
+          // Select this new chat
+          await handleSelectChat(newChat);
         } else {
-          return [...prev, {
-            id: data.user_id,
-            name: isCurrentUser ? 'You' : data.full_name || data.full_name,
-            lastTyping: Date.now()
-          }];
+          throw new Error('Failed to create chat for call');
         }
+      }
+
+      if (!chatRoomId) {
+        alert('Please select a chat or user first');
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: callType === 'video',
+        audio: true
+      });
+
+      console.log('✅ Media stream obtained');
+      setLocalStream(stream);
+      setIsInitiator(true);
+
+      let response;
+      const requestPayload = {
+        chat_room_id: chatRoomId,
+        call_type: callType,
+        target_user_id: specificUserId
+      };
+
+      console.log('📤 Sending call request with payload:', requestPayload);
+
+      if (isConference) {
+        console.log('👥 Initiating conference call...');
+        response = await startConferenceCall(requestPayload);
       } else {
-        return prev.filter(user => user.id !== data.user_id);
-      }
-    });
-  };
-
-  const handleTyping = useCallback((isTyping) => {
-    if (ws && ws.readyState === WebSocket.OPEN && selectedChat) {
-      ws.send(JSON.stringify({
-        type: 'typing',
-        is_typing: isTyping
-      }));
-
-      updateTypingStatus({
-        chat_room_id: selectedChat.id,
-        is_typing: isTyping
-      }).catch(err => console.error('Error updating typing status:', err));
-    }
-  }, [ws, selectedChat]);
-
-  // Handle typing for main chat
-  useEffect(() => {
-    if (newMessage) {
-      handleTyping(true);
-
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
+        console.log('👤 Initiating one-on-one call...');
+        response = await initiateVideoCall(requestPayload);
       }
 
-      typingTimeoutRef.current = setTimeout(() => {
-        handleTyping(false);
-      }, 1000);
-    } else {
-      handleTyping(false);
-    }
+      console.log('📥 API Response:', JSON.stringify(response, null, 2));
 
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [newMessage, handleTyping]);
+      if (response.success) {
+        const callId = response.call?.call_id || response.call_id || response.call?.call_id;
 
-  // Handle typing for call chat
-  useEffect(() => {
-    if (isInCall && callChatMessage) {
-      handleTyping(true);
-
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-
-      typingTimeoutRef.current = setTimeout(() => {
-        handleTyping(false);
-      }, 1000);
-    } else if (!callChatMessage) {
-      handleTyping(false);
-    }
-
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [callChatMessage, isInCall, handleTyping]);
-
-  // Clean up typing users who stopped typing
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setTypingUsers(prev =>
-        prev.filter(user => now - user.lastTyping < 3000)
-      );
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !selectedChat || sendingMessage) return;
-
-    setSendingMessage(true);
-    try {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'chat_message',
-          message: newMessage,
-          message_type: 'text'
-        }));
-      }
-
-      await sendMessage({
-        chat_room_id: selectedChat.id,
-        content: newMessage,
-        message_type: 'text'
-      });
-
-      setNewMessage('');
-    } catch (error) {
-      console.error('Error sending message:', error);
-      alert(`Failed to send message: ${error.message}`);
-    } finally {
-      setSendingMessage(false);
-    }
-  };
-
-  const handleSendCallChatMessage = async (message) => {
-    if (!message.trim() || !selectedChat) return;
-
-    try {
-      // Send via WebSocket
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'chat_message',
-          message: message,
-          message_type: 'text'
-        }));
-      }
-
-      // Also send via API
-      await sendMessage({
-        chat_room_id: selectedChat.id,
-        content: message,
-        message_type: 'text'
-      });
-
-      // Clear input
-      setCallChatMessage('');
-    } catch (error) {
-      console.error('Error sending call chat message:', error);
-      alert(`Failed to send message: ${error.message}`);
-    }
-  };
-
-  const handleDeleteMessage = async (messageId) => {
-    if (window.confirm('Are you sure you want to delete this message?')) {
-      try {
-        await deleteMessage(messageId);
-        setChatMessages(prev => prev.filter(msg => msg.id !== messageId));
-        // Also remove from call chat messages if in call
-        if (isInCall) {
-          setCallChatMessages(prev => prev.filter(msg => msg.id !== messageId));
+        if (!callId) {
+          console.error('❌ No call_id received in response:', response);
+          throw new Error('No call ID received from server');
         }
-      } catch (error) {
-        console.error('Error deleting message:', error);
-        alert(`Failed to delete message: ${error.message}`);
+
+        console.log('🎉 Call initiated successfully!', {
+          callId,
+          callType,
+          isConference
+        });
+
+        // FIX: Use currentUser.full_name instead of undefined full_name variable
+        setVideoCallData({
+          ...response.call,
+          call_id: callId,
+          call_type: callType,
+          is_conference: isConference,
+          caller_name: currentUser?.full_name || 'You'  // <-- Fixed this line
+        });
+
+        console.log('🌐 Initializing call WebSocket...');
+        initCallWebSocket(callId);
+
+        console.log('⏱️ Starting call timer...');
+        startCallTimer();
+
+        setIsInCall(true);
+        console.log('✅ Call is now active - user is in call');
+
+      } else {
+        console.error('❌ Call initiation failed in API response:', response);
+        console.error('Error details:', response.error || response.detail || 'Unknown error');
+
+        // Clean up media stream on failure
+        stream.getTracks().forEach(track => track.stop());
+        setLocalStream(null);
+
+        alert(`Failed to start call: ${response.error || response.detail || 'Unknown error'}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Error during call initiation:', error);
+
+      // Log specific permission errors
+      if (error.name === 'NotAllowedError') {
+        console.error('🔒 Permission denied by user');
+        alert('Please allow camera and microphone access to start a call.');
+      } else if (error.name === 'NotFoundError') {
+        console.error('📷 No camera/microphone found');
+        alert('No camera or microphone found. Please check your device.');
+      } else if (error.name === 'NotReadableError') {
+        console.error('⚠️ Camera/microphone is already in use');
+        alert('Camera or microphone is already in use by another application.');
+      } else {
+        alert(`Could not start call: ${error.message}`);
       }
     }
   };
 
-  // Helper function to find mentorship-related chats
-  const findMentorshipChats = (mentorshipId, mentorId) => {
-    return chats.filter(chat => {
-      // Check if chat is directly linked to mentorship
-      if (chat.mentorship?.id === mentorshipId) {
-        return true;
-      }
-
-      // Check if chat name contains mentorship info
-      if (chat.name?.includes(`Mentorship:`) || chat.name?.includes(mentorshipId)) {
-        return true;
-      }
-
-      // Check if it's a one-on-one chat with the mentor
-      if (chat.chat_type === 'one_on_one' && mentorId) {
-        return chat.participants?.some(p => {
-          const user = p.user || p;
-          return user.id === mentorId;
+  const handleToggleMedia = (mediaType, enabled) => {
+    if (mediaType === 'audio') {
+      if (localStream) {
+        localStream.getAudioTracks().forEach(track => {
+          track.enabled = enabled;
         });
       }
+    } else if (mediaType === 'video') {
+      if (localStream) {
+        localStream.getVideoTracks().forEach(track => {
+          track.enabled = enabled;
+        });
+      }
+    }
 
-      return false;
-    });
+    if (callWs && callWs.readyState === WebSocket.OPEN) {
+      callWs.send(JSON.stringify({
+        type: 'media_state',
+        media_type: mediaType,
+        enabled: enabled
+      }));
+    }
   };
 
-  const filteredChats = useMemo(() => {
-    let filtered = chats;
+  const handleWebSocketMessage = (data) => {
+    console.log('📨 Chat WebSocket message received:', data);
 
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      filtered = filtered.filter(chat =>
-        (chat.name?.toLowerCase().includes(searchLower)) ||
-        chat.participants?.some(p => {
-          const user = p.user || p;
-          return (
-            user.full_name?.toLowerCase().includes(searchLower) ||
-            user.email?.toLowerCase().includes(searchLower)
-          );
-        })
-      );
+    switch (data.type) {
+      case 'chat_message':
+        handleIncomingMessage(data);
+        break;
+      case 'typing_status':
+        handleTypingStatus(data);
+        break;
+      case 'video_call_offer':
+        console.log('📞 Incoming video call offer:', data);
+        setIncomingCallData({
+          call_id: data.call_id,
+          caller_id: data.caller_id,
+          caller_name: data.caller_name,
+          call_type: data.call_type,
+          chat_room: data.chat_room
+        });
+        setShowIncomingCall(true);
+        break;
+      case 'conference_call_incoming':
+        console.log('👥 Incoming conference call:', data);
+        setIncomingCallData({
+          call_id: data.call_id,
+          caller_id: data.caller_id,
+          caller_name: data.caller_name,
+          call_type: data.call_type,
+          chat_room: data.chat_room,
+          participants_count: data.participants_count,
+          is_conference: true
+        });
+        setShowIncomingCall(true);
+        break;
+      // ADD THESE NEW HANDLERS:
+      case 'user_joined_call':
+        console.log('👤 User joined call:', data);
+        const newParticipant = {
+          id: data.user_id,
+          full_name: data.full_name,
+          role: 'participant'
+        };
+        setCallParticipants(prev => {
+          const exists = prev.find(p => p.id === data.user_id);
+          if (!exists) {
+            return [...prev, newParticipant];
+          }
+          return prev;
+        });
+        break;
+      case 'user_left_call':
+        console.log('👤 User left call:', data);
+        setCallParticipants(prev => prev.filter(p => p.id !== data.user_id));
+        break;
+      case 'call_participants_update':
+        console.log('👥 Call participants update:', data);
+        if (data.participants) {
+          setCallParticipants(data.participants);
+        }
+        break;
+      default:
+        console.log('❓ Unknown WebSocket message type:', data.type);
     }
+  };
+  const handleMediaState = (data) => {
+    setUserMediaStates(prev => ({
+      ...prev,
+      [data.sender_id]: {
+        ...prev[data.sender_id],
+        [data.media_type]: data.enabled
+      }
+    }));
+  };
 
-    if (filters.chat_type !== 'all') {
-      filtered = filtered.filter(chat => chat.chat_type === filters.chat_type);
+  const handleScreenShare = (data) => {
+    if (data.is_sharing) {
+      setScreenSharingUser({
+        id: data.sender_id,
+        full_name: data.sender_name
+      });
+    } else {
+      setScreenSharingUser(null);
     }
+  };
 
-    return filtered;
-  }, [chats, filters]);
 
   const initCallWebSocket = (callId) => {
     console.log('🔌 Initializing call WebSocket for callId:', callId);
@@ -1907,67 +2547,6 @@ export default function MentorMenteeChatManagement() {
     });
   };
 
-  const handleUserLeftCall = (data) => {
-    setCallParticipants(prev => prev.filter(p => p.id !== data.user_id));
-  };
-
-  const handleMediaState = (data) => {
-    setUserMediaStates(prev => ({
-      ...prev,
-      [data.sender_id]: {
-        ...prev[data.sender_id],
-        [data.media_type]: data.enabled
-      }
-    }));
-  };
-
-  // const handleScreenShare = (data) => {
-  //   if (data.is_sharing) {
-  //     setScreenSharingUser({
-  //       id: data.sender_id,
-  //       full_name: data.sender_name
-  //     });
-  //   } else {
-  //     setScreenSharingUser(null);
-  //   }
-  // };
-
-  const handleCallChatMessage = (data) => {
-    console.log('💬 Call chat message from:', data.sender_name);
-    console.log('Message:', data.message);
-  };
-
-  const handleCallEnd = (data) => {
-    console.log('📞 Call ended by:', data.sender_name);
-    console.log('Reason:', data.reason);
-    handleEndCall();
-  };
-
-  const startCallTimer = () => {
-    console.log('⏱️ Starting call timer...');
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    timerRef.current = setInterval(() => {
-      setCallDuration(prev => prev + 1);
-    }, 1000);
-
-    console.log('✅ Call timer started');
-  };
-
-  const stopCallTimer = () => {
-    console.log('⏱️ Stopping call timer...');
-    console.log('📊 Final call duration:', callDuration, 'seconds');
-
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-      console.log('✅ Call timer stopped');
-    }
-    setCallDuration(0);
-  };
-
   const handleWebRTCOffer = async (data) => {
     console.log('📞 Handling WebRTC offer from:', data.sender_name);
     console.log('Offer data:', data.offer);
@@ -2055,19 +2634,17 @@ export default function MentorMenteeChatManagement() {
     console.log('Answer data:', data.answer);
   };
 
-  const handleICECandidate = (data) => {
-    console.log('🧊 Handling ICE candidate from:', data.sender_name);
-    console.log('Candidate data:', data.candidate);
+  const handleUserLeftCall = (data) => {
+    setCallParticipants(prev => prev.filter(p => p.id !== data.user_id));
+  };
+
+  const handleCallChatMessage = (data) => {
+    console.log('💬 Call chat message from:', data.sender_name);
+    console.log('Message:', data.message);
   };
 
   const handleEndCall = () => {
     console.log('📞 Ending call...');
-    console.log('📊 Call summary:', {
-      duration: callDuration,
-      participants: callParticipants.length,
-      callType: videoCallData?.call_type,
-      isConference: videoCallData?.is_conference
-    });
 
     if (callWs && callWs.readyState === WebSocket.OPEN) {
       console.log('📤 Sending call end message via WebSocket...');
@@ -2075,14 +2652,11 @@ export default function MentorMenteeChatManagement() {
         type: 'call_end',
         call_id: videoCallData?.call_id
       }));
-    } else {
-      console.warn('⚠️ WebSocket not open, cannot send call end message');
     }
 
     if (localStream) {
       console.log('🎥 Stopping local media stream...');
       localStream.getTracks().forEach(track => {
-        console.log(`🛑 Stopping track: ${track.kind}`, { enabled: track.enabled, readyState: track.readyState });
         track.stop();
       });
       setLocalStream(null);
@@ -2106,119 +2680,190 @@ export default function MentorMenteeChatManagement() {
     console.log('✅ Call ended successfully');
   };
 
-  const handleInitiateCall = async (callType = 'video', isConference = false, specificUserId = null) => {
-    try {
-      console.log('🎬 Starting call initiation process...');
+  const startCallTimer = () => {
+    console.log('⏱️ Starting call timer...');
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
 
-      // If we need to create a one-on-one chat first
-      let chatRoomId = selectedChat?.id;
+    timerRef.current = setInterval(() => {
+      setCallDuration(prev => prev + 1);
+    }, 1000);
 
-      if (specificUserId && !selectedChat) {
-        console.log('👤 Creating one-on-one chat with user:', specificUserId);
-        const chatResponse = await getOrCreateOneOnOne(specificUserId);
+    console.log('✅ Call timer started');
+  };
 
-        if (chatResponse.success || chatResponse.chat) {
-          const newChat = chatResponse.chat || chatResponse;
-          chatRoomId = newChat.id;
-          // Select this new chat
-          await handleSelectChat(newChat);
+  const stopCallTimer = () => {
+    console.log('⏱️ Stopping call timer...');
+    console.log('📊 Final call duration:', callDuration, 'seconds');
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      console.log('✅ Call timer stopped');
+    }
+    setCallDuration(0);
+  };
+
+  const handleTypingStatus = (data) => {
+    const currentUserId = currentUser?.id;
+    const isCurrentUser = data.user_id === currentUserId;
+
+    setTypingUsers(prev => {
+      const existingIndex = prev.findIndex(user => user.id === data.user_id);
+
+      if (data.is_typing) {
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = {
+            id: data.user_id,
+            name: isCurrentUser ? 'You' : data.full_name || data.full_name,
+            lastTyping: Date.now()
+          };
+          return updated;
         } else {
-          throw new Error('Failed to create chat for call');
+          return [...prev, {
+            id: data.user_id,
+            name: isCurrentUser ? 'You' : data.full_name || data.full_name,
+            lastTyping: Date.now()
+          }];
         }
-      }
-
-      if (!chatRoomId) {
-        alert('Please select a chat or user first');
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: callType === 'video',
-        audio: true
-      });
-
-      console.log('✅ Media stream obtained');
-      setLocalStream(stream);
-      setIsInitiator(true);
-
-      let response;
-      const requestPayload = {
-        chat_room_id: chatRoomId,
-        call_type: callType,
-        target_user_id: specificUserId
-      };
-
-      console.log('📤 Sending call request with payload:', requestPayload);
-
-      if (isConference) {
-        console.log('👥 Initiating conference call...');
-        response = await startConferenceCall(requestPayload);
       } else {
-        console.log('👤 Initiating one-on-one call...');
-        response = await initiateVideoCall(requestPayload);
+        return prev.filter(user => user.id !== data.user_id);
       }
+    });
+  };
 
-      console.log('📥 API Response:', JSON.stringify(response, null, 2));
+  const handleTyping = useCallback((isTyping) => {
+    if (ws && ws.readyState === WebSocket.OPEN && selectedChat) {
+      ws.send(JSON.stringify({
+        type: 'typing',
+        is_typing: isTyping
+      }));
 
-      if (response.success) {
-        const callId = response.call?.call_id || response.call_id || response.call?.call_id;
+      updateTypingStatus({
+        chat_room_id: selectedChat.id,
+        is_typing: isTyping
+      }).catch(err => console.error('Error updating typing status:', err));
+    }
+  }, [ws, selectedChat]);
 
-        if (!callId) {
-          console.error('❌ No call_id received in response:', response);
-          throw new Error('No call ID received from server');
+  // Enhanced send message with auto-refresh
+  const handleSendMessage = async (e, audioBlob = null, files = []) => {
+    e?.preventDefault();
+
+    let messageContent = newMessage;
+
+    // Handle text message
+    if (messageContent.trim() && !audioBlob && files.length === 0) {
+      setSendingMessage(true);
+      try {
+        // Send via WebSocket
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'chat_message',
+            message: messageContent,
+            message_type: 'text'
+          }));
         }
 
-        console.log('🎉 Call initiated successfully!', {
-          callId,
-          callType,
-          isConference
+        // Also send via API
+        await sendMessage({
+          chat_room_id: selectedChat.id,
+          content: messageContent,
+          message_type: 'text'
         });
 
-        setVideoCallData({
-          ...response.call,
-          call_id: callId,
-          call_type: callType,
-          is_conference: isConference,
-          caller_name: full_name
-        });
+        // Clear input and refresh messages
+        setNewMessage('');
+        fetchChatMessages(selectedChat.id);
+        fetchChats(); // Refresh chat list
 
-        console.log('🌐 Initializing call WebSocket...');
-        initCallWebSocket(callId);
-
-        console.log('⏱️ Starting call timer...');
-        startCallTimer();
-
-        setIsInCall(true);
-        console.log('✅ Call is now active - user is in call');
-
-      } else {
-        console.error('❌ Call initiation failed in API response:', response);
-        console.error('Error details:', response.error || response.detail || 'Unknown error');
-
-        // Clean up media stream on failure
-        stream.getTracks().forEach(track => track.stop());
-        setLocalStream(null);
-
-        alert(`Failed to start call: ${response.error || response.detail || 'Unknown error'}`);
-      }
-
-    } catch (error) {
-      console.error('❌ Error during call initiation:', error);
-
-      // Log specific permission errors
-      if (error.name === 'NotAllowedError') {
-        console.error('🔒 Permission denied by user');
-        alert('Please allow camera and microphone access to start a call.');
-      } else if (error.name === 'NotFoundError') {
-        console.error('📷 No camera/microphone found');
-        alert('No camera or microphone found. Please check your device.');
-      } else if (error.name === 'NotReadableError') {
-        console.error('⚠️ Camera/microphone is already in use');
-        alert('Camera or microphone is already in use by another application.');
-      } else {
-        alert(`Could not start call: ${error.message}`);
+      } catch (error) {
+        console.error('Error sending message:', error);
+        alert(`Failed to send message: ${error.message}`);
+      } finally {
+        setSendingMessage(false);
       }
     }
+
+    // Handle audio message
+    if (audioBlob) {
+      try {
+        setSendingMessage(true);
+        setShowUploadProgress(true);
+
+        const formData = new FormData();
+        formData.append('chat_room_id', selectedChat.id);
+        formData.append('message_type', 'file');
+
+        // Use proper filename with OGG extension
+        const fileName = `voice_message_${Date.now()}.ogg`;
+        formData.append('file', audioBlob, fileName);
+        formData.append('message', 'Voice message');
+
+        await uploadFile(formData);
+
+        // Refresh messages and chats
+        fetchChatMessages(selectedChat.id);
+        fetchChats();
+
+        setShowAudioRecorder(false);
+        setShowUploadProgress(false);
+      } catch (error) {
+        console.error('Error sending audio:', error);
+        alert(`Failed to send audio: ${error.message}`);
+        setShowUploadProgress(false);
+      } finally {
+        setSendingMessage(false);
+      }
+    }
+
+    // Handle file uploads
+    if (files.length > 0) {
+      setShowUploadProgress(true);
+
+      for (const file of files) {
+        try {
+          setUploadingFiles(prev => [...prev, { name: file.name, progress: 0 }]);
+
+          const formData = new FormData();
+          formData.append('chat_room_id', selectedChat.id);
+          formData.append('message_type', file.type.startsWith('image/') ? 'image' : 'file');
+          formData.append('file', file);
+          formData.append('message', `Sent ${file.name}`);
+
+          await uploadFile(formData);
+
+          // Update progress
+          setUploadingFiles(prev => prev.map(f =>
+            f.name === file.name ? { ...f, progress: 100 } : f
+          ));
+
+          // Remove from list after delay
+          setTimeout(() => {
+            setUploadingFiles(prev => prev.filter(f => f.name !== file.name));
+          }, 1000);
+
+        } catch (error) {
+          console.error('Error uploading file:', error);
+          alert(`Failed to upload ${file.name}: ${error.message}`);
+          setUploadingFiles(prev => prev.filter(f => f.name !== file.name));
+        }
+      }
+
+      // Refresh messages and chats after all uploads
+      setTimeout(() => {
+        fetchChatMessages(selectedChat.id);
+        fetchChats();
+        setShowUploadProgress(false);
+      }, 1000);
+    }
+  };
+
+  // Handle audio recording completion
+  const handleAudioRecordingComplete = async (audioBlob) => {
+    await handleSendMessage({ preventDefault: () => { } }, audioBlob);
   };
 
   const handleAcceptCall = async () => {
@@ -2272,58 +2917,139 @@ export default function MentorMenteeChatManagement() {
     setIncomingCallData(null);
   };
 
-  const handleToggleMedia = (mediaType, enabled) => {
-    if (mediaType === 'audio') {
-      if (localStream) {
-        localStream.getAudioTracks().forEach(track => {
-          track.enabled = enabled;
-        });
-      }
-    } else if (mediaType === 'video') {
-      if (localStream) {
-        localStream.getVideoTracks().forEach(track => {
-          track.enabled = enabled;
-        });
-      }
-    }
-
-    if (callWs && callWs.readyState === WebSocket.OPEN) {
-      callWs.send(JSON.stringify({
-        type: 'media_state',
-        media_type: mediaType,
-        enabled: enabled
-      }));
+  // Handle file selection
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      handleSendMessage({ preventDefault: () => { } }, null, files);
     }
   };
 
-  const handleScreenShare = async (startSharing) => {
-    if (startSharing) {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true
-        });
+  // Handle paste event for file uploads
+  const handlePaste = (e) => {
+    const items = e.clipboardData.items;
+    const files = [];
 
-        if (callWs && callWs.readyState === WebSocket.OPEN) {
-          callWs.send(JSON.stringify({
-            type: 'screen_share',
-            is_sharing: true,
-            stream_id: 'screen_stream_' + Date.now()
-          }));
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) {
+          files.push(file);
         }
-
-      } catch (error) {
-        console.error('Error starting screen share:', error);
       }
-    } else {
-      if (callWs && callWs.readyState === WebSocket.OPEN) {
-        callWs.send(JSON.stringify({
-          type: 'screen_share',
-          is_sharing: false
-        }));
+    }
+
+    if (files.length > 0) {
+      handleSendMessage({ preventDefault: () => { } }, null, files);
+    }
+  };
+
+  // Handle delete message
+  const handleDeleteMessage = async (messageId) => {
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      try {
+        await deleteMessage(messageId);
+        setChatMessages(prev => prev.filter(msg => msg.id !== messageId));
+        fetchChats(); // Refresh chat list
+      } catch (error) {
+        console.error('Error deleting message:', error);
+        alert(`Failed to delete message: ${error.message}`);
       }
     }
   };
 
+  // Fetch chat messages
+  const fetchChatMessages = async (roomId) => {
+    try {
+      const response = await getChatMessages(roomId);
+      console.log('Chat messages response:', response);
+
+      if (response && (Array.isArray(response.messages) || Array.isArray(response))) {
+        const messages = response.messages || response;
+        setChatMessages(messages);
+      } else if (response && response.data) {
+        setChatMessages(response.data);
+      } else {
+        console.warn('Unexpected messages response structure:', response);
+        setChatMessages([]);
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      setChatMessages([]);
+    }
+  };
+
+  // Fetch chat list
+  const fetchChats = async () => {
+    try {
+      const response = await getAllChats();
+      console.log('Chats Response:', response);
+
+      let allChats = [];
+      const chatIdSet = new Set();
+
+      const processChats = (chatArray) => {
+        if (Array.isArray(chatArray)) {
+          chatArray.forEach(chat => {
+            if (chat && chat.id && !chatIdSet.has(chat.id)) {
+              chatIdSet.add(chat.id);
+
+              const processedChat = {
+                id: chat.id,
+                name: chat.name || 'Unnamed Chat',
+                chat_type: chat.chat_type || 'unknown',
+                participants: chat.participants || [],
+                last_message: chat.last_message,
+                unread_count: chat.unread_count || 0,
+                created_at: chat.created_at,
+                updated_at: chat.updated_at,
+                is_active: chat.is_active !== undefined ? chat.is_active : true,
+                can_manage: chat.can_manage || false,
+                is_participant: chat.is_participant !== undefined ? chat.is_participant : true,
+                mentorship: chat.mentorship,
+                department: chat.department
+              };
+              allChats.push(processedChat);
+            }
+          });
+        }
+      };
+
+      if (Array.isArray(response)) {
+        allChats = response;
+      }
+      else if (response.my_chats || response.mentorship_chats || response.department_chats) {
+        if (response.my_chats) processChats(response.my_chats);
+        if (response.mentorship_chats) processChats(response.mentorship_chats);
+        if (response.department_chats) processChats(response.department_chats);
+        if (response.all_chats) processChats(response.all_chats);
+      }
+      else if (response.chats) {
+        processChats(response.chats);
+      }
+      else if (response.data) {
+        processChats(response.data);
+      }
+      else {
+        console.warn('Unexpected response structure:', response);
+      }
+
+      // Sort chats by last message time or updated time
+      allChats.sort((a, b) => {
+        const timeA = a.last_message?.time || a.updated_at || a.created_at;
+        const timeB = b.last_message?.time || b.updated_at || b.created_at;
+        return new Date(timeB) - new Date(timeA);
+      });
+
+      console.log('Processed chats:', allChats);
+      setChats(allChats);
+
+    } catch (error) {
+      console.error('Error fetching chats:', error);
+    }
+  };
+
+  // Fetch initial data
   const fetchInitialData = async () => {
     try {
       setLoading(true);
@@ -2334,8 +3060,6 @@ export default function MentorMenteeChatManagement() {
       ]);
 
       setCurrentUser(userResponse);
-
-      console.log('Chats Response:', chatsResponse);
 
       let allChats = [];
       const chatIdSet = new Set();
@@ -2396,17 +3120,13 @@ export default function MentorMenteeChatManagement() {
       console.log('Processed chats:', allChats);
       setChats(allChats);
 
-      // If there are chats but none selected, auto-select the first one
+      // Auto-select first chat if none selected
       if (allChats.length > 0 && !selectedChat) {
         await handleSelectChat(allChats[0]);
       }
 
-      if (location.state?.autoOpenChat && location.state?.mentorshipId) {
-        // The useEffect above will handle this after chats are set
-      }
-
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching initial data:', error);
       alert(`Failed to load data: ${error.message}`);
     } finally {
       setLoading(false);
@@ -2417,11 +3137,6 @@ export default function MentorMenteeChatManagement() {
     try {
       setSelectedChat(chat);
       setChatMessages([]);
-
-      // Clear location state when a chat is selected
-      if (location.state?.autoOpenChat) {
-        window.history.replaceState({}, document.title);
-      }
 
       // Mark messages as read
       try {
@@ -2437,165 +3152,63 @@ export default function MentorMenteeChatManagement() {
         console.error('Error marking messages as read:', error);
       }
 
+      // Initialize WebSocket connection
       initChatWebSocket(chat.id);
 
       // Fetch chat messages
-      try {
-        const response = await getChatMessages(chat.id);
-        console.log('Chat messages response:', response);
+      await fetchChatMessages(chat.id);
 
-        if (response && (Array.isArray(response.messages) || Array.isArray(response))) {
-          const messages = response.messages || response;
-          setChatMessages(messages);
-        } else if (response && response.data) {
-          setChatMessages(response.data);
-        } else {
-          console.warn('Unexpected messages response structure:', response);
-          setChatMessages([]);
-        }
-      } catch (error) {
-        console.error('Error fetching messages:', error);
-        setChatMessages([]);
-      }
     } catch (error) {
       console.error('Error selecting chat:', error);
       alert(`Failed to select chat: ${error.message}`);
     }
   };
 
-  const handleStartChatFromParticipants = async (newChat) => {
-    // Refresh chats list
-    await fetchInitialData();
-    // Select the new chat
-    await handleSelectChat(newChat);
-  };
+  // Filter chats
+  const filteredChats = useMemo(() => {
+    let filtered = chats;
 
-  // Initialize user notification WebSocket
-  useEffect(() => {
-    const initUserNotificationWebSocket = () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          console.error('No authentication token found');
-          return;
-        }
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(chat =>
+        (chat.name?.toLowerCase().includes(searchLower)) ||
+        chat.participants?.some(p => {
+          const user = p.user || p;
+          return (
+            user.full_name?.toLowerCase().includes(searchLower) ||
+            user.email?.toLowerCase().includes(searchLower)
+          );
+        })
+      );
+    }
 
-        const wsUrl = `ws://127.0.0.1:8000/ws/user/notifications/?token=${token}`;
-        console.log('🔔 Connecting to user notification WebSocket:', wsUrl);
+    if (filters.chat_type !== 'all') {
+      filtered = filtered.filter(chat => chat.chat_type === filters.chat_type);
+    }
 
-        const websocket = new WebSocket(wsUrl);
+    return filtered;
+  }, [chats, filters]);
 
-        websocket.onopen = () => {
-          console.log('✅ User notification WebSocket connected');
-        };
-
-        websocket.onclose = (event) => {
-          console.log('❌ User notification WebSocket disconnected');
-          // Attempt to reconnect after 3 seconds
-          setTimeout(() => {
-            console.log('🔄 Attempting to reconnect notification WebSocket...');
-            initUserNotificationWebSocket();
-          }, 3000);
-        };
-
-        websocket.onerror = (error) => {
-          console.error('💥 User notification WebSocket error:', error);
-        };
-
-        websocket.onmessage = (event) => {
-          try {
-            console.log('📨 User notification received:', event.data);
-            const data = JSON.parse(event.data);
-            console.log('📋 Parsed notification:', data);
-
-            // Handle different notification types
-            switch (data.type) {
-              case 'video_call_incoming':
-                console.log('📞 Incoming video call:', {
-                  call_id: data.call_id,
-                  caller: data.caller.full_name,
-                  call_type: data.call_type
-                });
-
-                setIncomingCallData({
-                  call_id: data.call_id,
-                  caller_id: data.caller.id,
-                  caller_name: data.caller.full_name,
-                  call_type: data.call_type,
-                  chat_room: data.chat_room,
-                  is_conference: false
-                });
-                setShowIncomingCall(true);
-                break;
-
-              case 'conference_call_incoming':
-                console.log('👥 Incoming conference call:', {
-                  call_id: data.call_id,
-                  caller: data.caller.full_name,
-                  participants_count: data.participants_count
-                });
-
-                setIncomingCallData({
-                  call_id: data.call_id,
-                  caller_id: data.caller.id,
-                  caller_name: data.caller.full_name,
-                  call_type: data.call_type,
-                  chat_room: data.chat_room,
-                  participants_count: data.participants_count,
-                  is_conference: true
-                });
-                setShowIncomingCall(true);
-                break;
-
-              default:
-                console.log('❓ Unknown notification type:', data.type);
-            }
-          } catch (error) {
-            console.error('❌ Error parsing notification:', error);
-          }
-        };
-
-        setUserNotificationWs(websocket);
-        console.log('🎯 User notification WebSocket instance created');
-
-      } catch (error) {
-        console.error('❌ Failed to initialize notification WebSocket:', error);
-      }
-    };
-
-    // Initialize on mount
-    initUserNotificationWebSocket();
-
-    // Cleanup on unmount
-    return () => {
-      if (userNotificationWs) {
-        console.log('🔌 Closing user notification WebSocket');
-        userNotificationWs.close();
-      }
-    };
-  }, []);
-
-  // Initialize data on mount
+  // Initialize on mount
   useEffect(() => {
     fetchInitialData();
 
     return () => {
       if (ws) ws.close();
-      if (callWs) callWs.close();
-      if (userNotificationWs) userNotificationWs.close();
-      stopCallTimer();
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
     };
   }, []);
 
-  // Auto-select first chat if available
+  // Auto-refresh chats every 30 seconds
   useEffect(() => {
-    if (chats.length > 0 && !selectedChat && !loading) {
-      handleSelectChat(chats[0]);
-    }
-  }, [chats, loading]);
+    const interval = setInterval(() => {
+      if (selectedChat) {
+        fetchChats();
+        fetchChatMessages(selectedChat.id);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [selectedChat]);
 
   const renderChatWindow = () => {
     if (!selectedChat) {
@@ -2615,81 +3228,96 @@ export default function MentorMenteeChatManagement() {
     return (
       <div className="flex-1 flex flex-col">
         <div className="border-b p-4 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedChat.chat_type === 'one_on_one' ? 'bg-blue-100' :
-                selectedChat.chat_type === 'mentorship_group' ? 'bg-green-100' :
-                  'bg-purple-100'
-                }`}>
-                {selectedChat.chat_type === 'one_on_one' ? (
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                )}
-              </div>
-              <div>
-                <h2 className="font-semibold text-lg">{selectedChat.name || 'Unnamed Chat'}</h2>
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <Badge className={getChatTypeBadge(selectedChat.chat_type).className}>
-                    {getChatTypeBadge(selectedChat.chat_type).label}
-                  </Badge>
-                  <span>{selectedChat.participants?.length || 0} participants</span>
-
-                  {typingUsers.length > 0 && (
-                    <span className="text-blue-600 italic">
-                      {typingUsers.map(user => user.name).join(', ')}
-                      {typingUsers.length === 1 ? ' is typing...' : ' are typing...'}
-                    </span>
+          <div className="border-b p-4 bg-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedChat.chat_type === 'one_on_one' ? 'bg-blue-100' :
+                  selectedChat.chat_type === 'mentorship_group' ? 'bg-green-100' :
+                    'bg-purple-100'
+                  }`}>
+                  {selectedChat.chat_type === 'one_on_one' ? (
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
                   )}
                 </div>
-              </div>
-            </div>
+                <div>
+                  <h2 className="font-semibold text-lg">{selectedChat.name || 'Unnamed Chat'}</h2>
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <Badge className={getChatTypeBadge(selectedChat.chat_type).className}>
+                      {getChatTypeBadge(selectedChat.chat_type).label}
+                    </Badge>
+                    <span>{selectedChat.participants?.length || 0} participants</span>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm">
-                <div className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  {isConnected ? 'Connected' : 'Disconnected'}
+                    {typingUsers.length > 0 && (
+                      <span className="text-blue-600 italic">
+                        {typingUsers.map(user => user.name).join(', ')}
+                        {typingUsers.length === 1 ? ' is typing...' : ' are typing...'}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleInitiateCall('video', false)}
-                title="Start Video Call"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </Button>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <div className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    {isConnected ? 'Connected' : 'Disconnected'}
+                  </div>
+                </div>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleInitiateCall('audio', false)}
-                title="Start Audio Call"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleInitiateCall('video', false)}
+                  title="Start Video Call"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </Button>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowParticipants(true)}
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-                Participants
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleInitiateCall('audio', false)}
+                  title="Start Audio Call"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowParticipants(true)}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                  Participants
+                </Button>
+              </div>
             </div>
+
+            {selectedChat.mentorship && (
+              <div className="mt-3 text-sm text-gray-600">
+                <span className="font-medium">Mentorship:</span>{' '}
+                {selectedChat.mentorship.mentor?.full_name || selectedChat.mentorship.mentor} → {selectedChat.mentorship.mentee?.full_name || selectedChat.mentorship.mentee}
+              </div>
+            )}
+            {selectedChat.department && (
+              <div className="mt-1 text-sm text-gray-600">
+                <span className="font-medium">Department:</span>{' '}
+                {typeof selectedChat.department === 'object' ? selectedChat.department.name : selectedChat.department}
+              </div>
+            )}
           </div>
 
           {selectedChat.mentorship && (
@@ -2719,6 +3347,7 @@ export default function MentorMenteeChatManagement() {
                   message={message}
                   isOwn={message.is_own_message}
                   onDelete={handleDeleteMessage}
+                  onMessageSent={() => fetchChats()}
                 />
               ))}
               <div ref={messagesEndRef} />
@@ -2726,7 +3355,31 @@ export default function MentorMenteeChatManagement() {
           )}
         </div>
 
+        {/* Enhanced message input area */}
         <div className="border-t p-4 bg-white">
+          {/* Upload progress indicators */}
+          {(uploadingFiles.length > 0 || showUploadProgress) && (
+            <div className="mb-2 space-y-2">
+              {uploadingFiles.map((file, index) => (
+                <div key={index} className="flex items-center gap-2 text-sm">
+                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${file.progress}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-gray-600">{file.name}</span>
+                  <span className="text-gray-500">{file.progress}%</span>
+                </div>
+              ))}
+              {showUploadProgress && uploadingFiles.length === 0 && (
+                <div className="text-sm text-gray-600">
+                  Uploading voice message...
+                </div>
+              )}
+            </div>
+          )}
+
           <form onSubmit={handleSendMessage} className="space-y-2">
             {typingUsers.length > 0 && (
               <div className="text-sm text-blue-600 italic">
@@ -2735,18 +3388,72 @@ export default function MentorMenteeChatManagement() {
             )}
 
             <div className="flex space-x-2">
+              {/* Attachment buttons */}
+              <div className="flex items-center space-x-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAudioRecorder(true)}
+                  className="p-2 text-gray-600 hover:text-blue-600 rounded-full hover:bg-gray-100"
+                  title="Record voice message"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 text-gray-600 hover:text-blue-600 rounded-full hover:bg-gray-100"
+                  title="Attach files"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx"
+                />
+              </div>
+
               <Input
+                ref={messageInputRef}
                 type="text"
                 placeholder="Type a message..."
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+                  // Handle typing indicator
+                  handleTyping(true);
+                  if (typingTimeoutRef.current) {
+                    clearTimeout(typingTimeoutRef.current);
+                  }
+                  typingTimeoutRef.current = setTimeout(() => {
+                    handleTyping(false);
+                  }, 1000);
+                }}
+                onPaste={handlePaste}
                 className="flex-1"
                 disabled={sendingMessage}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (newMessage.trim()) {
+                      handleSendMessage(e);
+                    }
+                  }
+                }}
               />
 
               <Button
                 type="submit"
-                disabled={sendingMessage || !newMessage.trim()}
+                disabled={sendingMessage || (!newMessage.trim() && uploadingFiles.length === 0)}
               >
                 {sendingMessage ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -2791,6 +3498,7 @@ export default function MentorMenteeChatManagement() {
 
       <div className="max-w-7xl mx-auto">
         <div className="flex h-[calc(100vh-120px)] bg-white rounded-lg shadow-sm border overflow-hidden">
+          {/* Chat list sidebar */}
           <div className="w-full md:w-1/3 border-r flex flex-col">
             <div className="p-4 border-b flex-shrink-0">
               <div className="flex items-center justify-between mb-4">
@@ -2826,6 +3534,7 @@ export default function MentorMenteeChatManagement() {
               </div>
             </div>
 
+            {/* Chat list */}
             <div className="flex-1 overflow-y-auto">
               {loading ? (
                 <div className="text-center py-8">
@@ -2841,9 +3550,7 @@ export default function MentorMenteeChatManagement() {
                   <p className="text-sm mt-2">You'll see chats here when you start conversations</p>
                 </div>
               ) : (
-                filteredChats.map(chat => {
-                  const isMentorshipChat = chat.mentorship?.id === location.state?.mentorshipId;
-                  return(
+                filteredChats.map(chat => (
                   <div
                     key={chat.id}
                     className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors ${selectedChat?.id === chat.id ? 'bg-blue-50' : ''
@@ -2910,23 +3617,34 @@ export default function MentorMenteeChatManagement() {
                       </div>
                     </div>
                   </div>
-                  )
-                })
+                ))
               )}
             </div>
           </div>
 
+          {/* Main chat window */}
           {renderChatWindow()}
         </div>
       </div>
 
+      {/* Modals */}
       <ChatParticipantsModal
         chat={selectedChat}
         open={showParticipants}
         onClose={() => setShowParticipants(false)}
-        onStartChat={handleStartChatFromParticipants}
+        onStartChat={handleSelectChat}
         currentUser={currentUser}
       />
+
+      {/* Audio Recorder Modal */}
+      {showAudioRecorder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <AudioRecorder
+            onRecordingComplete={handleAudioRecordingComplete}
+            onCancel={() => setShowAudioRecorder(false)}
+          />
+        </div>
+      )}
 
       <IncomingCallModal
         open={showIncomingCall}
@@ -2943,15 +3661,23 @@ export default function MentorMenteeChatManagement() {
         onEndCall={handleEndCall}
         onToggleMedia={handleToggleMedia}
         onScreenShare={handleScreenShare}
-        onSendCallChatMessage={handleSendCallChatMessage}
+        onSendCallChatMessage={(msg) => {
+          // Send call chat message
+          if (callWs && callWs.readyState === WebSocket.OPEN) {
+            callWs.send(JSON.stringify({
+              type: 'call_chat_message',
+              message: msg
+            }));
+          }
+        }}
         localStream={localStream}
         remoteStreams={remoteStreams}
-        participants={callParticipants}
+        participants={callParticipants} // This is crucial for showing participants
         callDuration={callDuration}
         userMediaStates={userMediaStates}
         screenSharingUser={screenSharingUser}
         activeSpeaker={activeSpeaker}
-        // New props for chat integration
+        // Chat integration props
         currentChat={selectedChat}
         chatMessages={callChatMessages}
         newCallChatMessage={callChatMessage}
