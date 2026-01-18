@@ -1567,7 +1567,6 @@ const CreateChatModal = ({ open, onClose, onCreate }) => {
 };
 
 // Enhanced ManageParticipantsModal Component
-// Enhanced ManageParticipantsModal Component with Complete Security
 const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1576,11 +1575,6 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
   const [selectedUser, setSelectedUser] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('current');
-  
-  // Get current user info
-  const currentUserId = parseInt(localStorage.getItem('user_id') || '0');
-  const currentUserRole = localStorage.getItem('user_role') || 'user';
-  const currentUserName = localStorage.getItem('full_name') || 'You';
 
   useEffect(() => {
     if (open && chat) {
@@ -1609,124 +1603,6 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
       console.error('Error fetching users:', err);
       setError(`Failed to load users: ${err.message}`);
     }
-  };
-
-  // Helper functions for user roles and permissions
-  const isAdminUser = (user) => {
-    const userObj = user?.user || user;
-    return userObj?.role === 'admin' || userObj?.is_admin === true;
-  };
-
-  const isHRUser = (user) => {
-    const userObj = user?.user || user;
-    return userObj?.role === 'hr';
-  };
-
-  const getUserRole = (user) => {
-    const userObj = user?.user || user;
-    return userObj?.role || 'user';
-  };
-
-  const getUserName = (user) => {
-    const userObj = user?.user || user;
-    return userObj?.full_name || userObj?.email || 'Unknown User';
-  };
-
-  const getUserId = (user) => {
-    return user?.user?.id || user?.id;
-  };
-
-  // Permission checking functions
-  const canRemoveParticipant = (participant) => {
-    const participantId = getUserId(participant);
-    const participantRole = getUserRole(participant);
-    
-    // 1. Check if it's the current user
-    if (participantId === currentUserId) {
-      // Users can remove themselves unless they're the last admin
-      if (isAdminUser(participant)) {
-        const adminParticipants = chat.participants?.filter(p => 
-          isAdminUser(p)
-        ) || [];
-        
-        if (adminParticipants.length === 1) {
-          return false; // Cannot remove the last admin
-        }
-      }
-      return true; // Can remove themselves
-    }
-    
-    // 2. HR cannot remove admins
-    if (currentUserRole === 'hr' && participantRole === 'admin') {
-      return false;
-    }
-    
-    // 3. Regular users can only remove themselves
-    if (currentUserRole === 'user' && participantId !== currentUserId) {
-      return false;
-    }
-    
-    // 4. Admins can remove anyone (except themselves if last admin, already handled)
-    if (currentUserRole === 'admin') {
-      return true;
-    }
-    
-    // 5. HR can remove other HR and regular users
-    if (currentUserRole === 'hr' && participantRole !== 'admin') {
-      return true;
-    }
-    
-    return false;
-  };
-
-  const getRemovalRestriction = (participant) => {
-    const participantId = getUserId(participant);
-    const participantRole = getUserRole(participant);
-    
-    if (participantId === currentUserId) {
-      if (isAdminUser(participant)) {
-        const adminParticipants = chat.participants?.filter(p => 
-          isAdminUser(p)
-        ) || [];
-        
-        if (adminParticipants.length === 1) {
-          return "You are the last admin. Cannot remove yourself.";
-        }
-      }
-      return "Remove yourself";
-    }
-    
-    if (currentUserRole === 'hr' && participantRole === 'admin') {
-      return "HR cannot remove administrators";
-    }
-    
-    if (currentUserRole === 'user' && participantId !== currentUserId) {
-      return "You can only remove yourself";
-    }
-    
-    if (currentUserRole === 'hr' && participantRole === 'hr') {
-      return "Remove HR colleague";
-    }
-    
-    return "Remove";
-  };
-
-  const getParticipantCountByRole = () => {
-    const counts = {
-      admin: 0,
-      hr: 0,
-      user: 0,
-      total: chat.participants?.length || 0
-    };
-    
-    chat.participants?.forEach(participant => {
-      const role = getUserRole(participant);
-      if (role === 'admin') counts.admin++;
-      else if (role === 'hr') counts.hr++;
-      else counts.user++;
-    });
-    
-    return counts;
   };
 
   const filteredAvailableUsers = useMemo(() => {
@@ -1775,18 +1651,8 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
     }
   };
 
-  const handleRemoveParticipant = async (userId, participant) => {
-    const canRemove = canRemoveParticipant(participant);
-    
-    if (!canRemove) {
-      const restriction = getRemovalRestriction(participant);
-      alert(`Cannot remove: ${restriction}`);
-      return;
-    }
-
-    const participantName = getUserName(participant);
-    
-    if (!window.confirm(`Are you sure you want to remove ${participantName} from the chat?`)) return;
+  const handleRemoveParticipant = async (userId) => {
+    if (!window.confirm('Are you sure you want to remove this participant from the chat?')) return;
 
     setLoading(true);
     setError('');
@@ -1796,7 +1662,7 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
       const response = await removeParticipant(chat.id, userId);
 
       if (response.success || response.message) {
-        setSuccess(`${participantName} removed successfully`);
+        setSuccess('Participant removed successfully');
 
         setTimeout(() => {
           onUpdate(response);
@@ -1812,124 +1678,58 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
     }
   };
 
-  const renderRoleBadge = (role) => {
-    const badges = {
-      admin: { className: 'bg-red-100 text-red-800', label: 'Admin' },
-      hr: { className: 'bg-purple-100 text-purple-800', label: 'HR' },
-      superadmin: { className: 'bg-red-600 text-white', label: 'Super Admin' },
-      user: { className: 'bg-gray-100 text-gray-800', label: 'User' }
-    };
-    
-    const badge = badges[role] || badges.user;
-    return (
-      <Badge className={`${badge.className} capitalize text-xs`}>
-        {badge.label}
-      </Badge>
-    );
-  };
-
-  const renderPermissionStatus = () => {
-    const rolePermissions = {
-      admin: {
-        canAdd: true,
-        canRemoveAdmins: true,
-        canRemoveHR: true,
-        canRemoveUsers: true,
-        canRemoveSelf: getParticipantCountByRole().admin > 1
-      },
-      hr: {
-        canAdd: true,
-        canRemoveAdmins: false,
-        canRemoveHR: true,
-        canRemoveUsers: true,
-        canRemoveSelf: true
-      },
-      user: {
-        canAdd: false,
-        canRemoveAdmins: false,
-        canRemoveHR: false,
-        canRemoveUsers: false,
-        canRemoveSelf: true
-      }
-    };
-    
-    return rolePermissions[currentUserRole] || rolePermissions.user;
-  };
-
   if (!open) return null;
-
-  const participantCounts = getParticipantCountByRole();
-  const permissions = renderPermissionStatus();
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex justify-between items-start">
             <div>
               <DialogTitle>Manage Participants</DialogTitle>
               <DialogDescription>
-                Manage participants in "{chat.name || 'Unnamed Chat'}"
-                {currentUserRole === 'hr' && (
-                  <span className="ml-2 text-red-600 font-medium">• HR cannot remove administrators</span>
-                )}
+                Add or remove participants from "{chat.name || 'Unnamed Chat'}"
               </DialogDescription>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {renderRoleBadge(currentUserRole)}
-              <Badge variant="outline">
-                {participantCounts.total} participants
-              </Badge>
-              <Badge variant="secondary" className={getChatTypeBadge(chat.chat_type).className}>
+            <div className="flex items-center space-x-2">
+              <Badge className={getChatTypeBadge(chat.chat_type).className}>
                 {getChatTypeBadge(chat.chat_type).label}
+              </Badge>
+              <Badge variant="outline">
+                {chat.participants?.length || 0} participants
               </Badge>
             </div>
           </div>
         </DialogHeader>
 
         <div className="border-b">
-          <nav className="flex overflow-x-auto">
+          <div className="flex space-x-1 px-6">
             <button
               onClick={() => setActiveTab('current')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === 'current' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'current' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >
-              Current Participants ({participantCounts.total})
+              Current Participants ({chat.participants?.length || 0})
             </button>
             <button
               onClick={() => setActiveTab('add')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === 'add' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'add' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >
               Add Participants ({availableUsers.length})
             </button>
             <button
-              onClick={() => setActiveTab('statistics')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === 'statistics' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+              onClick={() => setActiveTab('info')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'info' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >
-              Statistics
+              Chat Info
             </button>
-            <button
-              onClick={() => setActiveTab('permissions')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === 'permissions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Permissions
-            </button>
-          </nav>
+          </div>
         </div>
 
         <div className="p-6">
-          {/* Error and Success Messages */}
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex">
+                <svg className="w-5 h-5 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div>
@@ -1942,8 +1742,8 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
 
           {success && (
             <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex">
+                <svg className="w-5 h-5 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div>
@@ -1954,7 +1754,6 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
             </div>
           )}
 
-          {/* Current Participants Tab */}
           {activeTab === 'current' && (
             <div>
               {chat.participants?.length === 0 ? (
@@ -1966,186 +1765,65 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
                   <p className="text-sm mt-2">Add participants using the "Add Participants" tab</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {/* Role Summary */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-red-700">Admins</span>
-                        <Badge variant="destructive">{participantCounts.admin}</Badge>
-                      </div>
-                      <p className="text-xs text-red-600 mt-1">
-                        {currentUserRole === 'admin' ? 'You can manage all users' : 'Protected from removal'}
-                      </p>
-                    </div>
-                    
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-purple-700">HR Staff</span>
-                        <Badge className="bg-purple-100 text-purple-800">{participantCounts.hr}</Badge>
-                      </div>
-                      <p className="text-xs text-purple-600 mt-1">
-                        {currentUserRole === 'hr' ? 'Cannot remove admins' : 'HR management'}
-                      </p>
-                    </div>
-                    
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Users</span>
-                        <Badge variant="secondary">{participantCounts.user}</Badge>
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1">
-                        Regular participants
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Participants List */}
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 px-4 py-2 border-b">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">All Participants</span>
-                        <span className="text-xs text-gray-500">
-                          Sorted by: Role (Admin → HR → User)
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="divide-y">
-                      {/* Sort participants: Admins first, then HR, then Users */}
-                      {[...(chat.participants || [])]
-                        .sort((a, b) => {
-                          const roleA = getUserRole(a);
-                          const roleB = getUserRole(b);
-                          const roleOrder = { admin: 1, hr: 2, user: 3 };
-                          return roleOrder[roleA] - roleOrder[roleB];
-                        })
-                        .map((participant, index) => {
-                          const participantId = getUserId(participant);
-                          const participantName = getUserName(participant);
-                          const participantRole = getUserRole(participant);
-                          const isCurrentUser = participantId === currentUserId;
-                          const canRemove = canRemoveParticipant(participant);
-                          const restriction = getRemovalRestriction(participant);
-                          const isAdmin = isAdminUser(participant);
-                          const isHR = isHRUser(participant);
-                          
-                          return (
-                            <div 
-                              key={participantId || index} 
-                              className={`p-4 hover:bg-gray-50 transition-colors ${
-                                isCurrentUser ? 'bg-blue-50' : ''
-                              }`}
-                            >
-                              <div className="flex items-start justify-between">
-                                <div className="flex items-center space-x-3 min-w-0">
-                                  <div className={`relative ${
-                                    isAdmin ? 'ring-2 ring-red-300' : 
-                                    isHR ? 'ring-2 ring-purple-300' : 
-                                    ''
-                                  } rounded-full p-0.5`}>
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                      isAdmin ? 'bg-red-100' : 
-                                      isHR ? 'bg-purple-100' : 
-                                      'bg-gray-100'
-                                    }`}>
-                                      <span className={`font-medium ${
-                                        isAdmin ? 'text-red-600' : 
-                                        isHR ? 'text-purple-600' : 
-                                        'text-gray-600'
-                                      }`}>
-                                        {participantName.charAt(0).toUpperCase()}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center space-x-2">
-                                      <h4 className="font-semibold truncate">
-                                        {participantName}
-                                      </h4>
-                                      {isCurrentUser && (
-                                        <Badge variant="outline" className="text-xs">
-                                          You
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    
-                                    <div className="flex items-center space-x-2 mt-1">
-                                      {renderRoleBadge(participantRole)}
-                                      
-                                      {participant?.user?.department && (
-                                        <Badge variant="outline" className="text-xs">
-                                          {participant.user.department}
-                                        </Badge>
-                                      )}
-                                      
-                                      {participant?.joined_at && (
-                                        <span className="text-xs text-gray-500">
-                                          Joined {formatDate(participant.joined_at)}
-                                        </span>
-                                      )}
-                                    </div>
-                                    
-                                    <p className="text-sm text-gray-600 truncate mt-1">
-                                      {participant?.user?.email || participant?.email || 'No email'}
-                                    </p>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex flex-col items-end space-y-2 ml-4">
-                                  <Button
-                                    variant={canRemove ? "outline" : "ghost"}
-                                    size="sm"
-                                    onClick={() => handleRemoveParticipant(participantId, participant)}
-                                    disabled={loading || !canRemove}
-                                    className="whitespace-nowrap"
-                                    title={restriction}
-                                  >
-                                    {canRemove ? (
-                                      <>
-                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                        Remove
-                                      </>
-                                    ) : (
-                                      <>
-                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                        </svg>
-                                        Locked
-                                      </>
-                                    )}
-                                  </Button>
-                                  
-                                  {!canRemove && (
-                                    <span className="text-xs text-red-500 text-right max-w-[150px]">
-                                      {restriction}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {participant?.user?.phone_number && (
-                                <div className="mt-2 flex items-center text-sm text-gray-600">
-                                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                  </svg>
-                                  {participant.user.phone_number}
-                                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {chat.participants?.map((participant, index) => (
+                    <div key={participant.id || index} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600 font-medium text-lg">
+                              {participant?.user?.full_name?.charAt(0) || participant?.full_name?.charAt(0) || 'U'}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="font-semibold">
+                              {participant?.user?.full_name || participant?.full_name || 'Unknown User'}
+                            </h4>
+                            <p className="text-sm text-gray-600 truncate max-w-[180px]">
+                              {participant?.user?.email || participant?.email || 'No email'}
+                            </p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {participant?.user?.role || participant?.role || 'user'}
+                              </Badge>
+                              {participant?.user?.department && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {participant.user.department}
+                                </Badge>
                               )}
                             </div>
-                          );
-                        })}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveParticipant(participant?.user?.id || participant?.id)}
+                          disabled={loading}
+                          className="flex-shrink-0"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                      {participant?.user?.phone_number && (
+                        <div className="mt-3 flex items-center text-sm text-gray-600">
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          {participant.user.phone_number}
+                        </div>
+                      )}
+                      {participant?.joined_at && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          Joined: {formatDate(participant.joined_at, true)}
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  ))}
                 </div>
               )}
             </div>
           )}
 
-          {/* Add Participants Tab */}
           {activeTab === 'add' && (
             <div className="space-y-6">
               <div>
@@ -2164,177 +1842,113 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
                     className="pl-10"
                   />
                 </div>
-                
-                {/* Permission note for users */}
-                {currentUserRole === 'user' && (
-                  <div className="mt-2 text-sm text-yellow-600 bg-yellow-50 p-2 rounded">
-                    <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Regular users cannot add participants. Please contact an admin or HR.
-                  </div>
-                )}
               </div>
 
-              {currentUserRole !== 'user' && (
-                <form onSubmit={handleAddParticipant}>
-                  <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <Label>Select User to Add</Label>
-                      <span className="text-sm text-gray-500">
-                        {filteredAvailableUsers.length} available users
-                      </span>
-                    </div>
-                    
-                    {filteredAvailableUsers.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500 border rounded-lg">
-                        <svg className="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        <p className="mt-4">No available users found</p>
-                        <p className="text-sm mt-2">
-                          {searchQuery ? 'Try a different search term' : 'All users are already in the chat'}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto p-2">
-                        {filteredAvailableUsers.map(user => {
-                          const isAdmin = user.role === 'admin';
-                          const isHR = user.role === 'hr';
-                          
-                          return (
-                            <div key={user.id} className={`border rounded-lg p-3 transition-colors hover:shadow-sm ${
-                              isAdmin ? 'bg-red-50 border-red-200' : 
-                              isHR ? 'bg-purple-50 border-purple-200' : 
-                              'hover:bg-gray-50'
-                            }`}>
-                              <div className="flex items-center">
-                                <input
-                                  type="radio"
-                                  id={`add-user-${user.id}`}
-                                  checked={selectedUser === user.id.toString()}
-                                  onChange={() => setSelectedUser(user.id.toString())}
-                                  className="h-4 w-4 text-blue-600"
-                                  name="add_participant"
-                                  disabled={currentUserRole === 'user'}
-                                />
-                                <label htmlFor={`add-user-${user.id}`} className="ml-3 flex-1 cursor-pointer">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-3 min-w-0">
-                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                        isAdmin ? 'bg-red-100' : 
-                                        isHR ? 'bg-purple-100' : 
-                                        'bg-gray-100'
-                                      }`}>
-                                        <span className={`font-medium ${
-                                          isAdmin ? 'text-red-600' : 
-                                          isHR ? 'text-purple-600' : 
-                                          'text-gray-600'
-                                        }`}>
-                                          {user.full_name?.charAt(0) || 'U'}
-                                        </span>
-                                      </div>
-                                      <div className="min-w-0">
-                                        <p className="font-medium truncate">{user.full_name || 'Unknown User'}</p>
-                                        <p className="text-sm text-gray-600 truncate">
-                                          {user.email || user.work_mail_address}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex flex-col items-end space-y-1 ml-2">
-                                      {renderRoleBadge(user.role)}
-                                      {user.department && (
-                                        <span className="text-xs text-gray-500 truncate max-w-[100px]">
-                                          {user.department}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </label>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+              <form onSubmit={handleAddParticipant}>
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <Label>Select User to Add</Label>
+                    <span className="text-sm text-gray-500">
+                      {filteredAvailableUsers.length} available users
+                    </span>
                   </div>
-
-                  {selectedUser && (
-                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-blue-900">
-                            Selected: {availableUsers.find(u => u.id == selectedUser)?.full_name}
-                          </p>
-                          <p className="text-sm text-blue-700">
-                            {availableUsers.find(u => u.id == selectedUser)?.email}
-                          </p>
-                          <div className="mt-1">
-                            {renderRoleBadge(availableUsers.find(u => u.id == selectedUser)?.role)}
+                  
+                  {filteredAvailableUsers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 border rounded-lg">
+                      <svg className="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                      </svg>
+                      <p className="mt-4">No available users found</p>
+                      <p className="text-sm mt-2">
+                        {searchQuery ? 'Try a different search term' : 'All users are already in the chat'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto p-2">
+                      {filteredAvailableUsers.map(user => (
+                        <div key={user.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              id={`add-user-${user.id}`}
+                              checked={selectedUser === user.id.toString()}
+                              onChange={() => setSelectedUser(user.id.toString())}
+                              className="h-4 w-4 text-blue-600"
+                              name="add_participant"
+                            />
+                            <label htmlFor={`add-user-${user.id}`} className="ml-3 flex-1 cursor-pointer">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                    <span className="text-green-600 font-medium">
+                                      {user.full_name?.charAt(0) || 'U'}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium">{user.full_name || 'Unknown User'}</p>
+                                    <p className="text-sm text-gray-600 truncate max-w-[150px]">
+                                      {user.email || user.work_mail_address}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end space-y-1">
+                                  <Badge variant="outline" className="capitalize text-xs">
+                                    {user.role || 'user'}
+                                  </Badge>
+                                  {user.department && (
+                                    <span className="text-xs text-gray-500">{user.department}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </label>
                           </div>
                         </div>
-                        <Button
-                          type="submit"
-                          disabled={loading}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          {loading ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Adding...
-                            </>
-                          ) : (
-                            'Add to Chat'
-                          )}
-                        </Button>
-                      </div>
+                      ))}
                     </div>
                   )}
-                </form>
-              )}
+                </div>
+
+                {selectedUser && (
+                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-blue-900">
+                          Selected: {availableUsers.find(u => u.id == selectedUser)?.full_name}
+                        </p>
+                        <p className="text-sm text-blue-700">
+                          {availableUsers.find(u => u.id == selectedUser)?.email}
+                        </p>
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Adding...
+                          </>
+                        ) : (
+                          'Add to Chat'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </form>
             </div>
           )}
 
-          {/* Statistics Tab */}
-          {activeTab === 'statistics' && (
+          {activeTab === 'info' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="bg-white border rounded-lg p-4 shadow-sm">
-                  <h4 className="font-medium text-gray-900 mb-3">Role Distribution</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-3">Chat Details</h4>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Administrators</span>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="destructive">{participantCounts.admin}</Badge>
-                        <span className="text-xs text-gray-500">
-                          {participantCounts.total > 0 ? Math.round((participantCounts.admin / participantCounts.total) * 100) : 0}%
-                        </span>
-                      </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Chat Name:</span>
+                      <p className="font-medium">{chat.name || '(Unnamed Chat)'}</p>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">HR Staff</span>
-                      <div className="flex items-center space-x-2">
-                        <Badge className="bg-purple-100 text-purple-800">{participantCounts.hr}</Badge>
-                        <span className="text-xs text-gray-500">
-                          {participantCounts.total > 0 ? Math.round((participantCounts.hr / participantCounts.total) * 100) : 0}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Regular Users</span>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="secondary">{participantCounts.user}</Badge>
-                        <span className="text-xs text-gray-500">
-                          {participantCounts.total > 0 ? Math.round((participantCounts.user / participantCounts.total) * 100) : 0}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white border rounded-lg p-4 shadow-sm">
-                  <h4 className="font-medium text-gray-900 mb-3">Chat Information</h4>
-                  <div className="space-y-3">
                     <div>
                       <span className="text-sm text-gray-600">Chat Type:</span>
                       <div className="mt-1">
@@ -2344,33 +1958,29 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
                       </div>
                     </div>
                     <div>
-                      <span className="text-sm text-gray-600">Created:</span>
-                      <p className="font-medium text-sm">{formatDate(chat.created_at, true)}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600">Last Updated:</span>
-                      <p className="font-medium text-sm">{formatDate(chat.updated_at, true)}</p>
+                      <span className="text-sm text-gray-600">Total Participants:</span>
+                      <p className="font-medium">{chat.participants?.length || 0}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white border rounded-lg p-4 shadow-sm">
-                  <h4 className="font-medium text-gray-900 mb-3">Activity</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-3">Timestamps</h4>
                   <div className="space-y-3">
                     <div>
-                      <span className="text-sm text-gray-600">Total Participants:</span>
-                      <p className="font-medium text-2xl">{participantCounts.total}</p>
+                      <span className="text-sm text-gray-600">Created:</span>
+                      <p className="font-medium">{formatDate(chat.created_at, true)}</p>
                     </div>
-                    {chat.last_message && (
+                    <div>
+                      <span className="text-sm text-gray-600">Last Updated:</span>
+                      <p className="font-medium">{formatDate(chat.updated_at, true)}</p>
+                    </div>
+                    {chat.last_message?.time && (
                       <div>
                         <span className="text-sm text-gray-600">Last Message:</span>
-                        <p className="font-medium text-sm">{formatDate(chat.last_message.time, true)}</p>
+                        <p className="font-medium">{formatDate(chat.last_message.time, true)}</p>
                       </div>
                     )}
-                    <div>
-                      <span className="text-sm text-gray-600">Available to Add:</span>
-                      <p className="font-medium text-2xl">{availableUsers.length}</p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -2384,18 +1994,12 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
                       <p className="font-medium">
                         {chat.mentorship.mentor?.full_name || chat.mentorship.mentor || 'Unknown'}
                       </p>
-                      {chat.mentorship.mentor?.email && (
-                        <p className="text-sm text-green-600">{chat.mentorship.mentor.email}</p>
-                      )}
                     </div>
                     <div>
                       <span className="text-sm text-green-700">Mentee:</span>
                       <p className="font-medium">
                         {chat.mentorship.mentee?.full_name || chat.mentorship.mentee || 'Unknown'}
                       </p>
-                      {chat.mentorship.mentee?.email && (
-                        <p className="text-sm text-green-600">{chat.mentorship.mentee.email}</p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -2412,261 +2016,42 @@ const ManageParticipantsModal = ({ chat, open, onClose, onUpdate }) => {
                       </p>
                     </div>
                     {chat.department_description && (
-                      <p className="text-sm text-purple-600 max-w-md">{chat.department_description}</p>
+                      <p className="text-sm text-purple-600">{chat.department_description}</p>
                     )}
                   </div>
                 </div>
               )}
             </div>
           )}
-
-          {/* Permissions Tab */}
-          {activeTab === 'permissions' && (
-            <div className="space-y-6">
-              <div className="bg-gray-50 border rounded-lg p-6">
-                <h4 className="font-medium text-gray-900 mb-4 text-lg">Permission Matrix</h4>
-                
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                      <tr>
-                        <th className="px-4 py-3 bg-gray-100 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                          Action
-                        </th>
-                        <th className="px-4 py-3 bg-gray-100 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                          Admin
-                        </th>
-                        <th className="px-4 py-3 bg-gray-100 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                          HR
-                        </th>
-                        <th className="px-4 py-3 bg-gray-100 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                          User
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      <tr>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                          Add Participants
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="destructive" className="w-full justify-center">✗ Denied</Badge>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                          Remove Administrators
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed*</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="destructive" className="w-full justify-center">✗ Denied</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="destructive" className="w-full justify-center">✗ Denied</Badge>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                          Remove HR Staff
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="destructive" className="w-full justify-center">✗ Denied</Badge>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                          Remove Regular Users
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed</Badge>
-                        </td>
-                        <td className="px4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="destructive" className="w-full justify-center">✗ Denied</Badge>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                          Remove Self
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="warning" className="w-full justify-center">Conditional*</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="success" className="w-full justify-center">✓ Allowed</Badge>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                
-                <div className="mt-4 text-sm text-gray-600 space-y-2">
-                  <p className="font-medium">Notes:</p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>* Admins cannot remove themselves if they are the last admin in the chat</li>
-                    <li>HR cannot remove administrators under any circumstances</li>
-                    <li>Regular users can only remove themselves from chats</li>
-                    <li>All removal actions are subject to backend validation</li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h4 className="font-medium text-blue-900 mb-3">Your Current Permissions</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700">Your Role:</span>
-                      <div className="flex items-center space-x-2">
-                        {renderRoleBadge(currentUserRole)}
-                        {currentUserId && (
-                          <span className="text-xs text-gray-500">ID: {currentUserId}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700">Add Participants:</span>
-                      <Badge variant={permissions.canAdd ? "success" : "destructive"}>
-                        {permissions.canAdd ? 'Allowed' : 'Denied'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700">Remove Admins:</span>
-                      <Badge variant={permissions.canRemoveAdmins ? "success" : "destructive"}>
-                        {permissions.canRemoveAdmins ? 'Allowed' : 'Denied'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700">Remove Self:</span>
-                      <Badge variant={permissions.canRemoveSelf ? "success" : "warning"}>
-                        {permissions.canRemoveSelf ? 'Allowed' : 'Conditional'}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h4 className="font-medium text-yellow-900 mb-3">Security Notes</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-start">
-                      <svg className="w-4 h-4 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-sm text-yellow-700">
-                        All permission checks are enforced on both frontend and backend
-                      </p>
-                    </div>
-                    <div className="flex items-start">
-                      <svg className="w-4 h-4 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-sm text-yellow-700">
-                        Audit logs track all participant changes for security monitoring
-                      </p>
-                    </div>
-                    <div className="flex items-start">
-                      <svg className="w-4 h-4 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-sm text-yellow-700">
-                        Contact system administrator for permission exceptions
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        <DialogFooter className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 border-t">
-          <div className="flex flex-wrap gap-2">
+        <DialogFooter className="flex justify-between items-center">
+          <div className="flex space-x-2">
             <button
               type="button"
               onClick={() => setActiveTab('current')}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                activeTab === 'current' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              className={`px-3 py-1 text-sm ${activeTab === 'current' ? 'text-blue-600 font-medium' : 'text-gray-600'}`}
             >
-              Current ({participantCounts.total})
+              Current
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('add')}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                activeTab === 'add' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              disabled={currentUserRole === 'user'}
-              title={currentUserRole === 'user' ? 'Regular users cannot add participants' : ''}
+              className={`px-3 py-1 text-sm ${activeTab === 'add' ? 'text-blue-600 font-medium' : 'text-gray-600'}`}
             >
-              Add ({availableUsers.length})
+              Add
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('statistics')}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                activeTab === 'statistics' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              onClick={() => setActiveTab('info')}
+              className={`px-3 py-1 text-sm ${activeTab === 'info' ? 'text-blue-600 font-medium' : 'text-gray-600'}`}
             >
-              Statistics
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('permissions')}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                activeTab === 'permissions' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              Permissions
+              Info
             </button>
           </div>
-          
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                fetchAvailableUsers();
-                setError('');
-                setSuccess('');
-              }}
-              disabled={loading}
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </Button>
-            <Button variant="outline" onClick={onClose} disabled={loading}>
-              Close
-            </Button>
-          </div>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            Close
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

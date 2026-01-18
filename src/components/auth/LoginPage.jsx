@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Mail, Lock, AlertCircle, Award, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Mail, Lock, AlertCircle, Award, Eye, EyeOff, ArrowLeft, X, Clock, XCircle } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
 const BASE_URL = "http://127.0.0.1:8000";
@@ -13,6 +13,112 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [modalContent, setModalContent] = useState({
+    type: "",
+    title: "",
+    message: "",
+    icon: null
+  });
+
+  const getModalContent = (status, isActive) => {
+    if (!isActive) {
+      return {
+        type: "inactive",
+        title: "Account Inactive",
+        message: "Your account is currently inactive. Please contact the administrator to reactivate your account.",
+        icon: <XCircle className="w-16 h-16 text-red-500" />
+      };
+    }
+
+    switch (status) {
+      case "pending":
+        return {
+          type: "pending",
+          title: "Account Pending Approval",
+          message: "Your account is awaiting administrator approval. You will be notified once your account has been reviewed and approved.",
+          icon: <Clock className="w-16 h-16 text-yellow-500" />
+        };
+      case "rejected":
+        return {
+          type: "rejected",
+          title: "Account Rejected",
+          message: "Your account registration has been rejected. Please contact the administrator for more information or to request reconsideration.",
+          icon: <XCircle className="w-16 h-16 text-red-500" />
+        };
+      default:
+        return null;
+    }
+  };
+
+  const handleContactAdmin = () => {
+    // Create email content based on modal type
+    let subject = "";
+    let body = "";
+
+    if (modalContent.type === "rejected") {
+      subject = "Request for Account Activation - BTSL Mentorship";
+      body = `Dear Administrator,
+
+I am writing to request the activation of my account on the BTSL Digital Mentorship System.
+
+Account Details:
+- Work Email: ${email}
+- Status: Rejected
+
+I would appreciate it if you could review my account and provide information on why it was rejected, or reconsider my application.
+
+If there are any additional steps or information required from my side, please let me know.
+
+Thank you for your time and consideration.
+
+Best regards,
+[Your Name]`;
+    } else if (modalContent.type === "inactive") {
+      subject = "Request for Account Reactivation - BTSL Mentorship";
+      body = `Dear Administrator,
+
+I am writing to request the reactivation of my account on the BTSL Digital Mentorship System.
+
+Account Details:
+- Work Email: ${email}
+- Status: Rejected
+
+I would like to regain access to the system. Please let me know if there are any requirements or steps I need to complete.
+
+Thank you for your assistance.
+
+Best regards,
+[Your Name]`;
+    } else {
+      subject = "Account Activation Request - BTSL Mentorship";
+      body = `Dear Administrator,
+
+I am writing to inquire about the status of my account on the BTSL Digital Mentorship System.
+
+Account Details:
+- Work Email: ${email}
+
+I would appreciate any information you can provide regarding my account status.
+
+Thank you for your time.
+
+Best regards,
+[Your Name]`;
+    }
+
+    // Encode the subject and body for URL
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+
+    // Create Gmail compose URL
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=princemugabe567@gmail.com&su=${encodedSubject}&body=${encodedBody}`;
+
+    // Open in new tab
+    window.open(gmailUrl, '_blank');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,7 +148,6 @@ export default function LoginPage() {
 
       console.log("=== RESPONSE RECEIVED ===");
       console.log("Response status:", response.status);
-      console.log("Response ok:", response.ok);
 
       const responseClone = response.clone();
       const responseText = await responseClone.text();
@@ -65,15 +170,31 @@ export default function LoginPage() {
       if (!response.ok) {
         console.log("=== LOGIN FAILED ===");
         console.log("Error details:", data);
-        setError(data.error || data.message || "Login failed. Please try again.");
+        
+        const errorMsg = data.error || data.message || "Login failed. Please try again.";
+        
+        if (errorMsg.includes("pending approval")) {
+          const content = getModalContent("pending", true);
+          setModalContent(content);
+          setShowModal(true);
+        } else if (errorMsg.includes("rejected")) {
+          const content = getModalContent("rejected", true);
+          setModalContent(content);
+          setShowModal(true);
+        } else if (errorMsg.includes("inactive")) {
+          const content = getModalContent("", false);
+          setModalContent(content);
+          setShowModal(true);
+        } else {
+          setError(errorMsg);
+        }
+        
         setLoading(false);
         return;
       }
 
       console.log("=== LOGIN SUCCESSFUL ===");
 
-      // Store tokens
-      console.log("=== STORING TOKENS ===");
       if (data.token) {
         console.log("Token structure:", {
           hasAccess: !!data.token.access,
@@ -86,11 +207,10 @@ export default function LoginPage() {
         console.warn("No token in response data");
       }
 
-      // Map and store user data
       const mappedUser = {
         id: data.id?.toString() || '',
         full_name: data.full_name || '',
-        name: data.full_name || '', // For compatibility
+        name: data.full_name || '',
         email: data.email || '',
         work_mail_address: data.work_mail_address || '',
         role: data.role || 'mentee',
@@ -103,11 +223,9 @@ export default function LoginPage() {
       console.log(JSON.stringify(mappedUser, null, 2));
       console.log("User role:", mappedUser.role);
 
-      // Store user data in localStorage
       localStorage.setItem("user", JSON.stringify(mappedUser));
       console.log("User data stored in localStorage");
 
-      // Set user in context - setUser will handle navigation to appropriate dashboard
       console.log("Setting user in AuthContext...");
       setUser(mappedUser);
       console.log("User set in AuthContext - navigation will be handled by setUser");
@@ -124,10 +242,19 @@ export default function LoginPage() {
     }
   };
 
+  const closeModal = () => {
+    setShowModal(false);
+    setModalContent({
+      type: "",
+      title: "",
+      message: "",
+      icon: null
+    });
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4">
       <div className="w-full max-w-md">
-        {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
@@ -143,7 +270,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Error Alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-start gap-2">
@@ -153,7 +279,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -210,7 +335,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Footer Links */}
           <div className="mt-6 text-center">
             <Link
               to="/reset-password"
@@ -221,7 +345,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Back to Home Link */}
         <div className="mt-6 text-center">
           <Link
             to="/"
@@ -232,6 +355,71 @@ export default function LoginPage() {
           </Link>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative animate-fadeIn">
+            <button
+              onClick={closeModal}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="flex justify-center mb-6">
+              {modalContent.icon}
+            </div>
+
+            <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
+              {modalContent.title}
+            </h2>
+
+            <p className="text-gray-600 text-center mb-8">
+              {modalContent.message}
+            </p>
+
+            <div className="space-y-3">
+              <button
+                onClick={closeModal}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all"
+              >
+                Got It
+              </button>
+              
+              {(modalContent.type === "rejected" || modalContent.type === "inactive") && (
+                <button
+                  onClick={handleContactAdmin}
+                  className="w-full py-3 border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-lg transition-all hover:bg-gray-50"
+                >
+                  Contact Administrator
+                </button>
+              )}
+            </div>
+
+            <p className="text-sm text-gray-500 text-center mt-6">
+              {modalContent.type === "pending" && "You will receive an email notification once your account is approved."}
+              {modalContent.type === "rejected" && "Need help? Our support team is here to assist you."}
+              {modalContent.type === "inactive" && "Contact your administrator to restore access to your account."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
