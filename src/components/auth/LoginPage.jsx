@@ -1,425 +1,346 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { Mail, Lock, AlertCircle, Award, Eye, EyeOff, ArrowLeft, X, Clock, XCircle } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
+import {
+  Shield,
+  Lock,
+  Smartphone,
+  CheckCircle,
+  ArrowRight,
+  Users,
+  FileCheck,
+  Brain,
+  Globe,
+  Zap,
+  AlertTriangle,
+  Award,
+} from "lucide-react";
 
-const BASE_URL = "http://127.0.0.1:8000";
-
-export default function LoginPage() {
-  const { setUser } = useAuth();
-
+export function LoginScreen({ onLogin }) {
+  const [step, setStep] = useState("role");
+  const [selectedRole, setSelectedRole] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
-  const [modalContent, setModalContent] = useState({
-    type: "",
-    title: "",
-    message: "",
-    icon: null
-  });
+  const [mfaCode, setMfaCode] = useState("");
 
-  const getModalContent = (status, isActive) => {
-    if (!isActive) {
-      return {
-        type: "inactive",
-        title: "Account Inactive",
-        message: "Your account is currently inactive. Please contact the administrator to reactivate your account.",
-        icon: <XCircle className="w-16 h-16 text-red-500" />
-      };
-    }
+  const roles = [
+    {
+      id: "admin",
+      name: "System Administrator",
+      icon: Shield,
+      description: "Full system access with administrative privileges",
+    },
+    {
+      id: "compliance",
+      name: "Compliance Officer",
+      icon: FileCheck,
+      description: "Compliance & audit oversight",
+    },
+    {
+      id: "security",
+      name: "Security Analyst",
+      icon: Brain,
+      description: "Security monitoring and threat detection",
+    },
+    {
+      id: "user",
+      name: "Regular User",
+      icon: Users,
+      description: "Standard user access",
+    },
+  ];
 
-    switch (status) {
-      case "pending":
-        return {
-          type: "pending",
-          title: "Account Pending Approval",
-          message: "Your account is awaiting administrator approval. You will be notified once your account has been reviewed and approved.",
-          icon: <Clock className="w-16 h-16 text-yellow-500" />
-        };
-      case "rejected":
-        return {
-          type: "rejected",
-          title: "Account Rejected",
-          message: "Your account registration has been rejected. Please contact the administrator for more information or to request reconsideration.",
-          icon: <XCircle className="w-16 h-16 text-red-500" />
-        };
-      default:
-        return null;
-    }
+  const handleRoleSelect = (role) => {
+    setSelectedRole(role);
+    setStep("credentials");
   };
 
-  const handleContactAdmin = () => {
-    // Create email content based on modal type
-    let subject = "";
-    let body = "";
-
-    if (modalContent.type === "rejected") {
-      subject = "Request for Account Activation - BTSL Mentorship";
-      body = `Dear Administrator,
-
-I am writing to request the activation of my account on the BTSL Digital Mentorship System.
-
-Account Details:
-- Work Email: ${email}
-- Status: Rejected
-
-I would appreciate it if you could review my account and provide information on why it was rejected, or reconsider my application.
-
-If there are any additional steps or information required from my side, please let me know.
-
-Thank you for your time and consideration.
-
-Best regards,
-[Your Name]`;
-    } else if (modalContent.type === "inactive") {
-      subject = "Request for Account Reactivation - BTSL Mentorship";
-      body = `Dear Administrator,
-
-I am writing to request the reactivation of my account on the BTSL Digital Mentorship System.
-
-Account Details:
-- Work Email: ${email}
-- Status: Rejected
-
-I would like to regain access to the system. Please let me know if there are any requirements or steps I need to complete.
-
-Thank you for your assistance.
-
-Best regards,
-[Your Name]`;
-    } else {
-      subject = "Account Activation Request - BTSL Mentorship";
-      body = `Dear Administrator,
-
-I am writing to inquire about the status of my account on the BTSL Digital Mentorship System.
-
-Account Details:
-- Work Email: ${email}
-
-I would appreciate any information you can provide regarding my account status.
-
-Thank you for your time.
-
-Best regards,
-[Your Name]`;
-    }
-
-    // Encode the subject and body for URL
-    const encodedSubject = encodeURIComponent(subject);
-    const encodedBody = encodeURIComponent(body);
-
-    // Create Gmail compose URL
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=princemugabe567@gmail.com&su=${encodedSubject}&body=${encodedBody}`;
-
-    // Open in new tab
-    window.open(gmailUrl, '_blank');
-  };
-
-  const handleSubmit = async (e) => {
+  const handleCredentialsSubmit = (e) => {
     e.preventDefault();
-    setError("");
-
-    if (!email || !password) {
-      setError("All fields are required.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      console.log("=== LOGIN ATTEMPT STARTED ===");
-      console.log("Attempting login with:", { email });
-
-      const response = await fetch(`${BASE_URL}/auth/login/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          work_mail_address: email,
-          password: password,
-        }),
-      });
-
-      console.log("=== RESPONSE RECEIVED ===");
-      console.log("Response status:", response.status);
-
-      const responseClone = response.clone();
-      const responseText = await responseClone.text();
-      console.log("=== RAW RESPONSE TEXT ===");
-      console.log(responseText);
-
-      let data;
-      try {
-        data = JSON.parse(responseText);
-        console.log("=== PARSED RESPONSE DATA ===");
-        console.log(JSON.stringify(data, null, 2));
-      } catch (parseError) {
-        console.error("=== JSON PARSE ERROR ===");
-        console.error(parseError);
-        setError("Invalid response from server");
-        setLoading(false);
-        return;
-      }
-
-      if (!response.ok) {
-        console.log("=== LOGIN FAILED ===");
-        console.log("Error details:", data);
-        
-        const errorMsg = data.error || data.message || "Login failed. Please try again.";
-        
-        if (errorMsg.includes("pending approval")) {
-          const content = getModalContent("pending", true);
-          setModalContent(content);
-          setShowModal(true);
-        } else if (errorMsg.includes("rejected")) {
-          const content = getModalContent("rejected", true);
-          setModalContent(content);
-          setShowModal(true);
-        } else if (errorMsg.includes("inactive")) {
-          const content = getModalContent("", false);
-          setModalContent(content);
-          setShowModal(true);
-        } else {
-          setError(errorMsg);
-        }
-        
-        setLoading(false);
-        return;
-      }
-
-      console.log("=== LOGIN SUCCESSFUL ===");
-
-      if (data.token) {
-        console.log("Token structure:", {
-          hasAccess: !!data.token.access,
-          hasRefresh: !!data.token.refresh,
-        });
-        localStorage.setItem("access_token", data.token.access);
-        localStorage.setItem("refresh_token", data.token.refresh);
-        console.log("Tokens stored successfully");
-      } else {
-        console.warn("No token in response data");
-      }
-
-      const mappedUser = {
-        id: data.id?.toString() || '',
-        full_name: data.full_name || '',
-        name: data.full_name || '',
-        email: data.email || '',
-        work_mail_address: data.work_mail_address || '',
-        role: data.role || 'mentee',
-        department: data.department || '',
-        phone_number: data.phone_number || '',
-        avatar: data.avatar
-      };
-
-      console.log("=== MAPPED USER DATA ===");
-      console.log(JSON.stringify(mappedUser, null, 2));
-      console.log("User role:", mappedUser.role);
-
-      localStorage.setItem("user", JSON.stringify(mappedUser));
-      console.log("User data stored in localStorage");
-
-      console.log("Setting user in AuthContext...");
-      setUser(mappedUser);
-      console.log("User set in AuthContext - navigation will be handled by setUser");
-
-    } catch (err) {
-      console.error("=== LOGIN ERROR (CATCH BLOCK) ===");
-      console.error("Error type:", err instanceof Error ? err.constructor.name : typeof err);
-      console.error("Error message:", err instanceof Error ? err.message : String(err));
-      console.error("Full error:", err);
-      setError("Network error. Please check your connection and ensure the backend is running.");
-    } finally {
-      setLoading(false);
-      console.log("=== LOGIN PROCESS COMPLETE ===");
+    if (email && password) {
+      setStep("mfa");
     }
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setModalContent({
-      type: "",
-      title: "",
-      message: "",
-      icon: null
-    });
+  const handleMfaSubmit = (e) => {
+    e.preventDefault();
+    if (mfaCode.length === 6) {
+      setStep("success");
+      setTimeout(() => {
+        onLogin(selectedRole);
+      }, 1500);
+    }
+  };
+
+  const getRoleDisplayName = (roleId) => {
+    switch(roleId) {
+      case "admin": return "Administrator";
+      case "compliance": return "Compliance Officer";
+      case "security": return "Security Analyst";
+      default: return "User";
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg">
-                <Award className="text-white w-9 h-9" />
-              </div>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              BTSL Mentorship
-            </h1>
-            <p className="text-gray-500 text-sm mt-2">
-              Sign in to access your dashboard
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Work Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="your.work@email.com"
-                  className="w-full pl-10 pr-3 py-2.5 h-11 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  className="w-full pl-10 pr-12 py-2.5 h-11 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Signing in...
-                </div>
-              ) : (
-                "Sign In"
-              )}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <Link
-              to="/reset-password"
-              className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium"
-            >
-              Forgot password?
-            </Link>
-          </div>
-        </div>
-
-        <div className="mt-6 text-center">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Link>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 opacity-5">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 2px 2px, rgba(37, 99, 235, 0.2) 1px, transparent 0)",
+            backgroundSize: "40px 40px",
+          }}
+        ></div>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative animate-fadeIn">
-            <button
-              onClick={closeModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+      <div className="relative z-10 w-full max-w-md">
+        {/* Logo and Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 mb-4 shadow-lg">
+            <Shield className="h-10 w-10 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Hammer Tech Security
+          </h1>
+          <p className="text-gray-600">
+            AI-Enhanced Access Control System
+          </p>
+          <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100 text-blue-700 border border-blue-200 text-sm font-medium">
+            <Globe className="h-4 w-4" />
+            <span>Powered by Hammer Group Rwanda</span>
+          </div>
+        </div>
 
-            <div className="flex justify-center mb-6">
-              {modalContent.icon}
-            </div>
-
-            <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
-              {modalContent.title}
+        {/* Login Card */}
+        <div className="border border-gray-200 bg-white rounded-xl shadow-lg">
+          <div className="p-6 border-b border-gray-100">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">
+              {step === "role" && "Select Your Role"}
+              {step === "credentials" && "Sign In"}
+              {step === "mfa" && "Two-Factor Authentication"}
+              {step === "success" && "Authentication Successful"}
             </h2>
-
-            <p className="text-gray-600 text-center mb-8">
-              {modalContent.message}
+            <p className="text-gray-600 text-sm">
+              {step === "role" && "Choose your role to continue"}
+              {step === "credentials" && "Enter your credentials to continue"}
+              {step === "mfa" && "Enter the 6-digit code from your authenticator app"}
+              {step === "success" && "Redirecting to dashboard..."}
             </p>
+          </div>
+          <div className="p-6">
+            {step === "role" && (
+              <div className="space-y-3">
+                {roles.map((role) => {
+                  const Icon = role.icon;
+                  return (
+                    <button
+                      key={role.id}
+                      onClick={() => handleRoleSelect(role.id)}
+                      className="w-full flex items-center gap-4 p-4 rounded-lg border border-gray-200 bg-white hover:bg-blue-50 hover:border-blue-300 transition-all text-left group hover:shadow-sm"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-200 transition-colors">
+                        <Icon className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          {role.name}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {role.description}
+                        </p>
+                      </div>
+                      <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-            <div className="space-y-3">
-              <button
-                onClick={closeModal}
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all"
+            {step === "credentials" && (
+              <form
+                onSubmit={handleCredentialsSubmit}
+                className="space-y-4"
               >
-                Got It
-              </button>
-              
-              {(modalContent.type === "rejected" || modalContent.type === "inactive") && (
+                <div className="space-y-2">
+                  <label htmlFor="email" className="block text-gray-900 text-sm font-medium">
+                    Email Address
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    placeholder="j.habineza@hammertech.rw"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-white border border-gray-300 text-gray-900 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="password"
+                    className="block text-gray-900 text-sm font-medium"
+                  >
+                    Password
+                  </label>
+                  <input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white border border-gray-300 text-gray-900 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    required
+                  />
+                </div>
                 <button
-                  onClick={handleContactAdmin}
-                  className="w-full py-3 border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-lg transition-all hover:bg-gray-50"
+                  type="submit"
+                  className="w-full bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-3 rounded-lg flex items-center justify-center font-medium transition-all shadow-md hover:shadow-lg"
                 >
-                  Contact Administrator
+                  <Lock className="h-4 w-4 mr-2" />
+                  Continue to MFA
                 </button>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setStep("role")}
+                  className="w-full text-sm text-gray-500 hover:text-blue-600 text-center transition-colors"
+                >
+                  ← Back to role selection
+                </button>
+              </form>
+            )}
 
-            <p className="text-sm text-gray-500 text-center mt-6">
-              {modalContent.type === "pending" && "You will receive an email notification once your account is approved."}
-              {modalContent.type === "rejected" && "Need help? Our support team is here to assist you."}
-              {modalContent.type === "inactive" && "Contact your administrator to restore access to your account."}
+            {step === "mfa" && (
+              <form
+                onSubmit={handleMfaSubmit}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg border border-blue-200 mb-4">
+                  <Smartphone className="h-8 w-8 text-blue-600 mr-3" />
+                  <div className="text-left">
+                    <p className="text-gray-900 text-sm font-medium">
+                      Authenticator App
+                    </p>
+                    <p className="text-gray-600 text-xs">
+                      Enter the code from your device
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="mfa" className="block text-gray-900 text-sm font-medium">
+                    Authentication Code
+                  </label>
+                  <input
+                    id="mfa"
+                    type="text"
+                    placeholder="000000"
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={(e) =>
+                      setMfaCode(e.target.value.replace(/\D/g, ""))
+                    }
+                    className="w-full bg-white border border-gray-300 text-gray-900 text-center text-2xl tracking-widest px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-3 rounded-lg flex items-center justify-center font-medium transition-all shadow-md hover:shadow-lg"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Verify & Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep("credentials")}
+                  className="w-full text-sm text-gray-500 hover:text-blue-600 text-center transition-colors"
+                >
+                  ← Back to credentials
+                </button>
+              </form>
+            )}
+
+            {step === "success" && (
+              <div className="py-8 text-center space-y-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+                  <CheckCircle className="h-10 w-10 text-green-600" />
+                </div>
+                <p className="text-gray-900 font-medium text-lg">
+                  Authentication successful!
+                </p>
+                <p className="text-gray-600 text-sm">
+                  Welcome back, {getRoleDisplayName(selectedRole)}
+                </p>
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+                  <span>Loading dashboard</span>
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                    <div
+                      className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.1s" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.2s" }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Demo Credentials Helper */}
+        {step === "credentials" && (
+          <div className="mt-4 border border-blue-200 bg-blue-50 rounded-xl p-4">
+            <p className="text-xs text-blue-700 font-medium mb-2">
+              Demo Credentials
+            </p>
+            <div className="space-y-1 text-xs text-blue-600">
+              <p>Email: <span className="font-mono">j.uwimana@hammertech.rw</span></p>
+              <p>Password: <span className="font-mono">Any password works</span></p>
+              <p>MFA Code: <span className="font-mono">Any 6 digits</span></p>
+            </div>
+          </div>
+        )}
+
+        {/* Security Features */}
+        <div className="mt-6 grid grid-cols-4 gap-3 text-center">
+          <div className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <Shield className="h-5 w-5 text-blue-600 mx-auto mb-1" />
+            <p className="text-xs text-gray-700">
+              256-bit Encryption
+            </p>
+          </div>
+          <div className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <Lock className="h-5 w-5 text-blue-600 mx-auto mb-1" />
+            <p className="text-xs text-gray-700">
+              MFA Protected
+            </p>
+          </div>
+          <div className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <AlertTriangle className="h-5 w-5 text-blue-600 mx-auto mb-1" />
+            <p className="text-xs text-gray-700">
+              AI Monitored
+            </p>
+          </div>
+          <div className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <Award className="h-5 w-5 text-blue-600 mx-auto mb-1" />
+            <p className="text-xs text-gray-700">
+              ISO Certified
             </p>
           </div>
         </div>
-      )}
 
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-      `}</style>
+        {/* Footer */}
+        <div className="mt-8 text-center text-xs text-gray-500">
+          <p>
+            © {new Date().getFullYear()} Hammer Tech Ltd. Powered by Hammer Group Rwanda
+          </p>
+          <p className="mt-1">
+            Secured by AI-Enhanced Access Control System v2.1.0
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
