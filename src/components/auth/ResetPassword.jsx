@@ -10,7 +10,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-export default function ResetPasswordPage() {
+
+export function ResetPasswordPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState('request-otp');
   const [workMail, setWorkMail] = useState('');
@@ -404,7 +405,7 @@ export default function ResetPasswordPage() {
             <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center">
               <Award className="w-7 h-7 text-white" />
             </div>
-            <span className="text-2xl font-bold text-blue-900">MentorHub</span>
+            <span className="text-2xl font-bold text-blue-900">Hammer Teck</span>
           </Link>
         </div>
 

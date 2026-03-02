@@ -1,6 +1,5 @@
-// AuthContext.jsx - Fixed version
+// AuthContext.jsx - Updated
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 
 const AuthContext = createContext();
 const BASE_URL = "http://127.0.0.1:8000";
@@ -8,28 +7,24 @@ const BASE_URL = "http://127.0.0.1:8000";
 export const AuthProvider = ({ children }) => {
   const [user, setUserState] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
-  const location = useLocation();
   const hasInitialized = useRef(false);
 
-  // Public routes that don't require authentication
-  const publicRoutes = ['/', '/login', '/register', '/reset-password', '/help'];
-
-  // Helper function to get role-based route
-  const getRoleRoute = (role) => {
-    switch (role) {
-      case 'admin': return '/admin';
-      case 'hr': return '/hr';
-      case 'mentor': return '/mentor';
-      case 'mentee': return '/mentee';
-      default: return '/mentee';
-    }
-  };
-
-  // Check if user is on the correct role-based route
-  const isOnCorrectRoute = (userRole, currentPath) => {
-    const roleRoute = getRoleRoute(userRole);
-    return currentPath.startsWith(roleRoute);
+  // Helper function to map API user to app user
+  const mapApiUserToAppUser = (apiUser) => {
+    if (!apiUser) return null;
+    
+    return {
+      id: apiUser.id?.toString() || '',
+      name: apiUser.name || apiUser.full_name || '',
+      full_name: apiUser.full_name || '',
+      email: apiUser.email || apiUser.work_mail_address || '',
+      work_mail_address: apiUser.work_mail_address || '',
+      role: apiUser.role || 'employee',
+      department: apiUser.department || '',
+      phone_number: apiUser.phone_number || '',
+      avatar: apiUser.avatar,
+      is_admin: apiUser.is_admin,
+    };
   };
 
   // Verify token with backend
@@ -54,7 +49,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Initial load effect - runs only once on mount
+  // Initial load effect
   useEffect(() => {
     if (hasInitialized.current) return;
     
@@ -65,77 +60,29 @@ export const AuthProvider = ({ children }) => {
         const storedUser = localStorage.getItem('user');
         const accessToken = localStorage.getItem('access_token');
 
-        console.log("Stored data check:", { 
-          hasUser: !!storedUser, 
-          hasToken: !!accessToken,
-          currentPath: location.pathname 
-        });
-
         if (storedUser && accessToken) {
           // Verify token with backend
           const { valid, user: verifiedUser } = await verifyToken(accessToken);
 
           if (valid && verifiedUser) {
-            console.log("Token valid, user authenticated:", verifiedUser.work_mail_address);
-            
-            const mappedUser = {
-              id: verifiedUser.id?.toString() || '',
-              name: verifiedUser.name || verifiedUser.full_name || '',
-              full_name: verifiedUser.full_name || '',
-              email: verifiedUser.email || '',
-              work_mail_address: verifiedUser.work_mail_address || '',
-              role: verifiedUser.role || 'mentee',
-              department: verifiedUser.department || '',
-              phone_number: verifiedUser.phone_number || '',
-              avatar: verifiedUser.avatar
-            };
-
+            console.log("Token valid, user authenticated");
+            const mappedUser = mapApiUserToAppUser(verifiedUser);
             setUserState(mappedUser);
-
-            // Only redirect if on public route
-            if (publicRoutes.includes(location.pathname)) {
-              const roleRoute = getRoleRoute(mappedUser.role);
-              console.log("On public route, redirecting to:", roleRoute);
-              navigate(roleRoute, { replace: true });
-            }
-            // Check if on wrong role route
-            else if (!isOnCorrectRoute(mappedUser.role, location.pathname)) {
-              const roleRoute = getRoleRoute(mappedUser.role);
-              console.log("On wrong role route, redirecting to:", roleRoute);
-              navigate(roleRoute, { replace: true });
-            }
           } else {
             // Token invalid, clear everything
             console.log("Token invalid, clearing auth data");
             localStorage.removeItem('user');
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
-            
-            if (!publicRoutes.includes(location.pathname)) {
-              console.log("On protected route without valid token, redirecting to login");
-              navigate('/login', { replace: true });
-            }
           }
         } else {
           console.log("No stored auth data");
-          
-          // No auth data, redirect to login if on protected route
-          if (!publicRoutes.includes(location.pathname)) {
-            console.log("On protected route without auth, redirecting to login");
-            navigate('/login', { replace: true });
-          }
         }
       } catch (error) {
         console.error('Error during auth initialization:', error);
-        
-        // Clear invalid data
         localStorage.removeItem('user');
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        
-        if (!publicRoutes.includes(location.pathname)) {
-          navigate('/login', { replace: true });
-        }
       } finally {
         setIsLoading(false);
         hasInitialized.current = true;
@@ -144,29 +91,64 @@ export const AuthProvider = ({ children }) => {
     };
 
     initializeAuth();
-  }, []); // Only run once on mount
+  }, []);
 
-  // Update user function that also saves to localStorage
+  // Set auth tokens
+  const setAuthTokens = (tokens) => {
+    if (tokens && tokens.access && tokens.refresh) {
+      localStorage.setItem('access_token', tokens.access);
+      localStorage.setItem('refresh_token', tokens.refresh);
+      console.log("Tokens saved to localStorage");
+    } else {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      console.log("Tokens removed from localStorage");
+    }
+  };
+
+  // Update user function
   const setUser = (newUser) => {
     console.log("=== AuthContext: setUser called ===");
-    console.log("New user:", newUser);
     
-    setUserState(newUser);
+    const mappedUser = mapApiUserToAppUser(newUser);
+    setUserState(mappedUser);
     
-    if (newUser) {
-      localStorage.setItem('user', JSON.stringify(newUser));
+    if (mappedUser) {
+      localStorage.setItem('user', JSON.stringify(mappedUser));
       console.log("User saved to localStorage");
-      
-      // Navigate to role-based route
-      const roleRoute = getRoleRoute(newUser.role);
-      navigate(roleRoute, { replace: true });
     } else {
       localStorage.removeItem('user');
       console.log("User removed from localStorage");
     }
   };
 
-  // Logout function with backend call
+  // Complete login function
+  const completeLogin = (data) => {
+    console.log("=== AuthContext: completeLogin ===");
+    
+    // Store tokens
+    if (data.tokens) {
+      setAuthTokens(data.tokens);
+    }
+    
+    // Store user data
+    if (data.user) {
+      const mappedUser = mapApiUserToAppUser(data.user);
+      setUserState(mappedUser);
+      localStorage.setItem('user', JSON.stringify(mappedUser));
+    }
+  };
+
+  // Check authentication status
+  const checkAuth = async () => {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return false;
+    
+    const { valid } = await verifyToken(accessToken);
+    return valid;
+  };
+
+  // Logout function
   const logout = async () => {
     console.log("=== AuthContext: Logout ===");
     
@@ -174,7 +156,7 @@ export const AuthProvider = ({ children }) => {
       const refreshToken = localStorage.getItem('refresh_token');
       const accessToken = localStorage.getItem('access_token');
       
-      // Call backend logout endpoint to blacklist token
+      // Call backend logout endpoint
       if (refreshToken && accessToken) {
         await fetch(`${BASE_URL}/auth/logout/`, {
           method: 'POST',
@@ -189,7 +171,6 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Logout API error:', error);
-      // Continue with local logout even if API fails
     }
     
     // Clear all auth data
@@ -198,8 +179,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     
-    // Navigate to login
-    navigate('/login', { replace: true });
+    // Note: Navigation is handled by the component using useNavigate()
   };
 
   const value = {
@@ -207,6 +187,9 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     isLoading,
     setUser,
+    setAuthTokens,
+    completeLogin,
+    checkAuth,
     logout,
   };
 

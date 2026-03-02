@@ -14,9 +14,11 @@ import {
   Lock,
   Smartphone,
 } from "lucide-react";
+import {useNavigate} from "react-router-dom";
 
-export function LandingPage({ onGetStarted }) {
+export function LandingPage() {
   const currentYear = new Date().getFullYear();
+  const navigate = useNavigate();
 
   const features = [
     {
@@ -58,10 +60,14 @@ export function LandingPage({ onGetStarted }) {
     { value: "ISO Certified", label: "Compliance", icon: Award },
   ];
 
+  const handleClickGetStarted = () => {
+    navigate("/login");
+  }
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-r from-blue-50 to-blue-100">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 text-white">
+      <section className="relative overflow-hidden to-blue-700 text-white">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div
@@ -78,17 +84,17 @@ export function LandingPage({ onGetStarted }) {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-800/30 border border-blue-600/50">
-                <Globe className="h-4 w-4 text-blue-300" />
-                <span className="text-sm text-blue-200">
+                <Globe className="h-4 w-4 text-white" />
+                <span className="text-sm text-blue-700 text-blue-200">
                   Powered by Hammer Group Rwanda
                 </span>
               </div>
 
-              <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
+              <h1 className="text-4xl lg:text-5xl text-blue-700 font-bold leading-tight">
                 AI-Enhanced Access Control & Compliance System
               </h1>
 
-              <p className="text-lg text-blue-200">
+              <p className="text-lg text-blue-700">
                 Enterprise-grade security platform for Hammer Tech Ltd, 
                 combining artificial intelligence with comprehensive compliance 
                 management to protect your organization.
@@ -97,7 +103,7 @@ export function LandingPage({ onGetStarted }) {
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
                   className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-lg px-8 py-4 rounded-lg flex items-center justify-center transition-all font-medium shadow-lg hover:shadow-xl"
-                  onClick={onGetStarted}
+                  onClick={handleClickGetStarted}
                 >
                   Get Started
                   <ChevronRight className="ml-2 h-5 w-5" />
@@ -111,7 +117,7 @@ export function LandingPage({ onGetStarted }) {
                     <div key={index} className="text-center">
                       <div className="flex items-center justify-center mb-1">
                         <Icon className="h-4 w-4 text-blue-300 mr-1" />
-                        <div className="text-xl font-bold">{stat.value}</div>
+                        <div className="text-xl text-blue-700 font-bold">{stat.value}</div>
                       </div>
                       <div className="text-xs text-blue-300">{stat.label}</div>
                     </div>
@@ -122,7 +128,7 @@ export function LandingPage({ onGetStarted }) {
 
             <div className="relative hidden lg:block">
               <div className="relative">
-                <div className="absolute inset-0 bg-blue-500/20 blur-3xl rounded-full"></div>
+                <div className="absolute inset-0 bg-white/20 blur-3xl rounded-full"></div>
                 <div className="relative border border-blue-600 bg-blue-900/50 backdrop-blur rounded-xl p-6 shadow-xl">
                   <div className="mb-6">
                     <div className="flex items-center justify-between">
@@ -262,7 +268,7 @@ export function LandingPage({ onGetStarted }) {
           </p>
           <button
             className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-lg px-8 py-4 rounded-lg flex items-center justify-center mx-auto transition-all font-medium shadow-lg hover:shadow-xl"
-            onClick={onGetStarted}
+            onClick={handleClickGetStarted}
           >
             Access the Platform
             <ChevronRight className="ml-2 h-5 w-5" />
