@@ -1258,7 +1258,7 @@ export function Dashboard() {
               <p className="font-semibold text-blue-800">Real-time Security Intelligence Dashboard</p>
               <p className="text-gray-700 text-sm leading-relaxed">
                 Monitor security metrics, track incidents, analyze trends, and maintain compliance across your organization. 
-                All data is fetched in real-time from your security systems and databases.
+                All data is fetched in real-time from security system.
               </p>
             </div>
           </div>
