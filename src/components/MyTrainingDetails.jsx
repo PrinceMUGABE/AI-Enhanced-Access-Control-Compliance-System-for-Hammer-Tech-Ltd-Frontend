@@ -559,9 +559,9 @@ export function EmployeeViewTrainingDetails() {
                   <h2 className="text-2xl font-bold text-gray-900">
                     {data?.training?.name || "Training Details"}
                   </h2>
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
+                  {/* <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
                     Training ID: {trainingId.slice(0, 8)}...
-                  </span>
+                  </span> */}
                 </div>
                 <p className="text-gray-600">
                   {data?.training?.description || "Community Health Work Training Program"}
@@ -774,7 +774,7 @@ export function EmployeeViewTrainingDetails() {
                       🎉 All Modules Completed!
                     </h3>
                     <p className="text-green-700">
-                      You have successfully completed all modules in this training. You're now ready to take the final exam.
+                      You have successfully completed all modules in this training.
                     </p>
                   </div>
                 </div>

@@ -303,7 +303,7 @@ function AppContent() {
         } />
 
         <Route path="/user-management" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
             <MainLayout
               user={user}
               sidebarOpen={sidebarOpen}

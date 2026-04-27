@@ -364,6 +364,27 @@ export function MainLayout({
                   <span className="font-medium">Training Candidates</span>
                 </a>
               )}
+
+
+              {user?.role === "hr_manager" && (
+                <a
+                  href="/user-management"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.location.href = "/user-management";
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-blue-50 hover:border-blue-300 text-gray-700 hover:text-blue-600 border border-transparent ${
+                    window.location.pathname === '/user-management' ? 'bg-blue-50 border-blue-200 text-blue-600' : ''
+                  }`}
+                >
+                  <Users className="h-5 w-5" />
+                  <span className="font-medium">User Management</span>
+                </a>
+              )}
+
+             
+            
               
               {["admin", "compliance_officer", "security_analyst", "hr_manager"].includes(user?.role) && (
                 <a
@@ -382,6 +403,8 @@ export function MainLayout({
                 </a>
               )}
             </div>
+
+            
           </nav>
 
           {/* User Profile */}

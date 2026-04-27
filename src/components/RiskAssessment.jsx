@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 import {
   AlertTriangle,
   TrendingUp,
@@ -16,7 +17,11 @@ import {
   Loader2,
   Clock,
   FileText,
-  AlertOctagon
+  AlertOctagon,
+  ChevronRight,
+  Eye,
+  UserCheck,
+  UserX
 } from "lucide-react";
 
 const BASE_URL = 'http://127.0.0.1:8000';
@@ -30,8 +35,8 @@ export function RiskAssessment() {
     vulnerabilities: false
   });
   const [error, setError] = useState(null);
+  const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [riskData, setRiskData] = useState({
-    // Dashboard summary
     overallRiskScore: null,
     riskLevel: null,
     departmentsAtRisk: null,
@@ -39,19 +44,14 @@ export function RiskAssessment() {
     criticalIncidents: null,
     mttrHours: null,
     complianceRate: null,
-    
-    // Detailed data
     departmentAssessments: [],
     userRiskProfiles: [],
     securityMetrics: null,
     riskTrends: [],
     vulnerabilityAssessments: [],
-    
-    // Recommendations
     recommendations: []
   });
 
-  // Fetch all risk assessment data
   const fetchRiskData = async () => {
     try {
       setLoading({ 
@@ -73,97 +73,109 @@ export function RiskAssessment() {
         'Content-Type': 'application/json'
       };
 
-      // 1. Fetch security metrics (contains overall stats)
-      const metricsResponse = await axios.get(
-        `${BASE_URL}/risk-assessment/metrics/`,
+      const dashboardResponse = await axios.get(
+        `${BASE_URL}/risk-assessment/dashboard-data/`,
         { headers, params: { timeframe: 90 } }
       );
 
-      if (metricsResponse.data.success) {
-        const metrics = metricsResponse.data;
-        setRiskData(prev => ({
-          ...prev,
-          overallRiskScore: metrics.metrics.total_risk_score,
-          riskLevel: metrics.risk_level,
-          departmentsAtRisk: metrics.metrics.departments_at_risk,
-          highRiskUsers: metrics.metrics.high_risk_users,
-          criticalIncidents: metrics.metrics.critical_incidents,
-          mttrHours: metrics.metrics.mttr_hours,
-          complianceRate: metrics.metrics.compliance_rate,
-          securityMetrics: metrics,
-          recommendations: metrics.recommendations || []
+      console.log('Dashboard data response:', dashboardResponse.data);
+
+      if (dashboardResponse.data.success) {
+        const dashboard = dashboardResponse.data.dashboard_data;
+        
+        // Transform department assessments
+        const departmentAssessments = (dashboard.department_risks || []).map(dept => ({
+          department_name: dept.department,
+          overall_risk_score: dept.risk,
+          incident_count: dept.incident_count || 0,
+          user_count: dept.user_count || 0,
+          risk_level: dept.risk_level || getRiskLevel(dept.risk)
         }));
-      }
-
-      // 2. Fetch department risk assessments
-      const departmentsResponse = await axios.get(
-        `${BASE_URL}/risk-assessment/departments/`,
-        { headers, params: { timeframe: 90 } }
-      );
-
-      if (departmentsResponse.data.success) {
-        setRiskData(prev => ({
-          ...prev,
-          departmentAssessments: departmentsResponse.data.assessments
-        }));
-      }
-
-      // 3. Fetch user risk profiles
-      const usersResponse = await axios.get(
-        `${BASE_URL}/risk-assessment/users/profiles/`,
-        { headers, params: { timeframe: 30, limit: 10, min_risk: 50 } }
-      );
-
-      if (usersResponse.data.success) {
-        setRiskData(prev => ({
-          ...prev,
-          userRiskProfiles: usersResponse.data.profiles
-        }));
-      }
-
-      // 4. Fetch risk trends
-      const trendsResponse = await axios.get(
-        `${BASE_URL}/risk-assessment/trends/`,
-        { headers, params: { timeframe: 90, period: 'weekly' } }
-      );
-
-      if (trendsResponse.data.success) {
-        setRiskData(prev => ({
-          ...prev,
-          riskTrends: trendsResponse.data.trends
-        }));
-      }
-
-      // 5. Fetch vulnerability assessment
-      const vulnResponse = await axios.get(
-        `${BASE_URL}/risk-assessment/vulnerabilities/`,
-        { headers }
-      );
-
-      if (vulnResponse.data.success) {
-        setRiskData(prev => ({
-          ...prev,
-          vulnerabilityAssessments: vulnResponse.data.vulnerabilities
-        }));
-      }
-
-      // 6. Fetch dashboard data (additional consolidated view)
-      try {
-        const dashboardResponse = await axios.get(
-          `${BASE_URL}/risk-assessment/dashboard-data/`,
-          { headers }
-        );
-
-        if (dashboardResponse.data.success) {
-          const dashboard = dashboardResponse.data.dashboard_data;
-          // Merge dashboard data if needed
-          setRiskData(prev => ({
-            ...prev,
-            // Use dashboard data to fill any missing fields
+        
+        // Filter out weeks with zero incidents for trends
+        const riskTrends = (dashboard.risk_trends || [])
+          .filter(trend => trend.incident_count > 0 || trend.risk > 0)
+          .map(trend => ({
+            period: trend.week,
+            risk_score: trend.risk,
+            incident_count: trend.incident_count || 0,
+            user_count: trend.user_count || 0
           }));
+        
+        // Transform vulnerability assessments with correct severity labels
+        const vulnerabilityAssessments = (dashboard.risk_categories || []).map(cat => {
+          const score = cat.score || 0;
+          let severityLevel = 'low';
+          let severityText = 'Good';
+          
+          if (score < 40) {
+            severityLevel = 'critical';
+            severityText = 'Critical';
+          } else if (score < 60) {
+            severityLevel = 'high';
+            severityText = 'High Risk';
+          } else if (score < 80) {
+            severityLevel = 'medium';
+            severityText = 'Needs Improvement';
+          } else {
+            severityLevel = 'low';
+            severityText = 'Good';
+          }
+          
+          return {
+            category: cat.category,
+            score: score,
+            max_score: cat.maxScore,
+            severity: severityLevel,
+            severity_text: severityText,
+            description: cat.description || `${cat.category} security assessment`,
+            recommendations: cat.recommendations || [`Review and improve ${cat.category.toLowerCase()} security measures`]
+          };
+        });
+        
+        // Generate better recommendations based on actual data
+        let recommendations = [];
+        
+        // Department-based recommendations
+        const highRiskDepts = departmentAssessments.filter(d => d.overall_risk_score >= 60);
+        if (highRiskDepts.length > 0) {
+          recommendations.push(`⚠️ High Risk Department: ${highRiskDepts.map(d => d.department_name).join(', ')} requires immediate security review`);
         }
-      } catch (dashboardError) {
-        console.warn('Dashboard data not available, using individual endpoints');
+        
+        // Vulnerability-based recommendations
+        const criticalVulns = vulnerabilityAssessments.filter(v => v.severity === 'critical');
+        if (criticalVulns.length > 0) {
+          recommendations.push(`🔴 Critical Vulnerabilities: Address ${criticalVulns.map(v => v.category).join(', ')} security gaps`);
+        }
+        
+        // Incident response recommendation
+        const incidentResponse = vulnerabilityAssessments.find(v => v.category === 'Incident Response');
+        if (incidentResponse && incidentResponse.score < 50) {
+          recommendations.push(`📋 Incident Response: Develop and implement incident response playbook (Current score: ${incidentResponse.score.toFixed(1)}/100)`);
+        }
+        
+        // General recommendations
+        if (recommendations.length === 0) {
+          recommendations.push("✅ Maintain current security posture");
+          recommendations.push("📊 Continue regular monitoring and assessments");
+          recommendations.push("🔄 Schedule next quarterly risk assessment");
+        }
+        
+        setRiskData({
+          overallRiskScore: dashboard.overall_risk_score || 0,
+          riskLevel: dashboard.overall_risk_level || 'low',
+          departmentsAtRisk: dashboard.security_metrics?.departments_at_risk || 0,
+          highRiskUsers: dashboard.security_metrics?.high_risk_users || 0,
+          criticalIncidents: dashboard.security_metrics?.critical_incidents || 0,
+          mttrHours: dashboard.security_metrics?.mttr_hours || 0,
+          complianceRate: dashboard.security_metrics?.compliance_rate || 100,
+          departmentAssessments: departmentAssessments,
+          userRiskProfiles: dashboard.high_risk_users || [],
+          securityMetrics: dashboard.security_metrics,
+          riskTrends: riskTrends,
+          vulnerabilityAssessments: vulnerabilityAssessments,
+          recommendations: recommendations.slice(0, 6)
+        });
       }
 
     } catch (err) {
@@ -180,7 +192,6 @@ export function RiskAssessment() {
     }
   };
 
-  // Run comprehensive risk assessment
   const runAssessment = async () => {
     try {
       setLoading(prev => ({ ...prev, dashboard: true }));
@@ -204,8 +215,8 @@ export function RiskAssessment() {
       );
 
       if (response.data.success) {
-        alert(`Assessment completed! Overall Risk Score: ${response.data.results.overall_risk_score}`);
-        // Refresh all data
+        console.log('Assessment completed:', response.data);
+        toast.success(`Assessment completed! Overall Risk Score: ${response.data.results.overall_risk_score}`);
         await fetchRiskData();
       }
 
@@ -221,7 +232,6 @@ export function RiskAssessment() {
     fetchRiskData();
   }, []);
 
-  // Helper functions
   const getRiskLevel = (score) => {
     if (score >= 80) return 'Critical';
     if (score >= 60) return 'High';
@@ -231,10 +241,23 @@ export function RiskAssessment() {
   };
 
   const getRiskLevelColor = (score) => {
-    if (score >= 80) return { bg: 'bg-red-100', text: 'text-red-800', icon: 'text-red-600' };
-    if (score >= 60) return { bg: 'bg-orange-100', text: 'text-orange-800', icon: 'text-orange-600' };
-    if (score >= 40) return { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: 'text-yellow-600' };
-    return { bg: 'bg-blue-100', text: 'text-blue-800', icon: 'text-blue-600' };
+    if (score >= 80) return { bg: 'bg-red-100', text: 'text-red-800', icon: 'text-red-600', border: 'border-red-200' };
+    if (score >= 60) return { bg: 'bg-orange-100', text: 'text-orange-800', icon: 'text-orange-600', border: 'border-orange-200' };
+    if (score >= 40) return { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: 'text-yellow-600', border: 'border-yellow-200' };
+    return { bg: 'bg-green-100', text: 'text-green-800', icon: 'text-green-600', border: 'border-green-200' };
+  };
+
+  const getVulnerabilityBadge = (severity) => {
+    switch(severity) {
+      case 'critical':
+        return <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded-full text-xs font-medium">Critical</span>;
+      case 'high':
+        return <span className="bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full text-xs font-medium">High Risk</span>;
+      case 'medium':
+        return <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-xs font-medium">Needs Work</span>;
+      default:
+        return <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium">Good</span>;
+    }
   };
 
   const getSeverityBadge = (score) => {
@@ -265,20 +288,18 @@ export function RiskAssessment() {
     return fullName.substring(0, 2).toUpperCase();
   };
 
-  // Loading state
   if (loading.dashboard && riskData.overallRiskScore === null) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading risk assessment data...</p>
-          <p className="text-sm text-gray-400 mt-1">This may take a few moments</p>
+          <p className="text-sm text-gray-400 mt-1">Analyzing security posture</p>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="p-6">
@@ -302,493 +323,312 @@ export function RiskAssessment() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
       {/* Header Section */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Risk Assessment & Management</h1>
-            <p className="text-gray-600">Comprehensive security risk analysis and mitigation</p>
+            <h1 className="text-3xl font-bold text-gray-900">Risk Assessment & Management</h1>
+            <p className="text-gray-600 mt-1">Comprehensive security risk analysis and mitigation</p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={fetchRiskData}
               disabled={loading.dashboard}
-              className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-3 rounded-lg flex items-center font-medium transition-colors disabled:opacity-50"
+              className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors disabled:opacity-50 bg-white"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading.dashboard ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${loading.dashboard ? 'animate-spin' : ''}`} />
               Refresh
             </button>
             <button
               onClick={runAssessment}
               disabled={loading.dashboard}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg flex items-center font-medium transition-colors disabled:opacity-50"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors disabled:opacity-50"
             >
-              <Target className="h-4 w-4 mr-2" />
-              Run Assessment
+              <Target className="h-4 w-4" />
+              Run Full Assessment
             </button>
           </div>
         </div>
-        
-        {/* Requirements Description */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="space-y-1 text-sm">
-              <p className="font-medium text-blue-800">Module Requirements:</p>
-              <p className="text-gray-700">
-                <strong>Risk Assessment & Management:</strong> Comprehensive risk evaluation framework implementing 
-                continuous security risk scoring across multiple dimensions including access control, data security, 
-                network security, compliance, and user behavior. Features vulnerability identification, risk 
-                trending analysis, department-level risk distribution, and automated mitigation recommendations. 
-                Includes high-risk user identification, security posture radar charts, actionable remediation 
-                strategies with impact/effort analysis, and integration with threat intelligence for proactive 
-                risk management.
-              </p>
+      </div>
+
+      {/* Stats Cards Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Risk Score</p>
+              <p className="text-2xl font-bold text-gray-900">{riskData.overallRiskScore?.toFixed(1) || 'N/A'}</p>
+            </div>
+            <div className={`p-3 rounded-lg ${getRiskLevelColor(riskData.overallRiskScore || 0).bg}`}>
+              <Shield className={`h-5 w-5 ${getRiskLevelColor(riskData.overallRiskScore || 0).icon}`} />
             </div>
           </div>
+          <p className={`text-xs font-medium mt-2 ${getRiskLevelColor(riskData.overallRiskScore || 0).text}`}>
+            {getRiskLevel(riskData.overallRiskScore || 0)}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Departments at Risk</p>
+              <p className="text-2xl font-bold text-gray-900">{riskData.departmentsAtRisk || 0}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-orange-100">
+              <Building className="h-5 w-5 text-orange-600" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">of {riskData.departmentAssessments.length} total</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Critical Incidents</p>
+              <p className="text-2xl font-bold text-gray-900">{riskData.criticalIncidents || 0}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-red-100">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Requiring immediate action</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">High Risk Users</p>
+              <p className="text-2xl font-bold text-gray-900">{riskData.highRiskUsers || 0}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-purple-100">
+              <UserX className="h-5 w-5 text-purple-600" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Need security review</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">MTTR</p>
+              <p className="text-2xl font-bold text-gray-900">{riskData.mttrHours?.toFixed(1) || '0'}h</p>
+            </div>
+            <div className="p-3 rounded-lg bg-blue-100">
+              <Clock className="h-5 w-5 text-blue-600" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Mean time to resolution</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Compliance</p>
+              <p className="text-2xl font-bold text-gray-900">{riskData.complianceRate?.toFixed(1) || '100'}%</p>
+            </div>
+            <div className="p-3 rounded-lg bg-green-100">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">SLA compliance rate</p>
         </div>
       </div>
 
-      {/* Overall Risk Score Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        {/* Risk Score Card */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-lg ${getRiskLevelColor(riskData.overallRiskScore || 0).bg} ${getRiskLevelColor(riskData.overallRiskScore || 0).icon}`}>
-              <Shield className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Risk Score</p>
-              <h3 className="text-2xl font-bold">
-                {riskData.overallRiskScore !== null ? 
-                  `${getRiskLevel(riskData.overallRiskScore)} (${riskData.overallRiskScore.toFixed(1)})` : 
-                  'Loading...'}
-              </h3>
-            </div>
-          </div>
-        </div>
-        
-        {/* Critical Issues Card */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-red-100 text-red-600">
-              <AlertTriangle className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Critical Incidents</p>
-              <h3 className="text-2xl font-bold">
-                {riskData.criticalIncidents !== null ? riskData.criticalIncidents : '...'}
-              </h3>
-            </div>
-          </div>
-        </div>
-        
-        {/* Vulnerabilities Card */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-blue-100 text-blue-600">
-              <Activity className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Vulnerabilities</p>
-              <h3 className="text-2xl font-bold">
-                {riskData.vulnerabilityAssessments.length > 0 ? 
-                  riskData.vulnerabilityAssessments.filter(v => v.score < 50).length : 
-                  '...'}
-              </h3>
-            </div>
-          </div>
-        </div>
-        
-        {/* Departments at Risk Card */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-orange-100 text-orange-600">
-              <Building className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Depts at Risk</p>
-              <h3 className="text-2xl font-bold">
-                {riskData.departmentsAtRisk !== null ? riskData.departmentsAtRisk : '...'}
-              </h3>
-            </div>
-          </div>
-        </div>
-        
-        {/* High Risk Users Card */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-purple-100 text-purple-600">
-              <Users className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">High Risk Users</p>
-              <h3 className="text-2xl font-bold">
-                {riskData.highRiskUsers !== null ? riskData.highRiskUsers : '...'}
-              </h3>
-            </div>
-          </div>
-        </div>
-        
-        {/* Compliance Rate Card */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-green-100 text-green-600">
-              <CheckCircle className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Compliance</p>
-              <h3 className="text-2xl font-bold">
-                {riskData.complianceRate !== null ? `${riskData.complianceRate.toFixed(1)}%` : '...'}
-              </h3>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Grid */}
+      {/* Main Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Risk Categories Analysis */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-4">
+        {/* Department Risk Distribution */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold">Risk Category Analysis</h2>
-                <p className="text-gray-600">Security posture across key risk dimensions</p>
+                <h2 className="text-lg font-bold text-gray-900">Department Risk Distribution</h2>
+                <p className="text-sm text-gray-500">Risk scores by organizational unit</p>
               </div>
-              {riskData.riskLevel && (
-                <div className="text-sm font-medium">
-                  Overall: <span className={getRiskLevelColor(riskData.overallRiskScore || 0).text}>
-                    {riskData.riskLevel}
-                  </span>
-                </div>
-              )}
+              <Building className="h-5 w-5 text-gray-400" />
             </div>
           </div>
           
-          {loading.vulnerabilities ? (
-            <div className="h-80 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <div className="p-5">
+            {loading.departments ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="animate-pulse">
+                    <div className="h-16 bg-gray-100 rounded-lg"></div>
+                  </div>
+                ))}
+              </div>
+            ) : riskData.departmentAssessments.length > 0 ? (
+              <div className="space-y-4">
+                {riskData.departmentAssessments.map((dept, index) => {
+                  const riskScore = dept.overall_risk_score || 0;
+                  const colors = getRiskLevelColor(riskScore);
+                  return (
+                    <div 
+                      key={index} 
+                      className={`p-4 rounded-lg border ${colors.border} hover:shadow-md transition-all cursor-pointer`}
+                      onClick={() => setSelectedDepartment(dept)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Building className="h-4 w-4 text-gray-400" />
+                          <span className="font-medium text-gray-900">{dept.department_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-lg font-bold ${colors.text}`}>{riskScore.toFixed(1)}</span>
+                          <div className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+                            {dept.risk_level?.toUpperCase() || getRiskLevel(riskScore).toUpperCase()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                        <div 
+                          className="h-2 rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${riskScore}%`,
+                            backgroundColor: riskScore >= 60 ? '#EA580C' : riskScore >= 40 ? '#EAB308' : '#22C55E'
+                          }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>📋 {dept.incident_count} incidents</span>
+                        <span>👥 {dept.user_count} users</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Building className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No department data available</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Risk Category Analysis */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Risk Category Analysis</h2>
+                <p className="text-sm text-gray-500">Security posture across key dimensions</p>
+              </div>
+              <BarChart className="h-5 w-5 text-gray-400" />
             </div>
-          ) : riskData.vulnerabilityAssessments.length > 0 ? (
-            <div className="h-80 overflow-y-auto pr-2">
-              <div className="space-y-3">
+          </div>
+          
+          <div className="p-5">
+            {loading.vulnerabilities ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="animate-pulse">
+                    <div className="h-20 bg-gray-100 rounded-lg"></div>
+                  </div>
+                ))}
+              </div>
+            ) : riskData.vulnerabilityAssessments.length > 0 ? (
+              <div className="space-y-4">
                 {riskData.vulnerabilityAssessments.map((category, index) => {
                   const score = category.score || 0;
-                  const riskColors = getRiskLevelColor(score);
+                  const percentage = (score / category.max_score) * 100;
+                  let barColor = 'bg-green-500';
+                  if (score < 40) barColor = 'bg-red-500';
+                  else if (score < 60) barColor = 'bg-orange-500';
+                  else if (score < 80) barColor = 'bg-yellow-500';
+                  
                   return (
-                    <div key={index} className="space-y-2 p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">{category.category}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold">{score.toFixed(1)}/{category.max_score}</span>
-                          {getSeverityBadge(score)}
-                        </div>
+                    <div key={index} className="p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-gray-900">{category.category}</span>
+                        {getVulnerabilityBadge(category.severity)}
                       </div>
-                      <p className="text-sm text-gray-600">{category.description}</p>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-gray-500">Security Score</span>
+                        <span className="font-medium">{score.toFixed(1)}/{category.max_score}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                         <div 
-                          className="h-2 rounded-full" 
-                          style={{ 
-                            width: `${(score/category.max_score)*100}%`,
-                            backgroundColor: score < 50 ? '#DC2626' : 
-                                           score < 70 ? '#FF6B35' : '#4ECDC4'
-                          }}
-                        ></div>
+                          className={`h-2 rounded-full transition-all duration-500 ${barColor}`}
+                          style={{ width: `${percentage}%` }}
+                        />
                       </div>
                       {category.recommendations && category.recommendations.length > 0 && (
-                        <div className="mt-2 text-xs text-gray-500">
-                          <strong>Recommendations:</strong> {category.recommendations[0]}
-                        </div>
+                        <p className="text-xs text-gray-500 mt-2 truncate">
+                          💡 {category.recommendations[0]}
+                        </p>
                       )}
                     </div>
                   );
                 })}
               </div>
-            </div>
-          ) : (
-            <div className="h-80 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg">
-              <BarChart className="h-12 w-12 text-gray-400 mb-3" />
-              <p className="text-gray-500">No vulnerability data available</p>
-              <p className="text-sm text-gray-400 mt-1">Run an assessment to generate data</p>
-            </div>
-          )}
-        </div>
-
-        {/* Department Risk Distribution */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold">Department Risk Distribution</h2>
-                <p className="text-gray-600">Risk scores by organizational unit</p>
+            ) : (
+              <div className="text-center py-8">
+                <BarChart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No category data available</p>
               </div>
-              <div className="text-sm text-gray-500">
-                {riskData.departmentAssessments.length} departments
-              </div>
-            </div>
+            )}
           </div>
-          
-          {loading.departments ? (
-            <div className="h-80 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            </div>
-          ) : riskData.departmentAssessments.length > 0 ? (
-            <div className="h-80 overflow-y-auto pr-2">
-              <div className="space-y-3">
-                {riskData.departmentAssessments.slice(0, 10).map((dept, index) => {
-                  const riskScore = dept.overall_risk_score || 0;
-                  const riskColors = getRiskLevelColor(riskScore);
-                  return (
-                    <div key={index} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div 
-                        className="w-3 h-3 rounded-full"
-                        style={{
-                          backgroundColor: riskScore >= 80 ? '#DC2626' : 
-                                          riskScore >= 60 ? '#FF6B35' : 
-                                          riskScore >= 40 ? '#FFA07A' : '#4ECDC4'
-                        }}
-                      ></div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">{dept.department_name}</span>
-                          <span className="font-bold">{riskScore.toFixed(1)}</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                          <div 
-                            className="h-1.5 rounded-full" 
-                            style={{ 
-                              width: `${riskScore}%`,
-                              backgroundColor: riskScore >= 80 ? '#DC2626' : 
-                                             riskScore >= 60 ? '#FF6B35' : 
-                                             riskScore >= 40 ? '#FFA07A' : '#4ECDC4'
-                            }}
-                          ></div>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-500 mt-1">
-                          <span>{dept.incident_count} incidents</span>
-                          <span>{dept.user_count} users</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="h-80 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg">
-              <Building className="h-12 w-12 text-gray-400 mb-3" />
-              <p className="text-gray-500">No department risk data available</p>
-              <p className="text-sm text-gray-400 mt-1">Run an assessment to generate data</p>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Vulnerabilities Section */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="mb-4">
-          <h2 className="text-xl font-bold">Identified Vulnerabilities</h2>
-          <p className="text-gray-600">Security weaknesses requiring immediate attention</p>
+      {/* Risk Trend Analysis - Full Width */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Risk Trend Analysis</h2>
+              <p className="text-sm text-gray-500">Weekly risk score progression (showing periods with activity)</p>
+            </div>
+            <Activity className="h-5 w-5 text-gray-400" />
+          </div>
         </div>
         
-        {loading.vulnerabilities ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="p-4 border border-gray-200 rounded-lg animate-pulse">
-                <div className="flex items-start gap-4">
-                  <div className="p-2 rounded-lg bg-gray-200"></div>
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : riskData.vulnerabilityAssessments.length > 0 ? (
-          <div className="space-y-4">
-            {riskData.vulnerabilityAssessments
-              .filter(v => v.score < 70)  // Only show vulnerabilities with score < 70
-              .map((vuln, index) => {
-                const riskColors = getRiskLevelColor(vuln.score);
-                return (
-                  <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-start gap-4">
-                      <div className={`p-2 rounded-lg ${riskColors.bg} ${riskColors.icon}`}>
-                        <AlertTriangle className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium">{vuln.category} Vulnerability</h4>
-                          {getSeverityBadge(vuln.score)}
-                        </div>
-                        <p className="text-sm text-gray-600">{vuln.description}</p>
-                        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                          <p className="text-sm">
-                            <strong>Recommendations:</strong> {vuln.recommendations && vuln.recommendations.length > 0 
-                              ? vuln.recommendations[0] 
-                              : 'No specific recommendations available'}
-                          </p>
-                        </div>
-
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-500">No critical vulnerabilities identified</p>
-            <p className="text-sm text-gray-400 mt-1">All security categories are within acceptable limits</p>
-          </div>
-        )}
-      </div>
-
-      {/* High Risk Users and Trends Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* High Risk Users */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">High-Risk Users</h2>
-              <span className="text-sm text-gray-500">
-                {riskData.userRiskProfiles.length} users
-              </span>
-            </div>
-            <p className="text-gray-600">Users requiring immediate attention</p>
-          </div>
-          
-          {loading.users ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg animate-pulse">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-200"></div>
-                    <div>
-                      <div className="h-4 bg-gray-200 rounded w-24"></div>
-                      <div className="h-3 bg-gray-200 rounded w-16 mt-1"></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="h-4 bg-gray-200 rounded w-12"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : riskData.userRiskProfiles.length > 0 ? (
-            <div className="space-y-3">
-              {riskData.userRiskProfiles.slice(0, 5).map((user, index) => {
-                const riskColors = getRiskLevelColor(user.risk_score);
-                return (
-                  <div key={index} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        <span className="text-sm font-medium text-blue-600">
-                          {getUserAvatar(user.full_name)}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{user.full_name}</p>
-                        <p className="text-xs text-gray-500">
-                          {user.department_name || 'No department'}
-                          {user.role && ` • ${user.role}`}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-medium ${riskColors.text}`}>
-                        Risk: {user.risk_score.toFixed(1)}
-                      </p>
-                      <button className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1 rounded-lg text-sm font-medium mt-1 transition-colors">
-                        Review
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">No high-risk users identified</p>
-              <p className="text-sm text-gray-400 mt-1">All users are within acceptable risk limits</p>
-            </div>
-          )}
-        </div>
-
-        {/* Risk Trend Analysis */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold">Risk Trend Analysis</h2>
-            <p className="text-gray-600">Weekly risk score progression</p>
-          </div>
-          
+        <div className="p-5">
           {loading.metrics ? (
             <div className="h-64 flex items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
             </div>
           ) : riskData.riskTrends.length > 0 ? (
-            <>
-              <div className="h-64">
-                <div className="space-y-3">
-                  {riskData.riskTrends.slice(0, 8).map((trend, index) => (
-                    <div key={index} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span>{trend.period}</span>
-                        <span className="font-medium">{trend.risk_score.toFixed(1)}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-400 h-2 rounded-full" 
-                          style={{ width: `${trend.risk_score}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>{trend.incident_count} incidents</span>
-                        <span>{trend.user_count} users</span>
+            <div className="space-y-4">
+              {riskData.riskTrends.map((trend, index) => {
+                const riskScore = trend.risk_score || 0;
+                const colors = getRiskLevelColor(riskScore);
+                return (
+                  <div key={index} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium text-gray-700">{trend.period}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-500">{trend.incident_count} incidents</span>
+                        <span className={`font-bold ${colors.text}`}>{riskScore.toFixed(1)}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Trend Analysis */}
-              {riskData.securityMetrics?.trend_direction && (
-                <div className={`mt-4 p-4 rounded-lg border ${
-                  riskData.securityMetrics.trend_direction === 'increasing' ? 'bg-red-50 border-red-200' :
-                  riskData.securityMetrics.trend_direction === 'decreasing' ? 'bg-green-50 border-green-200' :
-                  'bg-gray-50 border-gray-200'
-                }`}>
-                  <div className="flex items-center gap-2 ${
-                    riskData.securityMetrics.trend_direction === 'increasing' ? 'text-red-700' :
-                    riskData.securityMetrics.trend_direction === 'decreasing' ? 'text-green-700' :
-                    'text-gray-700'
-                  }">
-                    {getTrendIcon(riskData.securityMetrics.trend_direction)}
-                    <p className="text-sm font-medium">
-                      Risk {riskData.securityMetrics.trend_direction === 'increasing' ? 'Increasing' :
-                           riskData.securityMetrics.trend_direction === 'decreasing' ? 'Decreasing' : 'Stable'}
-                    </p>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          riskScore >= 60 ? 'bg-orange-500' : riskScore >= 40 ? 'bg-yellow-500' : 'bg-green-500'
+                        }`}
+                        style={{ width: `${riskScore}%` }}
+                      />
+                    </div>
+                    {trend.user_count > 0 && (
+                      <p className="text-xs text-gray-400">👥 {trend.user_count} users involved</p>
+                    )}
                   </div>
-                  {riskData.securityMetrics.analysis && (
-                    <p className={`text-sm mt-1 ${
-                      riskData.securityMetrics.trend_direction === 'increasing' ? 'text-red-600' :
-                      riskData.securityMetrics.trend_direction === 'decreasing' ? 'text-green-600' :
-                      'text-gray-600'
-                    }`}>
-                      {riskData.securityMetrics.analysis}
-                    </p>
-                  )}
+                );
+              })}
+              {riskData.riskTrends.length === 0 && (
+                <div className="text-center py-8">
+                  <Activity className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No incident activity in selected period</p>
+                  <p className="text-sm text-gray-400 mt-1">Run a new assessment to generate trends</p>
                 </div>
               )}
-            </>
+            </div>
           ) : (
-            <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg">
-              <Activity className="h-12 w-12 text-gray-400 mb-3" />
+            <div className="text-center py-8">
+              <Activity className="h-12 w-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No trend data available</p>
               <p className="text-sm text-gray-400 mt-1">Run an assessment to generate trend data</p>
             </div>
@@ -796,59 +636,172 @@ export function RiskAssessment() {
         </div>
       </div>
 
-      {/* Recommendations Section */}
-      {riskData.recommendations && riskData.recommendations.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold">Action Recommendations</h2>
-            <p className="text-gray-600">Based on current risk assessment</p>
+      {/* High Risk Users and Vulnerabilities Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* High Risk Users */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">High-Risk Users</h2>
+                <p className="text-sm text-gray-500">Users requiring security attention</p>
+              </div>
+              <Users className="h-5 w-5 text-gray-400" />
+            </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {riskData.recommendations.map((recommendation, index) => {
-              // Categorize recommendations by severity
-              let bgColor = 'bg-blue-50';
-              let borderColor = 'border-blue-200';
-              let iconColor = 'text-blue-600';
-              
-              if (recommendation.toLowerCase().includes('critical') || recommendation.toLowerCase().includes('immediate')) {
-                bgColor = 'bg-red-50';
-                borderColor = 'border-red-200';
-                iconColor = 'text-red-600';
-              } else if (recommendation.toLowerCase().includes('high') || recommendation.toLowerCase().includes('urgent')) {
-                bgColor = 'bg-orange-50';
-                borderColor = 'border-orange-200';
-                iconColor = 'text-orange-600';
-              } else if (recommendation.toLowerCase().includes('medium') || recommendation.toLowerCase().includes('significant')) {
-                bgColor = 'bg-yellow-50';
-                borderColor = 'border-yellow-200';
-                iconColor = 'text-yellow-600';
-              }
-              
-              return (
-                <div key={index} className={`p-4 ${borderColor} border rounded-lg ${bgColor}`}>
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${bgColor.replace('50', '100')} ${iconColor}`}>
-                      <FileText className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm">{recommendation}</p>
-                    </div>
+          <div className="p-5">
+            {loading.users ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="animate-pulse">
+                    <div className="h-16 bg-gray-100 rounded-lg"></div>
                   </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            ) : riskData.userRiskProfiles.length > 0 ? (
+              <div className="space-y-3">
+                {riskData.userRiskProfiles.map((user, index) => {
+                  const riskScore = user.riskScore || 0;
+                  const colors = getRiskLevelColor(riskScore);
+                  return (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${colors.bg}`}>
+                          <span className={`text-sm font-medium ${colors.text}`}>
+                            {getUserAvatar(user.name)}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{user.name}</p>
+                          <p className="text-xs text-gray-500">{user.department || 'No department'}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+                          Risk: {riskScore.toFixed(1)}
+                        </div>
+                        {user.incident_count > 0 && (
+                          <p className="text-xs text-gray-400 mt-1">{user.incident_count} incidents</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <UserCheck className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                <p className="text-gray-500">No high-risk users identified</p>
+                <p className="text-sm text-gray-400 mt-1">All users are within acceptable risk limits</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Critical Vulnerabilities */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Critical Vulnerabilities</h2>
+                <p className="text-sm text-gray-500">Security weaknesses needing immediate attention</p>
+              </div>
+              <AlertOctagon className="h-5 w-5 text-gray-400" />
+            </div>
+          </div>
+          
+          <div className="p-5">
+            {riskData.vulnerabilityAssessments.filter(v => v.severity === 'critical' || v.severity === 'high').length > 0 ? (
+              <div className="space-y-3">
+                {riskData.vulnerabilityAssessments
+                  .filter(v => v.severity === 'critical' || v.severity === 'high')
+                  .map((vuln, index) => (
+                    <div key={index} className="p-3 rounded-lg border border-red-100 bg-red-50">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-medium text-red-800">{vuln.category}</h4>
+                            {getVulnerabilityBadge(vuln.severity)}
+                          </div>
+                          <p className="text-sm text-red-700 mb-2">{vuln.description}</p>
+                          <p className="text-xs text-red-600">
+                            <strong>Action Required:</strong> {vuln.recommendations?.[0] || 'Review and remediate'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                <p className="text-gray-500">No critical vulnerabilities detected</p>
+                <p className="text-sm text-gray-400 mt-1">Security posture looks good</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Recommendations Section */}
+      {riskData.recommendations && riskData.recommendations.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Action Recommendations</h2>
+                <p className="text-sm text-gray-500">Prioritized actions based on assessment</p>
+              </div>
+              <Target className="h-5 w-5 text-gray-400" />
+            </div>
+          </div>
+          
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {riskData.recommendations.map((recommendation, index) => {
+                let bgColor = 'bg-blue-50';
+                let borderColor = 'border-blue-200';
+                let iconColor = 'text-blue-600';
+                let Icon = Shield;
+                
+                if (recommendation.includes('🔴') || recommendation.includes('Critical')) {
+                  bgColor = 'bg-red-50';
+                  borderColor = 'border-red-200';
+                  iconColor = 'text-red-600';
+                  Icon = AlertTriangle;
+                } else if (recommendation.includes('⚠️') || recommendation.includes('High Risk')) {
+                  bgColor = 'bg-orange-50';
+                  borderColor = 'border-orange-200';
+                  iconColor = 'text-orange-600';
+                  Icon = AlertCircle;
+                } else if (recommendation.includes('📋')) {
+                  bgColor = 'bg-yellow-50';
+                  borderColor = 'border-yellow-200';
+                  iconColor = 'text-yellow-600';
+                  Icon = FileText;
+                }
+                
+                return (
+                  <div key={index} className={`p-3 rounded-lg border ${borderColor} ${bgColor} flex items-start gap-2`}>
+                    <Icon className={`h-4 w-4 ${iconColor} mt-0.5 flex-shrink-0`} />
+                    <p className="text-sm text-gray-700">{recommendation}</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Data Status Footer */}
-      <div className="text-center text-sm text-gray-500">
-        <p>Data last updated: {new Date().toLocaleString()}</p>
+      {/* Footer */}
+      <div className="text-center text-xs text-gray-400 pt-4">
+        <p>Data based on 90-day assessment period | Last updated: {new Date().toLocaleString()}</p>
         <p className="mt-1">
-          {riskData.departmentAssessments.length} departments assessed • 
-          {riskData.userRiskProfiles.length} users analyzed • 
-          {riskData.vulnerabilityAssessments.length} categories evaluated
+          {riskData.departmentAssessments.length} departments • 
+          {riskData.vulnerabilityAssessments.length} risk categories • 
+          {riskData.userRiskProfiles.length} users analyzed
         </p>
       </div>
     </div>

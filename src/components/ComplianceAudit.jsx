@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+                              import React, { useState, useEffect } from 'react';
 import {
   Shield, FileText, AlertTriangle, CheckCircle, XCircle,
   Search, Download, Eye, Edit, Trash2, Plus,
@@ -7,7 +7,7 @@ import {
   Building, Target, Award, Flag, Layers, PieChart,
   Save, X, FileBarChart, CheckSquare, Database,
   UserCheck, ShieldAlert, ClipboardCheck, Gauge,
-  Percent, ListChecks, FileSearch, BarChart3
+  Percent, ListChecks, FileSearch, BarChart3, Filter
 } from "lucide-react";
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +25,8 @@ const StatusBadge = ({ status, size = "sm" }) => {
     'open': { color: 'bg-red-100 text-red-800', label: 'Open' },
     'resolved': { color: 'bg-green-100 text-green-800', label: 'Resolved' },
     'closed': { color: 'bg-gray-100 text-gray-800', label: 'Closed' },
+    'created': { color: 'bg-gray-100 text-gray-800', label: 'Created' },
+    'solved': { color: 'bg-green-100 text-green-800', label: 'Solved' },
   };
 
   const config = statusConfig[status] || { color: 'bg-gray-100 text-gray-800', label: status };
@@ -32,6 +34,23 @@ const StatusBadge = ({ status, size = "sm" }) => {
 
   return (
     <span className={`inline-flex items-center rounded-full font-medium ${config.color} ${sizeClass}`}>
+      {config.label}
+    </span>
+  );
+};
+
+const RemediationStatusBadge = ({ status }) => {
+  const statusConfig = {
+    'waiting': { color: 'bg-gray-100 text-gray-800', label: 'Waiting' },
+    'in_progress': { color: 'bg-yellow-100 text-yellow-800', label: 'In Progress' },
+    'completed': { color: 'bg-green-100 text-green-800', label: 'Completed' },
+    'verified': { color: 'bg-blue-100 text-blue-800', label: 'Verified' },
+    'not_required': { color: 'bg-gray-100 text-gray-400', label: 'Not Required' },
+  };
+
+  const config = statusConfig[status] || { color: 'bg-gray-100 text-gray-800', label: status };
+  return (
+    <span className={`inline-flex items-center rounded-full font-medium ${config.color} px-2 py-1 text-xs`}>
       {config.label}
     </span>
   );
@@ -113,19 +132,33 @@ const StatCard = ({ title, value, change, icon, color, description }) => {
   );
 };
 
-// Modals
+// Create Standard Modal
 const CreateStandardModal = ({ isOpen, onClose, onSubmit, standard = null }) => {
   const [formData, setFormData] = useState({
-    name: standard?.name || '',
-    standard_type: standard?.standard_type || 'gdpr',
-    version: standard?.version || '',
-    description: standard?.description || '',
-    is_active: standard?.is_active ?? true,
-    total_controls: standard?.total_controls || 0,
-    mandatory_controls: standard?.mandatory_controls || 0,
+    name: '',
+    standard_type: 'gdpr',
+    version: '',
+    description: '',
+    is_active: true,
+    total_controls: 0,
+    mandatory_controls: 0,
   });
 
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (standard) {
+      setFormData({
+        name: standard.name || '',
+        standard_type: standard.standard_type || 'gdpr',
+        version: standard.version || '',
+        description: standard.description || '',
+        is_active: standard.is_active ?? true,
+        total_controls: standard.total_controls || 0,
+        mandatory_controls: standard.mandatory_controls || 0,
+      });
+    }
+  }, [standard]);
 
   const standardTypes = [
     { value: 'gdpr', label: 'GDPR' },
@@ -141,7 +174,6 @@ const CreateStandardModal = ({ isOpen, onClose, onSubmit, standard = null }) => 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       await onSubmit(formData, standard?.id);
       onClose();
@@ -164,14 +196,8 @@ const CreateStandardModal = ({ isOpen, onClose, onSubmit, standard = null }) => 
               <h2 className="text-2xl font-bold text-gray-900">
                 {standard ? 'Edit Compliance Standard' : 'Create New Compliance Standard'}
               </h2>
-              <p className="text-gray-600 mt-1">
-                {standard ? 'Update standard details' : 'Add a new compliance standard to the system'}
-              </p>
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="h-6 w-6" />
             </button>
           </div>
@@ -179,28 +205,22 @@ const CreateStandardModal = ({ isOpen, onClose, onSubmit, standard = null }) => 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Standard Name *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Standard Name *</label>
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="e.g., General Data Protection Regulation"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Standard Type *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Standard Type *</label>
                 <select
                   required
                   value={formData.standard_type}
                   onChange={(e) => setFormData({ ...formData, standard_type: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
                 >
                   {standardTypes.map(type => (
                     <option key={type.value} value={type.value}>{type.label}</option>
@@ -211,86 +231,57 @@ const CreateStandardModal = ({ isOpen, onClose, onSubmit, standard = null }) => 
 
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Version *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Version *</label>
                 <input
                   type="text"
                   required
                   value={formData.version}
                   onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="e.g., v2.1, 2023"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <div className="flex items-center space-x-4 mt-2">
                   <label className="flex items-center">
                     <input
                       type="radio"
-                      name="is_active"
                       checked={formData.is_active}
                       onChange={() => setFormData({ ...formData, is_active: true })}
-                      className="h-4 w-4 text-blue-600 border-gray-300"
+                      className="h-4 w-4 text-blue-600"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Active</span>
+                    <span className="ml-2 text-sm">Active</span>
                   </label>
                   <label className="flex items-center">
                     <input
                       type="radio"
-                      name="is_active"
                       checked={!formData.is_active}
                       onChange={() => setFormData({ ...formData, is_active: false })}
-                      className="h-4 w-4 text-blue-600 border-gray-300"
+                      className="h-4 w-4 text-blue-600"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Inactive</span>
+                    <span className="ml-2 text-sm">Inactive</span>
                   </label>
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
               <textarea
                 required
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 rows={4}
-                placeholder="Describe the compliance standard requirements, scope, and objectives..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
-              >
+            <div className="flex items-center justify-end gap-4 pt-6 border-t">
+              <button type="button" onClick={onClose} className="px-6 py-3 border rounded-xl hover:bg-gray-50">
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-medium flex items-center gap-2 transition-colors"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    {standard ? 'Updating...' : 'Creating...'}
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" />
-                    {standard ? 'Update Standard' : 'Create Standard'}
-                  </>
-                )}
+              <button type="submit" disabled={loading} className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50">
+                {loading ? (standard ? 'Updating...' : 'Creating...') : (standard ? 'Update Standard' : 'Create Standard')}
               </button>
             </div>
           </form>
@@ -300,17 +291,33 @@ const CreateStandardModal = ({ isOpen, onClose, onSubmit, standard = null }) => 
   );
 };
 
+// Create Finding Modal
 const CreateFindingModal = ({ isOpen, onClose, onSubmit, audit, finding = null }) => {
   const [formData, setFormData] = useState({
-    title: finding?.title || '',
-    description: finding?.description || '',
-    finding_type: finding?.finding_type || 'minor',
-    risk_level: finding?.risk_level || 'medium',
-    status: finding?.status || 'open',
-    target_completion_date: finding?.target_completion_date || '',
+    title: '',
+    description: '',
+    finding_type: 'minor',
+    risk_level: 'medium',
+    status: 'created',
+    target_completion_date: '',
+    resolution_notes: '',
   });
 
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (finding) {
+      setFormData({
+        title: finding.title || '',
+        description: finding.description || '',
+        finding_type: finding.finding_type || 'minor',
+        risk_level: finding.risk_level || 'medium',
+        status: finding.status || 'created',
+        target_completion_date: finding.target_completion_date || '',
+        resolution_notes: finding.resolution_notes || '',
+      });
+    }
+  }, [finding]);
 
   const findingTypes = [
     { value: 'major', label: 'Major Finding' },
@@ -327,21 +334,17 @@ const CreateFindingModal = ({ isOpen, onClose, onSubmit, audit, finding = null }
   ];
 
   const statusOptions = [
-    { value: 'open', label: 'Open' },
+    { value: 'created', label: 'Created' },
     { value: 'in_progress', label: 'In Progress' },
-    { value: 'resolved', label: 'Resolved' },
+    { value: 'solved', label: 'Solved' },
     { value: 'closed', label: 'Closed' },
   ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const data = {
-        ...formData,
-        audit: audit.id,
-      };
+      const data = { ...formData, audit: audit.id };
       await onSubmit(data, finding?.id);
       onClose();
     } catch (error) {
@@ -354,6 +357,11 @@ const CreateFindingModal = ({ isOpen, onClose, onSubmit, audit, finding = null }
 
   if (!isOpen) return null;
 
+  const isEditMode = !!finding;
+  const isSolved = finding?.status === 'solved';
+  const isClosed = finding?.status === 'closed';
+  const isDisabled = isSolved || isClosed;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -363,14 +371,10 @@ const CreateFindingModal = ({ isOpen, onClose, onSubmit, audit, finding = null }
               <h2 className="text-2xl font-bold text-gray-900">
                 {finding ? 'Edit Audit Finding' : 'Create New Audit Finding'}
               </h2>
-              <p className="text-gray-600 mt-1">
-                {finding ? 'Update finding details' : 'Add a new finding for audit ' + (audit?.audit_id || '')}
-              </p>
+              {isSolved && <p className="text-red-600 text-sm mt-1">Solved findings cannot be edited</p>}
+              {isClosed && <p className="text-red-600 text-sm mt-1">Closed findings cannot be edited</p>}
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="h-6 w-6" />
             </button>
           </div>
@@ -378,28 +382,24 @@ const CreateFindingModal = ({ isOpen, onClose, onSubmit, audit, finding = null }
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Finding Title *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Finding Title *</label>
                 <input
                   type="text"
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="e.g., Inadequate access control for sensitive data"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Finding Type *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Finding Type *</label>
                 <select
                   required
                   value={formData.finding_type}
                   onChange={(e) => setFormData({ ...formData, finding_type: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 >
                   {findingTypes.map(type => (
                     <option key={type.value} value={type.value}>{type.label}</option>
@@ -410,30 +410,27 @@ const CreateFindingModal = ({ isOpen, onClose, onSubmit, audit, finding = null }
 
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Risk Level *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Risk Level *</label>
                 <select
                   required
                   value={formData.risk_level}
                   onChange={(e) => setFormData({ ...formData, risk_level: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 >
                   {riskLevels.map(level => (
                     <option key={level.value} value={level.value}>{level.label}</option>
                   ))}
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status *</label>
                 <select
                   required
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={isClosed}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 >
                   {statusOptions.map(status => (
                     <option key={status.value} value={status.value}>{status.label}</option>
@@ -443,55 +440,51 @@ const CreateFindingModal = ({ isOpen, onClose, onSubmit, audit, finding = null }
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
               <textarea
                 required
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                disabled={isDisabled}
                 rows={4}
-                placeholder="Describe the finding in detail, including what was discovered and why it's an issue..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Target Completion Date
-              </label>
-              <input
-                type="date"
-                value={formData.target_completion_date}
-                onChange={(e) => setFormData({ ...formData, target_completion_date: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Target Completion Date</label>
+                <input
+                  type="date"
+                  value={formData.target_completion_date}
+                  onChange={(e) => setFormData({ ...formData, target_completion_date: e.target.value })}
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Resolution Notes</label>
+                <textarea
+                  value={formData.resolution_notes}
+                  onChange={(e) => setFormData({ ...formData, resolution_notes: e.target.value })}
+                  disabled={isDisabled}
+                  rows={2}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
+                  placeholder="Add resolution notes when solving the finding..."
+                />
+              </div>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
-              >
+            <div className="flex items-center justify-end gap-4 pt-6 border-t">
+              <button type="button" onClick={onClose} className="px-6 py-3 border rounded-xl hover:bg-gray-50">
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-medium flex items-center gap-2 transition-colors"
+                disabled={loading || isDisabled}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
               >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    {finding ? 'Updating...' : 'Creating...'}
-                  </>
-                ) : (
-                  <>
-                    <Flag className="h-4 w-4" />
-                    {finding ? 'Update Finding' : 'Create Finding'}
-                  </>
-                )}
+                {loading ? (finding ? 'Updating...' : 'Creating...') : (finding ? 'Update Finding' : 'Create Finding')}
               </button>
             </div>
           </form>
@@ -501,18 +494,35 @@ const CreateFindingModal = ({ isOpen, onClose, onSubmit, audit, finding = null }
   );
 };
 
+// Control Assessment Modal
 const ControlAssessmentModal = ({ isOpen, onClose, onSubmit, audit, control = null }) => {
   const [formData, setFormData] = useState({
-    control_name: control?.control_name || '',
-    control_description: control?.control_description || '',
-    status: control?.status || 'not_assessed',
-    notes: control?.notes || '',
-    remediation_required: control?.remediation_required || false,
-    remediation_status: control?.remediation_status || 'not_required',
-    remediation_deadline: control?.remediation_deadline || '',
+    control_name: '',
+    control_description: '',
+    status: 'not_assessed',
+    notes: '',
+    remediation_required: false,
+    remediation_status: 'waiting',
+    remediation_deadline: '',
+    remediation_notes: '',
   });
 
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (control) {
+      setFormData({
+        control_name: control.control_name || '',
+        control_description: control.control_description || '',
+        status: control.status || 'not_assessed',
+        notes: control.notes || '',
+        remediation_required: control.remediation_required || false,
+        remediation_status: control.remediation_status || 'waiting',
+        remediation_deadline: control.remediation_deadline || '',
+        remediation_notes: control.remediation_notes || '',
+      });
+    }
+  }, [control]);
 
   const statusOptions = [
     { value: 'not_assessed', label: 'Not Assessed' },
@@ -522,21 +532,18 @@ const ControlAssessmentModal = ({ isOpen, onClose, onSubmit, audit, control = nu
   ];
 
   const remediationStatusOptions = [
-    { value: 'not_required', label: 'Not Required' },
-    { value: 'open', label: 'Open' },
+    { value: 'waiting', label: 'Waiting' },
     { value: 'in_progress', label: 'In Progress' },
     { value: 'completed', label: 'Completed' },
+    { value: 'verified', label: 'Verified' },
+    { value: 'not_required', label: 'Not Required' },
   ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const data = {
-        ...formData,
-        audit: audit.id,
-      };
+      const data = { ...formData, audit: audit.id };
       await onSubmit(data, control?.id);
       onClose();
     } catch (error) {
@@ -549,6 +556,11 @@ const ControlAssessmentModal = ({ isOpen, onClose, onSubmit, audit, control = nu
 
   if (!isOpen) return null;
 
+  const isEditMode = !!control;
+  const isCompleted = control?.remediation_status === 'completed';
+  const isVerified = control?.remediation_status === 'verified';
+  const isDisabled = isCompleted || isVerified;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -558,14 +570,10 @@ const ControlAssessmentModal = ({ isOpen, onClose, onSubmit, audit, control = nu
               <h2 className="text-2xl font-bold text-gray-900">
                 {control ? 'Edit Control Assessment' : 'Add Control Assessment'}
               </h2>
-              <p className="text-gray-600 mt-1">
-                {control ? 'Update control assessment' : 'Assess a control for audit ' + (audit?.audit_id || '')}
-              </p>
+              {isCompleted && <p className="text-red-600 text-sm mt-1">Completed controls cannot be edited</p>}
+              {isVerified && <p className="text-red-600 text-sm mt-1">Verified controls cannot be edited</p>}
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="h-6 w-6" />
             </button>
           </div>
@@ -573,28 +581,24 @@ const ControlAssessmentModal = ({ isOpen, onClose, onSubmit, audit, control = nu
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Control Name *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Control Name *</label>
                 <input
                   type="text"
                   required
                   value={formData.control_name}
                   onChange={(e) => setFormData({ ...formData, control_name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="e.g., Access Control Policy"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Assessment Status *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Assessment Status *</label>
                 <select
                   required
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 >
                   {statusOptions.map(status => (
                     <option key={status.value} value={status.value}>{status.label}</option>
@@ -604,41 +608,35 @@ const ControlAssessmentModal = ({ isOpen, onClose, onSubmit, audit, control = nu
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Control Description *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Control Description *</label>
               <textarea
                 required
                 value={formData.control_description}
                 onChange={(e) => setFormData({ ...formData, control_description: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                disabled={isDisabled}
                 rows={3}
-                placeholder="Describe the control requirements and implementation..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notes
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={isDisabled}
                   rows={2}
-                  placeholder="Additional assessment notes..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Remediation Status
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remediation Status</label>
                 <select
                   value={formData.remediation_status}
                   onChange={(e) => setFormData({ ...formData, remediation_status: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 >
                   {remediationStatusOptions.map(status => (
                     <option key={status.value} value={status.value}>{status.label}</option>
@@ -654,49 +652,45 @@ const ControlAssessmentModal = ({ isOpen, onClose, onSubmit, audit, control = nu
                     type="checkbox"
                     checked={formData.remediation_required}
                     onChange={(e) => setFormData({ ...formData, remediation_required: e.target.checked })}
+                    disabled={isDisabled}
                     className="h-4 w-4 text-blue-600 rounded"
                   />
                   <span className="text-sm text-gray-700">Remediation Required</span>
                 </label>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Remediation Deadline
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remediation Deadline</label>
                 <input
                   type="date"
                   value={formData.remediation_deadline}
                   onChange={(e) => setFormData({ ...formData, remediation_deadline: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={isDisabled}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
-              >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Remediation Notes</label>
+              <textarea
+                value={formData.remediation_notes}
+                onChange={(e) => setFormData({ ...formData, remediation_notes: e.target.value })}
+                disabled={isDisabled}
+                rows={2}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm disabled:bg-gray-100"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-4 pt-6 border-t">
+              <button type="button" onClick={onClose} className="px-6 py-3 border rounded-xl hover:bg-gray-50">
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-medium flex items-center gap-2 transition-colors"
+                disabled={loading || isDisabled}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
               >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    {control ? 'Updating...' : 'Creating...'}
-                  </>
-                ) : (
-                  <>
-                    <CheckSquare className="h-4 w-4" />
-                    {control ? 'Update Control' : 'Add Control Assessment'}
-                  </>
-                )}
+                {loading ? (control ? 'Updating...' : 'Creating...') : (control ? 'Update Control' : 'Add Control')}
               </button>
             </div>
           </form>
@@ -706,14 +700,244 @@ const ControlAssessmentModal = ({ isOpen, onClose, onSubmit, audit, control = nu
   );
 };
 
+// Create Audit Modal
+const CreateAuditModal = ({ isOpen, onClose, onSubmit, standards = [], incidents = [], user }) => {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    standard_id: '',
+    audit_type: 'internal',
+    incident_ids: [],
+    planned_start_date: '',
+    planned_end_date: '',
+    lead_auditor_id: user?.id || '',
+    priority: 'medium',
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [selectedIncidents, setSelectedIncidents] = useState([]);
+  const [incidentSearch, setIncidentSearch] = useState('');
+
+  const auditTypes = [
+    { value: 'internal', label: 'Internal Audit' },
+    { value: 'external', label: 'External Audit' },
+    { value: 'regulatory', label: 'Regulatory Audit' },
+    { value: 'certification', label: 'Certification Audit' },
+    { value: 'incident_response', label: 'Incident Response Audit' },
+  ];
+
+  const priorityOptions = [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'critical', label: 'Critical' },
+  ];
+
+  // Filter incidents based on search
+  const filteredIncidents = incidents.filter(incident =>
+    incident.title?.toLowerCase().includes(incidentSearch.toLowerCase()) ||
+    incident.incident_number?.toLowerCase().includes(incidentSearch.toLowerCase())
+  );
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const data = {
+        ...formData,
+        incident_ids: selectedIncidents.map(inc => inc.id),
+      };
+      await onSubmit(data);
+      onClose();
+    } catch (error) {
+      console.error('Error creating audit:', error);
+      alert(error.response?.data?.error || 'Failed to create audit');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="p-8">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Create New Compliance Audit</h2>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Audit Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Compliance Standard *</label>
+                <select
+                  required
+                  value={formData.standard_id}
+                  onChange={(e) => setFormData({ ...formData, standard_id: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
+                >
+                  <option value="">Select standard</option>
+                  {standards.map(standard => (
+                    <option key={standard.id} value={standard.id}>
+                      {standard.name} ({standard.standard_type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Audit Type *</label>
+                <select
+                  required
+                  value={formData.audit_type}
+                  onChange={(e) => setFormData({ ...formData, audit_type: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
+                >
+                  {auditTypes.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Priority *</label>
+                <select
+                  required
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
+                >
+                  {priorityOptions.map(priority => (
+                    <option key={priority.value} value={priority.value}>{priority.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Planned Start Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.planned_start_date}
+                  onChange={(e) => setFormData({ ...formData, planned_start_date: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Planned End Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.planned_end_date}
+                  onChange={(e) => setFormData({ ...formData, planned_end_date: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Link to Incidents (Optional)</label>
+              <div className="mb-3 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search incidents..."
+                  value={incidentSearch}
+                  onChange={(e) => setIncidentSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+              <div className="border border-gray-300 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                {filteredIncidents.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">No incidents found</div>
+                ) : (
+                  filteredIncidents.map(incident => (
+                    <label
+                      key={incident.id}
+                      className={`flex items-center gap-3 p-3 border-b border-gray-200 last:border-b-0 cursor-pointer hover:bg-gray-50 ${selectedIncidents.some(inc => inc.id === incident.id) ? 'bg-blue-50' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIncidents.some(inc => inc.id === incident.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIncidents([...selectedIncidents, incident]);
+                          } else {
+                            setSelectedIncidents(selectedIncidents.filter(inc => inc.id !== incident.id));
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 rounded"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm text-gray-900">{incident.incident_number}</div>
+                        <div className="text-xs text-gray-500">{incident.title}</div>
+                      </div>
+                      <SeverityBadge severity={incident.severity} size="sm" />
+                    </label>
+                  ))
+                )}
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                {selectedIncidents.length} incident(s) selected
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-4 pt-6 border-t">
+              <button type="button" onClick={onClose} className="px-6 py-3 border rounded-xl hover:bg-gray-50">
+                Cancel
+              </button>
+              <button type="submit" disabled={loading} className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50">
+                {loading ? 'Creating...' : 'Create Audit'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Report Generator Modal
 const ReportGeneratorModal = ({ isOpen, onClose, onSubmit, audits = [] }) => {
   const [formData, setFormData] = useState({
     title: `Audit Report ${new Date().toLocaleDateString()}`,
     format: 'pdf',
+    audit_ids: [],
+    generate_for_all: false,
   });
 
   const [loading, setLoading] = useState(false);
-  const [selectedAuditId, setSelectedAuditId] = useState('');
+  const [selectedAuditIds, setSelectedAuditIds] = useState([]);
+  const [auditSearch, setAuditSearch] = useState('');
 
   const formatOptions = [
     { value: 'pdf', label: 'PDF Document', icon: <FileText /> },
@@ -722,20 +946,31 @@ const ReportGeneratorModal = ({ isOpen, onClose, onSubmit, audits = [] }) => {
     { value: 'html', label: 'HTML Report', icon: <FileText /> },
   ];
 
+  // Filter audits based on search
+  const filteredAudits = audits.filter(audit =>
+    audit.title?.toLowerCase().includes(auditSearch.toLowerCase()) ||
+    audit.audit_id?.toLowerCase().includes(auditSearch.toLowerCase())
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    if (!selectedAuditId) {
-      alert('Please select an audit to generate a report for');
+    let auditIdsToUse = [];
+    if (formData.generate_for_all) {
+      auditIdsToUse = audits.map(a => a.id);
+    } else if (selectedAuditIds.length === 0) {
+      alert('Please select at least one audit or choose "Generate for All"');
       setLoading(false);
       return;
+    } else {
+      auditIdsToUse = selectedAuditIds;
     }
 
     try {
       const reportData = {
         ...formData,
-        audit_ids: [parseInt(selectedAuditId)],
+        audit_ids: auditIdsToUse,
         parameters: JSON.stringify({
           date_from: '',
           date_to: '',
@@ -743,8 +978,6 @@ const ReportGeneratorModal = ({ isOpen, onClose, onSubmit, audits = [] }) => {
           include_controls: true,
         }),
       };
-
-      console.log('Submitting report data:', reportData);
       await onSubmit(reportData);
       onClose();
     } catch (error) {
@@ -755,68 +988,50 @@ const ReportGeneratorModal = ({ isOpen, onClose, onSubmit, audits = [] }) => {
     }
   };
 
+  const toggleAuditSelection = (auditId) => {
+    setSelectedAuditIds(prev =>
+      prev.includes(auditId) ? prev.filter(id => id !== auditId) : [...prev, auditId]
+    );
+  };
+
+  const toggleAllAudits = () => {
+    if (selectedAuditIds.length === filteredAudits.length) {
+      setSelectedAuditIds([]);
+    } else {
+      setSelectedAuditIds(filteredAudits.map(a => a.id));
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         <div className="p-8">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Generate Audit Report</h2>
               <p className="text-gray-600 mt-1">Create detailed audit reports in various formats</p>
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="h-6 w-6" />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Report Title *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Report Title *</label>
               <input
                 type="text"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                placeholder="e.g., Annual GDPR Compliance Audit Report"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Audit *
-              </label>
-              <select
-                required
-                value={selectedAuditId}
-                onChange={(e) => setSelectedAuditId(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              >
-                <option value="">Choose an audit...</option>
-                {audits.map(audit => (
-                  <option key={audit.id} value={audit.id}>
-                    {audit.audit_id} - {audit.title}
-                  </option>
-                ))}
-              </select>
-              {selectedAuditId && (
-                <div className="mt-2 text-xs text-gray-500">
-                  Selected: {audits.find(a => a.id === parseInt(selectedAuditId))?.title}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Report Format *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Report Format *</label>
               <div className="grid grid-cols-2 gap-4">
                 {formatOptions.map(format => (
                   <button
@@ -847,279 +1062,86 @@ const ReportGeneratorModal = ({ isOpen, onClose, onSubmit, audits = [] }) => {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !selectedAuditId}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2 transition-colors"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <FileBarChart className="h-4 w-4" />
-                    Generate Report
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const CreateAuditModal = ({ isOpen, onClose, onSubmit, standards = [], incidents = [], user }) => {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    standard_id: '',
-    audit_type: 'internal',
-    incident_ids: [],
-    planned_start_date: '',
-    planned_end_date: '',
-    lead_auditor_id: user?.id || '',
-    priority: 'medium',
-  });
-
-  const [loading, setLoading] = useState(false);
-  const [selectedIncidents, setSelectedIncidents] = useState([]);
-
-  const auditTypes = [
-    { value: 'internal', label: 'Internal Audit' },
-    { value: 'external', label: 'External Audit' },
-    { value: 'regulatory', label: 'Regulatory Audit' },
-    { value: 'certification', label: 'Certification Audit' },
-    { value: 'incident_response', label: 'Incident Response Audit' },
-  ];
-
-  const priorityOptions = [
-    { value: 'low', label: 'Low' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'High' },
-    { value: 'critical', label: 'Critical' },
-  ];
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const data = {
-        ...formData,
-        incident_ids: selectedIncidents.map(inc => inc.id),
-      };
-      await onSubmit(data);
-      onClose();
-    } catch (error) {
-      console.error('Error creating audit:', error);
-      alert(error.response?.data?.error || 'Failed to create audit');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="p-8">
-          <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Create New Compliance Audit</h2>
-              <p className="text-gray-600 mt-1">Schedule a new compliance audit</p>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Audit Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="e.g., Annual GDPR Compliance Audit"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Compliance Standard *
-                </label>
-                <select
-                  required
-                  value={formData.standard_id}
-                  onChange={(e) => setFormData({ ...formData, standard_id: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                >
-                  <option value="">Select standard</option>
-                  {standards.map(standard => (
-                    <option key={standard.id} value={standard.id}>
-                      {standard.name} ({standard.standard_type})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Audit Type *
-                </label>
-                <select
-                  required
-                  value={formData.audit_type}
-                  onChange={(e) => setFormData({ ...formData, audit_type: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                >
-                  {auditTypes.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Priority *
-                </label>
-                <select
-                  required
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                >
-                  {priorityOptions.map(priority => (
-                    <option key={priority.value} value={priority.value}>{priority.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Planned Start Date *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.planned_start_date}
-                  onChange={(e) => setFormData({ ...formData, planned_start_date: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Planned End Date *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.planned_end_date}
-                  onChange={(e) => setFormData({ ...formData, planned_end_date: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                rows={3}
-                placeholder="Describe the audit scope and objectives..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Link to Incidents (Optional)
-              </label>
-              <div className="border border-gray-300 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
-                {incidents.map(incident => (
-                  <label
-                    key={incident.id}
-                    className={`flex items-center gap-3 p-3 border-b border-gray-200 last:border-b-0 cursor-pointer hover:bg-gray-50 ${selectedIncidents.some(inc => inc.id === incident.id) ? 'bg-blue-50' : ''
-                      }`}
-                  >
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">Select Audits</label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={selectedIncidents.some(inc => inc.id === incident.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedIncidents([...selectedIncidents, incident]);
-                        } else {
-                          setSelectedIncidents(selectedIncidents.filter(inc => inc.id !== incident.id));
-                        }
-                      }}
+                      checked={formData.generate_for_all}
+                      onChange={(e) => setFormData({ ...formData, generate_for_all: e.target.checked })}
                       className="h-4 w-4 text-blue-600 rounded"
                     />
-                    <div className="flex-1">
-                      <div className="font-medium text-sm text-gray-900">{incident.incident_number}</div>
-                      <div className="text-xs text-gray-500">{incident.title}</div>
-                    </div>
-                    <SeverityBadge severity={incident.severity} size="sm" />
+                    <span className="text-sm text-gray-600">Generate for All Audits</span>
                   </label>
-                ))}
+                </div>
               </div>
-              <div className="mt-2 text-xs text-gray-500">
-                {selectedIncidents.length} incident(s) selected
-              </div>
+
+              {!formData.generate_for_all && (
+                <>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search audits..."
+                      value={auditSearch}
+                      onChange={(e) => setAuditSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="border border-gray-300 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                    <div className="p-2 border-b border-gray-200 bg-gray-50">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedAuditIds.length === filteredAudits.length && filteredAudits.length > 0}
+                          onChange={toggleAllAudits}
+                          className="h-4 w-4 text-blue-600 rounded"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Select All ({filteredAudits.length})</span>
+                      </label>
+                    </div>
+                    {filteredAudits.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">No audits found</div>
+                    ) : (
+                      filteredAudits.map(audit => (
+                        <label
+                          key={audit.id}
+                          className={`flex items-center gap-3 p-3 border-b border-gray-200 last:border-b-0 cursor-pointer hover:bg-gray-50 ${selectedAuditIds.includes(audit.id) ? 'bg-blue-50' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedAuditIds.includes(audit.id)}
+                            onChange={() => toggleAuditSelection(audit.id)}
+                            className="h-4 w-4 text-blue-600 rounded"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm text-gray-900">{audit.audit_id}</div>
+                            <div className="text-xs text-gray-500">{audit.title}</div>
+                          </div>
+                          <StatusBadge status={audit.status} size="sm" />
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    {selectedAuditIds.length} audit(s) selected
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
-              >
+            <div className="flex items-center justify-end gap-4 pt-6 border-t">
+              <button type="button" onClick={onClose} className="px-6 py-3 border rounded-xl hover:bg-gray-50">
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-medium flex items-center gap-2 transition-colors"
+                disabled={loading || (!formData.generate_for_all && selectedAuditIds.length === 0)}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
               >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Shield className="h-4 w-4" />
-                    Create Audit
-                  </>
-                )}
+                {loading ? 'Generating...' : 'Generate Report'}
               </button>
             </div>
           </form>
@@ -1129,10 +1151,53 @@ const CreateAuditModal = ({ isOpen, onClose, onSubmit, standards = [], incidents
   );
 };
 
-const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, onAddFinding, onAddControl, findings = [], controls = [] }) => {
+// Audit Detail Modal - Fixed Version
+const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, onAddFinding, onAddControl, findings = [], controls = [], onFindingUpdate, onControlUpdate, onFindingDelete, onControlDelete }) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [canComplete, setCanComplete] = useState(false);
+  const [completionCheck, setCompletionCheck] = useState(null);
+
+  // Check if user has admin or security_analyst role
+  const canModify = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin);
+  const canDelete = user && (user.role === 'admin' || user.is_admin || user.role === 'compliance_officer');
+  const canCompleteAudit = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin);
+  const hasFullAccess = user && (user.role === 'admin' || user.is_admin);
+  const hasMiddleAccess = user && (user.role === 'security_analyst');
+  const hasLessAccess = user && !(user.role === 'admin' || user.is_admin || user.role === 'security_analyst');
+  const canView = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin || user.role === 'compliance_officer');
+  
+  // NEW: Determine if user can edit/delete findings and controls
+  // This allows security_analyst and compliance_officer to have action buttons
+  const canEditFindings = user && (user.role === 'admin' || user.role === 'security_analyst' || user.role === 'compliance_officer' || user.is_admin);
+  const canEditControls = user && (user.role === 'admin' || user.role === 'security_analyst' || user.role === 'compliance_officer' || user.is_admin);
+  const canDeleteFindings = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin);
+  const canDeleteControls = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin);
+
+  // Check if audit can be completed
+  const checkCompletionReadiness = async () => {
+    if (!audit) return;
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get(
+        `${API_BASE_URL}/compliance-audit/audits/${audit.id}/check-completion/`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data.success) {
+        setCanComplete(response.data.can_complete);
+        setCompletionCheck(response.data.readiness);
+      }
+    } catch (error) {
+      console.error('Error checking completion readiness:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && audit) {
+      checkCompletionReadiness();
+    }
+  }, [isOpen, audit, findings, controls]);
 
   if (!isOpen || !audit) return null;
 
@@ -1174,6 +1239,23 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
     }
   };
 
+  const handleMarkComplete = async () => {
+    if (!canComplete) {
+      alert('Cannot complete audit. Please ensure all findings are solved and all required controls are completed.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await onUpdate(audit.id, { status: 'completed' });
+      onClose();
+    } catch (error) {
+      console.error('Error completing audit:', error);
+      alert('Failed to complete audit');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden">
@@ -1200,10 +1282,7 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
               </div>
               <p className="text-gray-600 mt-2">{audit.description}</p>
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="h-6 w-6" />
             </button>
           </div>
@@ -1324,24 +1403,30 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h3 className="font-medium text-gray-700 mb-4">Findings Summary</h3>
+                  <h3 className="font-medium text-gray-700 mb-4">Completion Status</h3>
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Total Findings:</span>
-                      <span className="font-medium">{findings.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Open Findings:</span>
-                      <span className="font-medium text-yellow-600">
-                        {findings.filter(f => f.status === 'open').length}
+                      <span className="text-gray-600">Findings Solved:</span>
+                      <span className={`font-medium ${completionCheck?.all_findings_solved ? 'text-green-600' : 'text-red-600'}`}>
+                        {findings.filter(f => f.status === 'solved' || f.status === 'closed').length} / {findings.length}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Resolved Findings:</span>
-                      <span className="font-medium text-green-600">
-                        {findings.filter(f => f.status === 'resolved' || f.status === 'closed').length}
+                      <span className="text-gray-600">Controls Completed:</span>
+                      <span className={`font-medium ${completionCheck?.all_controls_completed ? 'text-green-600' : 'text-red-600'}`}>
+                        {controls.filter(c => c.remediation_status === 'completed').length} / {controls.filter(c => c.remediation_required).length}
                       </span>
                     </div>
+                    {completionCheck && !completionCheck.all_findings_solved && (
+                      <div className="text-xs text-red-600 mt-2">
+                        ⚠️ {completionCheck.unsolved_findings_count} unsolved finding(s) remaining
+                      </div>
+                    )}
+                    {completionCheck && !completionCheck.all_controls_completed && (
+                      <div className="text-xs text-red-600 mt-2">
+                        ⚠️ {completionCheck.incomplete_controls_count} incomplete control(s) remaining
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1352,107 +1437,107 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="font-medium text-gray-700">Audit Findings</h3>
-                <button
-                  onClick={() => onAddFinding(audit)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Finding
-                </button>
+                {canEditFindings && audit.status !== 'completed' && (
+                  <button
+                    onClick={() => onAddFinding(audit)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Finding
+                  </button>
+                )}
               </div>
 
               {findings.length === 0 ? (
                 <div className="text-center py-12">
                   <Flag className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500 font-medium">No findings added yet</p>
-                  <p className="text-sm text-gray-400 mt-2">Add findings discovered during the audit</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Title</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Type/Risk</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Status</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Due Date</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>
+                        <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Title</th>
+                        <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Type/Risk</th>
+                        <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Status</th>
+                        <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Due Date</th>
+                        {canEditFindings && audit.status !== 'completed' && (
+                          <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Actions</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {findings.map(finding => (
-                        <tr key={finding.id} className="hover:bg-gray-50">
-                          <td className="py-4 px-6">
-                            <div className="max-w-xs">
-                              <div className="font-medium text-sm text-gray-900 truncate">
-                                {finding.title}
+                      {findings.map(finding => {
+                        const isSolved = finding.status === 'solved' || finding.status === 'closed';
+                        // FIXED: Allow editing for security_analyst and compliance_officer
+                        const isEditable = canEditFindings && audit.status !== 'completed' && !isSolved;
+                        
+                        return (
+                          <tr key={finding.id} className="hover:bg-gray-50">
+                            <td className="py-4 px-6">
+                              <div className="max-w-xs">
+                                <div className="font-medium text-sm text-gray-900 truncate">{finding.title}</div>
+                                <div className="text-xs text-gray-500 truncate">{finding.description?.substring(0, 50)}...</div>
                               </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {finding.description?.substring(0, 50)}...
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="flex flex-col gap-1">
+                                <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.finding_type === 'major' ? 'bg-red-100 text-red-800' :
+                                  finding.finding_type === 'minor' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-blue-100 text-blue-800'
+                                  }`}>
+                                  {finding.finding_type}
+                                </span>
+                                <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.risk_level === 'high' ? 'bg-red-100 text-red-800' :
+                                  finding.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-green-100 text-green-800'
+                                  }`}>
+                                  {finding.risk_level}
+                                </span>
                               </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex flex-col gap-1">
-                              <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.finding_type === 'major' ? 'bg-red-100 text-red-800' :
-                                finding.finding_type === 'minor' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-blue-100 text-blue-800'
+                            </td>
+                            <td className="py-4 px-6">
+                              <StatusBadge status={finding.status} />
+                             </td>
+                            <td className="py-4 px-6">
+                              <span className={`text-sm ${finding.target_completion_date &&
+                                new Date(finding.target_completion_date) < new Date() &&
+                                ['created', 'in_progress'].includes(finding.status) ?
+                                'text-red-600 font-medium' : 'text-gray-600'
                                 }`}>
-                                {finding.finding_type}
+                                {formatDate(finding.target_completion_date)}
                               </span>
-                              <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.risk_level === 'high' ? 'bg-red-100 text-red-800' :
-                                finding.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-green-100 text-green-800'
-                                }`}>
-                                {finding.risk_level}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <StatusBadge status={finding.status} />
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className={`text-sm ${finding.target_completion_date &&
-                              new Date(finding.target_completion_date) < new Date() &&
-                              ['open', 'in_progress'].includes(finding.status) ?
-                              'text-red-600 font-medium' : 'text-gray-600'
-                              }`}>
-                              {formatDate(finding.target_completion_date)}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => onAddFinding(audit, finding)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (window.confirm('Are you sure you want to delete this finding?')) {
-                                    try {
-                                      const token = localStorage.getItem('access_token');
-                                      await axios.delete(
-                                        `${API_BASE_URL}/compliance-audit/findings/${finding.id}/`,
-                                        { headers: { Authorization: `Bearer ${token}` } }
-                                      );
-                                      onUpdate(); // Refresh data
-                                    } catch (error) {
-                                      console.error('Error deleting finding:', error);
-                                    }
-                                  }
-                                }}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                             </td>
+                            {canEditFindings && audit.status !== 'completed' && (
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => onAddFinding(audit, finding)}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                    title="Edit"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                  {canDeleteFindings && (finding.status !== 'solved' && finding.status !== 'resolved') && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm('Are you sure you want to delete this finding?')) {
+                                          onFindingDelete?.(finding.id);
+                                        }
+                                      }}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1464,106 +1549,105 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="font-medium text-gray-700">Control Assessments</h3>
-                <button
-                  onClick={() => onAddControl(audit)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Control
-                </button>
+                {canEditControls && audit.status !== 'completed' && (
+                  <button
+                    onClick={() => onAddControl(audit)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Control
+                  </button>
+                )}
               </div>
 
               {controls.length === 0 ? (
                 <div className="text-center py-12">
                   <CheckSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500 font-medium">No controls assessed yet</p>
-                  <p className="text-sm text-gray-400 mt-2">Add control assessments for this audit</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Control Name</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Status</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Remediation</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>
+                        <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Control Name</th>
+                        <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Status</th>
+                        <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Remediation</th>
+                        {canEditControls && audit.status !== 'completed' && (
+                          <th className="text-left py-3 px-6 text-sm font-medium text-gray-700">Actions</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {controls.map(control => (
-                        <tr key={control.id} className="hover:bg-gray-50">
-                          <td className="py-4 px-6">
-                            <div className="max-w-xs">
-                              <div className="font-medium text-sm text-gray-900 truncate">
-                                {control.control_name}
+                      {controls.map(control => {
+                        const isCompleted = control.remediation_status === 'completed' || control.remediation_status === 'verified';
+                        // FIXED: Allow editing for security_analyst and compliance_officer
+                        const isEditable = canEditControls && audit.status !== 'completed' && !isCompleted;
+                        
+                        return (
+                          <tr key={control.id} className="hover:bg-gray-50">
+                            <td className="py-4 px-6">
+                              <div className="max-w-xs">
+                                <div className="font-medium text-sm text-gray-900 truncate">
+                                  {control.control_name}
+                                </div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {control.control_description?.substring(0, 50)}...
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {control.control_description?.substring(0, 50)}...
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${control.status === 'compliant' ? 'bg-green-100 text-green-800' :
-                              control.status === 'non_compliant' ? 'bg-red-100 text-red-800' :
-                                control.status === 'partially_compliant' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
-                              }`}>
-                              {control.status.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6">
-                            {control.remediation_required ? (
-                              <div className="space-y-1">
-                                <span className={`px-2 py-1 rounded text-xs ${control.remediation_status === 'completed' ? 'bg-green-100 text-green-800' :
-                                  control.remediation_status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-red-100 text-red-800'
-                                  }`}>
-                                  {control.remediation_status}
-                                </span>
-                                {control.remediation_deadline && (
-                                  <div className="text-xs text-gray-500">
-                                    Due: {formatDate(control.remediation_deadline)}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-500">Not required</span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${control.status === 'compliant' ? 'bg-green-100 text-green-800' :
+                                control.status === 'non_compliant' ? 'bg-red-100 text-red-800' :
+                                  control.status === 'partially_compliant' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-gray-100 text-gray-800'
+                                }`}>
+                                {control.status.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6">
+                              {control.remediation_required ? (
+                                <div className="space-y-1">
+                                  <RemediationStatusBadge status={control.remediation_status} />
+                                  {control.remediation_deadline && (
+                                    <div className="text-xs text-gray-500">
+                                      Due: {formatDate(control.remediation_deadline)}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-sm text-gray-500">Not required</span>
+                              )}
+                            </td>
+                            {canEditControls && audit.status !== 'completed' && (
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => onAddControl(audit, control)}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                    title="Edit"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                  {canDeleteControls && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm('Are you sure you want to delete this control assessment?')) {
+                                          onControlDelete?.(control.id);
+                                        }
+                                      }}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
                             )}
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => onAddControl(audit, control)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (window.confirm('Are you sure you want to delete this control assessment?')) {
-                                    try {
-                                      const token = localStorage.getItem('access_token');
-                                      await axios.delete(
-                                        `${API_BASE_URL}/compliance-audit/controls/${control.id}/`,
-                                        { headers: { Authorization: `Bearer ${token}` } }
-                                      );
-                                      onUpdate(); // Refresh data
-                                    } catch (error) {
-                                      console.error('Error deleting control:', error);
-                                    }
-                                  }
-                                }}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1575,26 +1659,23 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
         <div className="border-t border-gray-200 p-8 bg-gray-50">
           <div className="flex items-center justify-between">
             <div className="flex gap-3">
-              {(user?.role === 'admin' || user?.role === 'compliance_officer') && (
-                <>
-                  {audit.status !== 'completed' && (
-                    <button
-                      onClick={() => {
-                        onUpdate(audit.id, { status: 'completed' });
-                        onClose();
-                      }}
-                      disabled={loading}
-                      className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 font-medium flex items-center gap-2"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      Mark Complete
-                    </button>
-                  )}
-                </>
+              {canCompleteAudit && audit.status !== 'completed' && (
+                <button
+                  onClick={handleMarkComplete}
+                  disabled={!canComplete || loading}
+                  className={`px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors ${canComplete
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-gray-400 cursor-not-allowed text-white'
+                    }`}
+                  title={!canComplete ? "Complete all findings and controls first" : ""}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Mark Complete
+                </button>
               )}
             </div>
 
-            {(user?.role === 'admin' || user?.role === 'compliance_officer') && (
+            {canDelete && (
               <div className="relative">
                 {!showDeleteConfirm ? (
                   <button
@@ -1634,6 +1715,7 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
 // Main Component
 export function ComplianceAudit() {
   const { user } = useAuth();
+  console.log('Current user:', user);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
     overview: {},
@@ -1648,6 +1730,7 @@ export function ComplianceAudit() {
   const [filters, setFilters] = useState({
     search: '',
     status: '',
+    audit_type: '',
     page: 1,
     page_size: 10,
   });
@@ -1667,6 +1750,18 @@ export function ComplianceAudit() {
 
   const token = localStorage.getItem('access_token');
 
+  // Role-based permissions
+  const canCreateStandard = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin);
+  const canCreateAudit = user && (user.role === 'admin' || user.role === 'security_analyst' || user.role === 'compliance_officer' || user.is_admin);
+  const canCreateFinding = user && (user.role === 'admin' || user.role === 'security_analyst' || user.role === 'compliance_officer' || user.is_admin);
+  const canCreateControl = user && (user.role === 'admin' || user.role === 'security_analyst' || user.role === 'compliance_officer' || user.is_admin);
+  const canDeleteCompletedIncident = user && (user.role === 'admin' || user.is_admin);
+  const hasFullAccess = user && (user.role === 'admin' && user.is_admin);
+  const hasMiddleAccess = user && (user.role === 'compliance_officer');
+  const hasLessAccess = user && (user.role === 'compliance_officer');
+  const canView = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin || user.role === 'compliance_officer');
+
+  // Fetch all data
   const fetchAllData = async () => {
     try {
       setLoading(true);
@@ -1675,91 +1770,56 @@ export function ComplianceAudit() {
       const standardsRes = await axios.get(`${API_BASE_URL}/compliance-audit/standards/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const standards = standardsRes.data?.results?.standards || standardsRes.data;
-      console.log("Standards endpoint - Full response:", standardsRes.data);
-      console.log("Standards endpoint - Parsed data:", standards);
-      console.log("Standards endpoint - Array length:", Array.isArray(standards) ? standards.length : 'Not an array');
+      const standards = standardsRes.data?.results?.standards || standardsRes.data || [];
 
-      // Fetch audits
+      // Fetch audits based on user role
       const auditsRes = await axios.get(`${API_BASE_URL}/compliance-audit/audits/`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: filters
+        params: {
+          search: filters.search,
+          status: filters.status,
+          audit_type: filters.audit_type,
+          page: filters.page,
+          page_size: filters.page_size
+        }
       });
-      const audits = auditsRes.data.audits || auditsRes.data?.results?.audits || auditsRes.data;
-      console.log("Audits endpoint - Full response:", auditsRes.data);
-      console.log("Audits endpoint - Parsed data:", audits);
-      console.log("Audits endpoint - Array length:", Array.isArray(audits) ? audits.length : 'Not an array');
+      const audits = auditsRes.data.audits || auditsRes.data?.results?.audits || auditsRes.data || [];
 
       // Fetch findings
       const findingsRes = await axios.get(`${API_BASE_URL}/compliance-audit/findings/`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { page_size: 100 }
       });
-      const findings = findingsRes.data.findings || findingsRes.data?.results?.findings || findingsRes.data;
-      console.log("Findings endpoint - Full response:", findingsRes.data);
-      console.log("Findings endpoint - Parsed data:", findings);
-      console.log("Findings endpoint - Array length:", Array.isArray(findings) ? findings.length : 'Not an array');
+      const findings = findingsRes.data.findings || findingsRes.data?.results?.findings || findingsRes.data || [];
 
       // Fetch controls
       const controlsRes = await axios.get(`${API_BASE_URL}/compliance-audit/controls/`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { page_size: 100 }
-      }).catch((error) => {
-        console.log("Controls endpoint - Error:", error.message);
-        return { data: [] };
-      });
+      }).catch(() => ({ data: [] }));
       const controls = controlsRes.data.control_assessments || controlsRes.data?.results?.control_assessments || controlsRes.data || [];
-      console.log("Controls endpoint - Full response:", controlsRes.data);
-      console.log("Controls endpoint - Parsed data:", controls);
-      console.log("Controls endpoint - Array length:", Array.isArray(controls) ? controls.length : 'Not an array');
 
-      // Fetch incidents
-      const incidentsRes = await axios.get(`${API_BASE_URL}/incidents/my/`, {
+      // Fetch incidents for audit creation (based on user role)
+      const incidentsRes = await axios.get(`${API_BASE_URL}/compliance-audit/incidents/for-audit/`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { page_size: 50 }
-      }).catch((error) => {
-        console.log("Incidents endpoint - Error:", error.message);
-        return { data: [] };
-      });
-      const incidents = incidentsRes.data.incidents || incidentsRes.data.results || incidentsRes.data || [];
-      console.log("Incidents endpoint - Full response:", incidentsRes.data);
-      console.log("Incidents endpoint - Parsed data:", incidents);
-      console.log("Incidents endpoint - Array length:", Array.isArray(incidents) ? incidents.length : 'Not an array');
+        params: { page_size: 100 }
+      }).catch(() => ({ data: [] }));
+      const incidents = incidentsRes.data.incidents || incidentsRes.data || [];
 
-      // Fetch reports
-      const reportsRes = await axios.get(`${API_BASE_URL}/compliance-audit/reports/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      }).catch((error) => {
-        console.log("Reports endpoint - Error:", error.message);
-        return { data: [] };
-      });
+      // Fetch reports based on user role
+      const reportsRes = await axios.get(`${API_BASE_URL}/compliance-audit/reports/by-role/`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { page_size: 100 }
+      }).catch(() => ({ data: [] }));
       const reports = reportsRes.data.reports || reportsRes.data?.results?.reports || reportsRes.data || [];
-      console.log("Reports endpoint - Full response:", reportsRes.data);
-      console.log("Reports endpoint - Parsed data:", reports);
-      console.log("Reports endpoint - Array length:", Array.isArray(reports) ? reports.length : 'Not an array');
 
       // Fetch dashboard overview
       const overviewRes = await axios.get(`${API_BASE_URL}/compliance-audit/dashboard/`, {
         headers: { Authorization: `Bearer ${token}` }
-      }).catch((error) => {
-        console.log("Dashboard endpoint - Error:", error.message);
-        return { data: {} };
-      });
+      }).catch(() => ({ data: {} }));
       const overview = overviewRes.data.dashboard || overviewRes.data || {};
-      console.log("Dashboard endpoint - Full response:", overviewRes.data);
-      console.log("Dashboard endpoint - Parsed data:", overview);
 
       setData({
-        overview,
-        audits: Array.isArray(audits) ? audits : [],
-        standards: Array.isArray(standards) ? standards : [],
-        findings: Array.isArray(findings) ? findings : [],
-        controls: Array.isArray(controls) ? controls : [],
-        incidents: Array.isArray(incidents) ? incidents : [],
-        reports: Array.isArray(reports) ? reports : [],
-      });
-
-      console.log("Final state data:", {
         overview,
         audits: Array.isArray(audits) ? audits : [],
         standards: Array.isArray(standards) ? standards : [],
@@ -1771,16 +1831,6 @@ export function ComplianceAudit() {
 
     } catch (error) {
       console.error('Error fetching data:', error);
-      console.error('Error details:', error.response?.data || error.message);
-      setData({
-        overview: {},
-        audits: [],
-        standards: [],
-        findings: [],
-        controls: [],
-        incidents: [],
-        reports: [],
-      });
     } finally {
       setLoading(false);
     }
@@ -1790,8 +1840,27 @@ export function ComplianceAudit() {
     if (token) {
       fetchAllData();
     }
-  }, [token, filters.page, filters.status]);
+  }, [token, filters.page, filters.status, filters.audit_type, filters.search]);
 
+  // Handle filter changes
+  const handleFilterChange = (newFilters) => {
+    setFilters(prev => ({
+      ...prev,
+      ...newFilters,
+      page: 1,
+    }));
+  };
+
+  // Handle search with debounce
+  const handleSearch = (searchTerm) => {
+    setFilters(prev => ({
+      ...prev,
+      search: searchTerm,
+      page: 1,
+    }));
+  };
+
+  // Handle create standard
   const handleCreateStandard = async (standardData, standardId = null) => {
     try {
       if (standardId) {
@@ -1815,11 +1884,11 @@ export function ComplianceAudit() {
     }
   };
 
+  // Handle delete standard
   const handleDeleteStandard = async (standardId) => {
     if (!window.confirm('Are you sure you want to delete this standard? This action cannot be undone.')) {
       return;
     }
-
     try {
       await axios.delete(
         `${API_BASE_URL}/compliance-audit/standards/${standardId}/`,
@@ -1833,6 +1902,7 @@ export function ComplianceAudit() {
     }
   };
 
+  // Handle create finding
   const handleCreateFinding = async (findingData, findingId = null) => {
     try {
       if (findingId) {
@@ -1856,6 +1926,22 @@ export function ComplianceAudit() {
     }
   };
 
+  // Handle delete finding
+  const handleDeleteFinding = async (findingId) => {
+    try {
+      await axios.delete(
+        `${API_BASE_URL}/compliance-audit/findings/${findingId}/`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchAllData();
+      alert('Finding deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting finding:', error);
+      alert(error.response?.data?.error || 'Failed to delete finding');
+    }
+  };
+
+  // Handle create control
   const handleCreateControl = async (controlData, controlId = null) => {
     try {
       if (controlId) {
@@ -1879,19 +1965,24 @@ export function ComplianceAudit() {
     }
   };
 
+  // Handle delete control
+  const handleDeleteControl = async (controlId) => {
+    try {
+      await axios.delete(
+        `${API_BASE_URL}/compliance-audit/controls/${controlId}/`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchAllData();
+      alert('Control deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting control:', error);
+      alert(error.response?.data?.error || 'Failed to delete control');
+    }
+  };
 
+  // Handle generate report
   const handleGenerateReport = async (reportData) => {
     try {
-      const token = localStorage.getItem('access_token');
-
-      if (!token) {
-        alert('Authentication required. Please log in again.');
-        return;
-      }
-
-      console.log('Generating report with data:', reportData);
-      console.log('Using token:', token.substring(0, 20) + '...');
-
       const response = await axios.post(
         `${API_BASE_URL}/compliance-audit/reports/generate/`,
         reportData,
@@ -1903,15 +1994,11 @@ export function ComplianceAudit() {
         }
       );
 
-      console.log('Report generation response:', response.data);
-
       if (response.data.success) {
         alert('Report generated successfully!');
-        fetchAllData(); // Refresh the reports list
+        fetchAllData();
 
-        // Automatically download the report
         if (response.data.report?.id) {
-          console.log('Initiating download for report ID:', response.data.report.id);
           await downloadReport(response.data.report.id);
         }
       } else {
@@ -1919,171 +2006,68 @@ export function ComplianceAudit() {
       }
     } catch (error) {
       console.error('Error generating report:', error);
-      console.error('Error response:', error.response?.data);
-
-      if (error.response?.status === 401) {
-        alert('Session expired. Please log in again.');
-        // Optionally redirect to login
-        // window.location.href = '/login';
-      } else {
-        alert(error.response?.data?.error || 'Failed to generate report');
-      }
+      alert(error.response?.data?.error || 'Failed to generate report');
     }
   };
 
+  // Download report
   const downloadReport = async (reportId) => {
-  try {
-    const token = localStorage.getItem('access_token');
-
-    if (!token) {
-      alert('Authentication required. Please log in again.');
-      return;
-    }
-
-    console.log('Downloading report ID:', reportId);
-    console.log('Using token:', token.substring(0, 20) + '...');
-
-    const downloadUrl = `${API_BASE_URL}/compliance-audit/reports/${reportId}/download/`;
-    console.log('Download URL:', downloadUrl);
-
-    // Use fetch instead of axios for better file download handling
-    const response = await fetch(downloadUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    console.log('Download response status:', response.status);
-    console.log('Download response headers:', Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Download error data:', errorData);
-
-      if (response.status === 401) {
-        alert('Session expired. Please log in again.');
-        return;
-      }
-
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-    }
-
-    // Get filename from Content-Disposition header
-    const contentDisposition = response.headers.get('Content-Disposition');
-    let filename = 'report.pdf'; // Default filename
-    
-    if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      if (filenameMatch && filenameMatch[1]) {
-        filename = filenameMatch[1].replace(/['"]/g, '');
-      }
-    }
-
-    // Get report format from custom header or infer from filename
-    const reportFormat = response.headers.get('X-Report-Format') || 
-                        filename.split('.').pop().toLowerCase() || 
-                        'pdf';
-    
-    console.log('Downloading as filename:', filename);
-    console.log('Report format:', reportFormat);
-
-    // Convert response to blob
-    const blob = await response.blob();
-    console.log('Downloaded blob size:', blob.size, 'bytes');
-    console.log('Blob type:', blob.type);
-
-    if (blob.size === 0) {
-      throw new Error('Downloaded file is empty');
-    }
-
-    // Validate blob type matches expected format
-    const expectedTypes = {
-      'pdf': 'application/pdf',
-      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'xls': 'application/vnd.ms-excel',
-      'csv': 'text/csv',
-      'html': 'text/html'
-    };
-
-    const expectedType = expectedTypes[reportFormat];
-    if (expectedType && blob.type && blob.type !== expectedType && blob.type !== 'application/octet-stream') {
-      console.warn(`Unexpected content type: ${blob.type}, expected: ${expectedType}`);
-    }
-
-    // Create download link
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    
-    // Append to body
-    document.body.appendChild(link);
-    
-    // Trigger download
-    link.click();
-    
-    // Cleanup
-    setTimeout(() => {
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    }, 100);
-
-    console.log('Download completed successfully');
-    
-    // Show success message
-    setTimeout(() => {
-      alert(`Report downloaded successfully as ${filename}`);
-    }, 300);
-
-  } catch (error) {
-    console.error('Error downloading report:', error);
-    
-    // Show user-friendly error message
-    let errorMessage = `Failed to download report: ${error.message}`;
-    
-    if (error.message.includes('empty')) {
-      errorMessage = 'The report file is empty. Please try generating the report again.';
-    } else if (error.message.includes('permission') || error.message.includes('401')) {
-      errorMessage = 'You do not have permission to download this report or your session has expired. Please log in again.';
-    } else if (error.message.includes('404')) {
-      errorMessage = 'Report file not found. Please generate the report again.';
-    }
-    
-    alert(errorMessage);
-  }
-};
-
-  const handleDeleteReport = async (reportId) => {
-    if (!window.confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
-      return;
-    }
-
     try {
-      const token = localStorage.getItem('access_token');
+      const downloadUrl = `${API_BASE_URL}/compliance-audit/reports/${reportId}/download/`;
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'report.pdf';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      alert('Failed to download report');
+    }
+  };
+
+  // Handle delete report
+  const handleDeleteReport = async (reportId) => {
+    if (!window.confirm('Are you sure you want to delete this report?')) return;
+    try {
       const response = await axios.delete(
         `${API_BASE_URL}/compliance-audit/reports/delete/${reportId}/`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
       if (response.data.success) {
         alert('Report deleted successfully!');
-        fetchAllData(); // Refresh the reports list
-      } else {
-        alert('Failed to delete report: ' + (response.data.error || 'Unknown error'));
+        fetchAllData();
       }
     } catch (error) {
       console.error('Error deleting report:', error);
-      alert(error.response?.data?.error || 'Failed to delete report');
+      alert('Failed to delete report');
     }
   };
 
-
+  // Handle delete audit
   const handleDeleteAudit = async (auditId) => {
-    if (!window.confirm('Are you sure you want to delete this audit?')) {
-      return;
-    }
-
+    if (!window.confirm('Are you sure you want to delete this audit?')) return;
     try {
       await axios.delete(
         `${API_BASE_URL}/compliance-audit/audits/${auditId}/`,
@@ -2097,6 +2081,7 @@ export function ComplianceAudit() {
     }
   };
 
+  // Handle update audit
   const handleUpdateAudit = async (auditId, updateData) => {
     try {
       await axios.patch(
@@ -2112,6 +2097,7 @@ export function ComplianceAudit() {
     }
   };
 
+  // Handle create audit
   const handleCreateAudit = async (auditData) => {
     try {
       await axios.post(
@@ -2119,7 +2105,6 @@ export function ComplianceAudit() {
         auditData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
       setShowCreateAuditModal(false);
       fetchAllData();
       alert('Audit created successfully!');
@@ -2129,12 +2114,22 @@ export function ComplianceAudit() {
     }
   };
 
-  const handleFilterChange = (newFilters) => {
-    setFilters(prev => ({
-      ...prev,
-      ...newFilters,
-      page: 1,
-    }));
+  // Handle delete completed incident (admin only)
+  const handleDeleteCompletedIncident = async (incidentId) => {
+    if (!window.confirm('Are you sure you want to permanently delete this completed incident? This will also delete all related audits, findings, and controls.')) {
+      return;
+    }
+    try {
+      await axios.delete(
+        `${API_BASE_URL}/compliance-audit/incidents/completed/${incidentId}/delete/`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchAllData();
+      alert('Completed incident deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting completed incident:', error);
+      alert(error.response?.data?.error || 'Failed to delete incident');
+    }
   };
 
   const formatDate = (dateString) => {
@@ -2150,7 +2145,7 @@ export function ComplianceAudit() {
     totalAudits: data.audits.length,
     completedAudits: data.audits.filter(a => a.status === 'completed').length,
     incidentAudits: data.audits.filter(a => a.audit_type === 'incident_response').length,
-    openFindings: data.findings.filter(f => f.status === 'open').length,
+    openFindings: data.findings.filter(f => f.status === 'created' || f.status === 'in_progress').length,
     highRiskFindings: data.findings.filter(f => f.risk_level === 'high' || f.risk_level === 'critical').length,
     totalStandards: data.standards.length,
     activeStandards: data.standards.filter(s => s.is_active).length,
@@ -2186,21 +2181,24 @@ export function ComplianceAudit() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => setShowCreateAuditModal(true)}
-                disabled={!user || !(user.role === 'admin' || user.role === 'compliance_officer')}
-                className="bg-white text-blue-600 hover:bg-blue-50 px-6 py-3 rounded-xl font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
-              >
-                <Plus className="h-4 w-4" />
-                New Audit
-              </button>
-              <button
-                onClick={() => setShowReportGeneratorModal(true)}
-                className="bg-white/10 hover:bg-white/20 border border-white/30 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
-              >
-                <FileBarChart className="h-4 w-4" />
-                Generate Report
-              </button>
+              {canCreateAudit && (
+                <button
+                  onClick={() => setShowCreateAuditModal(true)}
+                  className="bg-white text-blue-600 hover:bg-blue-50 px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors shadow-lg"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Audit
+                </button>
+              )}
+              {hasFullAccess && (
+                <button
+                  onClick={() => setShowReportGeneratorModal(true)}
+                  className="bg-white/10 hover:bg-white/20 border border-white/30 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
+                >
+                  <FileBarChart className="h-4 w-4" />
+                  Generate Report
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2282,8 +2280,8 @@ export function ComplianceAudit() {
                         type="text"
                         placeholder="Search audits..."
                         value={filters.search}
-                        onChange={(e) => handleFilterChange({ search: e.target.value })}
-                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        onChange={(e) => handleSearch(e.target.value)}
+                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm w-64"
                       />
                     </div>
                     <select
@@ -2297,16 +2295,26 @@ export function ComplianceAudit() {
                       <option value="in_progress">In Progress</option>
                       <option value="completed">Completed</option>
                     </select>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={fetchAllData}
-                      className="p-2 text-gray-600 hover:text-gray-900"
-                      title="Refresh"
+                    <select
+                      value={filters.audit_type}
+                      onChange={(e) => handleFilterChange({ audit_type: e.target.value })}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
                     >
-                      <RefreshCw className="h-5 w-5" />
-                    </button>
+                      <option value="">All Types</option>
+                      <option value="internal">Internal</option>
+                      <option value="external">External</option>
+                      <option value="regulatory">Regulatory</option>
+                      <option value="certification">Certification</option>
+                      <option value="incident_response">Incident Response</option>
+                    </select>
                   </div>
+                  <button
+                    onClick={fetchAllData}
+                    className="p-2 text-gray-600 hover:text-gray-900"
+                    title="Refresh"
+                  >
+                    <RefreshCw className="h-5 w-5" />
+                  </button>
                 </div>
 
                 <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -2318,7 +2326,7 @@ export function ComplianceAudit() {
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Standard</th>
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Status</th>
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Progress</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>
+                        {canView && <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -2334,24 +2342,16 @@ export function ComplianceAudit() {
                         return (
                           <tr key={audit.id} className="hover:bg-gray-50">
                             <td className="py-4 px-6">
-                              <div className="font-medium text-sm text-gray-900">
-                                {audit.audit_id}
-                              </div>
+                              <div className="font-medium text-sm text-gray-900">{audit.audit_id}</div>
                             </td>
                             <td className="py-4 px-6">
                               <div className="max-w-xs">
-                                <div className="font-medium text-sm text-gray-900 truncate">
-                                  {audit.title}
-                                </div>
-                                <div className="text-xs text-gray-500 truncate">
-                                  {audit.description?.substring(0, 50)}...
-                                </div>
+                                <div className="font-medium text-sm text-gray-900 truncate">{audit.title}</div>
+                                <div className="text-xs text-gray-500 truncate">{audit.description?.substring(0, 50)}...</div>
                               </div>
                             </td>
                             <td className="py-4 px-6">
-                              <div className="text-sm text-gray-700">
-                                {audit.standard_details?.name || audit.standard?.name || 'N/A'}
-                              </div>
+                              <div className="text-sm text-gray-700">{audit.standard_details?.name || audit.standard?.name || 'N/A'}</div>
                             </td>
                             <td className="py-4 px-6">
                               <StatusBadge status={audit.status} />
@@ -2359,31 +2359,27 @@ export function ComplianceAudit() {
                             <td className="py-4 px-6">
                               <ProgressBar
                                 percentage={progress}
-                                color={
-                                  progress >= 90 ? 'green' :
-                                    progress >= 70 ? 'blue' :
-                                      progress >= 50 ? 'yellow' : 'red'
-                                }
+                                color={progress >= 90 ? 'green' : progress >= 70 ? 'blue' : progress >= 50 ? 'yellow' : 'red'}
                                 showLabel={false}
                               />
                               <div className="text-xs text-gray-500 mt-1">
                                 {completedControls} of {auditControls.length} controls
                               </div>
                             </td>
-                            <td className="py-4 px-6">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => {
-                                    setSelectedAudit(audit);
-                                    setShowAuditDetailModal(true);
-                                  }}
-                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                  title="View Details"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                                {(user?.role === 'admin' || user?.role === 'compliance_officer') && (
-                                  <>
+                            {canView && (
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedAudit(audit);
+                                      setShowAuditDetailModal(true);
+                                    }}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                    title="View Details"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  {canDeleteCompletedIncident && audit.status === 'completed' && (
                                     <button
                                       onClick={() => handleDeleteAudit(audit.id)}
                                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
@@ -2391,10 +2387,10 @@ export function ComplianceAudit() {
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
+                                  )}
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -2408,16 +2404,18 @@ export function ComplianceAudit() {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h3 className="font-medium text-gray-900">Compliance Standards</h3>
-                  <button
-                    onClick={() => {
-                      setSelectedStandard(null);
-                      setShowCreateStandardModal(true);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Standard
-                  </button>
+                  {canCreateStandard && (
+                    <button
+                      onClick={() => {
+                        setSelectedStandard(null);
+                        setShowCreateStandardModal(true);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Standard
+                    </button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -2436,8 +2434,7 @@ export function ComplianceAudit() {
                             </div>
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${standard.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                          }`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${standard.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                           {standard.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </div>
@@ -2453,10 +2450,6 @@ export function ComplianceAudit() {
                           <span className="text-gray-500">Mandatory Controls:</span>
                           <span className="font-medium">{standard.mandatory_controls || 0}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Compliance Score:</span>
-                          <span className="font-medium">{standard.compliance_score || 0}%</span>
-                        </div>
                       </div>
 
                       <div className="flex gap-2 pt-4 border-t border-gray-100">
@@ -2469,22 +2462,26 @@ export function ComplianceAudit() {
                         >
                           View Audits
                         </button>
-                        <button
-                          onClick={() => {
-                            setSelectedStandard(standard);
-                            setShowCreateStandardModal(true);
-                          }}
-                          className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 rounded-lg text-sm font-medium transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStandard(standard.id)}
-                          className="px-3 border border-red-300 hover:bg-red-50 text-red-700 py-2 rounded-lg text-sm font-medium transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {hasFullAccess && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedStandard(standard);
+                                setShowCreateStandardModal(true);
+                              }}
+                              className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStandard(standard.id)}
+                              className="px-3 border border-red-300 hover:bg-red-50 text-red-700 py-2 rounded-lg text-sm font-medium transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -2494,22 +2491,9 @@ export function ComplianceAudit() {
 
             {activeView === 'findings' && (
               <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-medium text-gray-900">Audit Findings</h3>
-                    <p className="text-sm text-gray-600">Findings discovered during compliance audits</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setSelectedFinding(null);
-                      setShowCreateFindingModal(true);
-                    }}
-                    disabled={!data.audits.length}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Finding
-                  </button>
+                <div>
+                  <h3 className="font-medium text-gray-900">Audit Findings</h3>
+                  <p className="text-sm text-gray-600">Findings discovered during compliance audits</p>
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 mb-6">
@@ -2531,7 +2515,7 @@ export function ComplianceAudit() {
                   </div>
                   <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
                     <div className="text-2xl font-bold text-green-600">
-                      {data.findings.filter(f => f.status === 'closed').length}
+                      {data.findings.filter(f => f.status === 'solved' || f.status === 'closed').length}
                     </div>
                     <div className="text-sm text-gray-600">Resolved</div>
                   </div>
@@ -2545,81 +2529,70 @@ export function ComplianceAudit() {
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Audit</th>
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Type/Risk</th>
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Status</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>
+                        {hasFullAccess && <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {data.findings.map(finding => (
-                        <tr key={finding.id} className="hover:bg-gray-50">
-                          <td className="py-4 px-6">
-                            <div className="max-w-xs">
-                              <div className="font-medium text-sm text-gray-900 truncate">
-                                {finding.title}
+                      {data.findings.map(finding => {
+                        const isSolved = finding.status === 'solved' || finding.status === 'closed';
+                        return (
+                          <tr key={finding.id} className="hover:bg-gray-50">
+                            <td className="py-4 px-6">
+                              <div className="max-w-xs">
+                                <div className="font-medium text-sm text-gray-900 truncate">{finding.title}</div>
+                                <div className="text-xs text-gray-500 truncate">{finding.description?.substring(0, 50)}...</div>
                               </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {finding.description?.substring(0, 50)}...
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className="text-sm text-gray-700">
+                                {finding.audit_details?.audit_id || finding.audit?.audit_id || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="flex flex-col gap-1">
+                                <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.finding_type === 'major' ? 'bg-red-100 text-red-800' :
+                                  finding.finding_type === 'minor' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
+                                  {finding.finding_type}
+                                </span>
+                                <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.risk_level === 'high' ? 'bg-red-100 text-red-800' :
+                                  finding.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                                  {finding.risk_level}
+                                </span>
                               </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className="text-sm text-gray-700">
-                              {finding.audit_details?.audit_id || finding.audit?.audit_id || 'N/A'}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex flex-col gap-1">
-                              <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.finding_type === 'major' ? 'bg-red-100 text-red-800' :
-                                finding.finding_type === 'minor' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-blue-100 text-blue-800'
-                                }`}>
-                                {finding.finding_type}
-                              </span>
-                              <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.risk_level === 'high' ? 'bg-red-100 text-red-800' :
-                                finding.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-green-100 text-green-800'
-                                }`}>
-                                {finding.risk_level}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <StatusBadge status={finding.status} />
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedFinding(finding);
-                                  setShowCreateFindingModal(true);
-                                }}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (window.confirm('Are you sure you want to delete this finding?')) {
-                                    try {
-                                      await axios.delete(
-                                        `${API_BASE_URL}/compliance-audit/findings/${finding.id}/`,
-                                        { headers: { Authorization: `Bearer ${token}` } }
-                                      );
-                                      fetchAllData();
-                                    } catch (error) {
-                                      console.error('Error deleting finding:', error);
-                                    }
-                                  }
-                                }}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="py-4 px-6">
+                              <StatusBadge status={finding.status} />
+                            </td>
+                            {hasFullAccess && !isSolved && (
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedFinding(finding);
+                                      const audit = data.audits.find(a => a.id === finding.audit);
+                                      setSelectedAudit(audit);
+                                      setShowCreateFindingModal(true);
+                                    }}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                    title="Edit"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                  {canDeleteCompletedIncident && (
+                                    <button
+                                      onClick={() => handleDeleteFinding(finding.id)}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -2628,22 +2601,9 @@ export function ComplianceAudit() {
 
             {activeView === 'controls' && (
               <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-medium text-gray-900">Control Assessments</h3>
-                    <p className="text-sm text-gray-600">Security controls assessed during audits</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setSelectedControl(null);
-                      setShowControlAssessmentModal(true);
-                    }}
-                    disabled={!data.audits.length}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Control
-                  </button>
+                <div>
+                  <h3 className="font-medium text-gray-900">Control Assessments</h3>
+                  <p className="text-sm text-gray-600">Security controls assessed during audits</p>
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 mb-6">
@@ -2679,90 +2639,74 @@ export function ComplianceAudit() {
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Audit</th>
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Status</th>
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Remediation</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>
+                        {hasFullAccess && <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {data.controls.map(control => (
-                        <tr key={control.id} className="hover:bg-gray-50">
-                          <td className="py-4 px-6">
-                            <div className="max-w-xs">
-                              <div className="font-medium text-sm text-gray-900 truncate">
-                                {control.control_name}
+                      {data.controls.map(control => {
+                        const isCompleted = control.remediation_status === 'completed' || control.remediation_status === 'verified';
+                        return (
+                          <tr key={control.id} className="hover:bg-gray-50">
+                            <td className="py-4 px-6">
+                              <div className="max-w-xs">
+                                <div className="font-medium text-sm text-gray-900 truncate">{control.control_name}</div>
+                                <div className="text-xs text-gray-500 truncate">{control.control_description?.substring(0, 50)}...</div>
                               </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {control.control_description?.substring(0, 50)}...
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className="text-sm text-gray-700">
-                              {control.audit_details?.audit_id || control.audit?.audit_id || 'N/A'}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${control.status === 'compliant' ? 'bg-green-100 text-green-800' :
-                              control.status === 'non_compliant' ? 'bg-red-100 text-red-800' :
-                                control.status === 'partially_compliant' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
-                              }`}>
-                              {control.status.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6">
-                            {control.remediation_required ? (
-                              <div className="space-y-1">
-                                <span className={`px-2 py-1 rounded text-xs ${control.remediation_status === 'completed' ? 'bg-green-100 text-green-800' :
-                                  control.remediation_status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-red-100 text-red-800'
-                                  }`}>
-                                  {control.remediation_status}
-                                </span>
-                                {control.remediation_deadline && (
-                                  <div className="text-xs text-gray-500">
-                                    Due: {formatDate(control.remediation_deadline)}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-500">Not required</span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className="text-sm text-gray-700">
+                                {control.audit_details?.audit_id || control.audit?.audit_id || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${control.status === 'compliant' ? 'bg-green-100 text-green-800' :
+                                control.status === 'non_compliant' ? 'bg-red-100 text-red-800' :
+                                  control.status === 'partially_compliant' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                                {control.status.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6">
+                              {control.remediation_required ? (
+                                <div className="space-y-1">
+                                  <RemediationStatusBadge status={control.remediation_status} />
+                                  {control.remediation_deadline && (
+                                    <div className="text-xs text-gray-500">Due: {formatDate(control.remediation_deadline)}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-sm text-gray-500">Not required</span>
+                              )}
+                            </td>
+                            {hasFullAccess && !isCompleted && (
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedControl(control);
+                                      const audit = data.audits.find(a => a.id === control.audit);
+                                      setSelectedAudit(audit);
+                                      setShowControlAssessmentModal(true);
+                                    }}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                    title="Edit"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                  {canDeleteCompletedIncident && (
+                                    <button
+                                      onClick={() => handleDeleteControl(control.id)}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
                             )}
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedControl(control);
-                                  setShowControlAssessmentModal(true);
-                                }}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (window.confirm('Are you sure you want to delete this control assessment?')) {
-                                    try {
-                                      await axios.delete(
-                                        `${API_BASE_URL}/compliance-audit/controls/${control.id}/`,
-                                        { headers: { Authorization: `Bearer ${token}` } }
-                                      );
-                                      fetchAllData();
-                                    } catch (error) {
-                                      console.error('Error deleting control:', error);
-                                    }
-                                  }
-                                }}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -2805,36 +2749,45 @@ export function ComplianceAudit() {
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Severity</th>
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Status</th>
                         <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Created</th>
+                        {canDeleteCompletedIncident && <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {data.incidents.slice(0, 10).map(incident => (
-                        <tr key={incident.id} className="hover:bg-gray-50">
-                          <td className="py-4 px-6">
-                            <div className="font-medium text-sm text-gray-900">
-                              {incident.incident_number}
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="max-w-xs">
-                              <div className="font-medium text-sm text-gray-900 truncate">
-                                {incident.title}
+                      {data.incidents.slice(0, 10).map(incident => {
+                        const isCompleted = incident.status === 'resolved' || incident.status === 'closed';
+                        return (
+                          <tr key={incident.id} className="hover:bg-gray-50">
+                            <td className="py-4 px-6">
+                              <div className="font-medium text-sm text-gray-900">{incident.incident_number}</div>
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="max-w-xs">
+                                <div className="font-medium text-sm text-gray-900 truncate">{incident.title}</div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <SeverityBadge severity={incident.severity} />
-                          </td>
-                          <td className="py-4 px-6">
-                            <StatusBadge status={incident.status} />
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className="text-sm text-gray-600">
-                              {formatDate(incident.created_at)}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="py-4 px-6">
+                              <SeverityBadge severity={incident.severity} />
+                            </td>
+                            <td className="py-4 px-6">
+                              <StatusBadge status={incident.status} />
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className="text-sm text-gray-600">{formatDate(incident.created_at)}</span>
+                            </td>
+                            {canDeleteCompletedIncident && isCompleted && (
+                              <td className="py-4 px-6">
+                                <button
+                                  onClick={() => handleDeleteCompletedIncident(incident.id)}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                  title="Delete Completed Incident"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -2857,46 +2810,6 @@ export function ComplianceAudit() {
                   </button>
                 </div>
 
-                {/* Filter Controls */}
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Format</label>
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        onChange={(e) => {/* Add filter logic */ }}
-                      >
-                        <option value="">All Formats</option>
-                        <option value="pdf">PDF</option>
-                        <option value="excel">Excel</option>
-                        <option value="csv">CSV</option>
-                        <option value="html">HTML</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
-                      <input
-                        type="date"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        onChange={(e) => {/* Add filter logic */ }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Search reports..."
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          onChange={(e) => {/* Add filter logic */ }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Reports Table */}
                 <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
                   <table className="w-full">
                     <thead className="bg-gray-50">
@@ -2917,38 +2830,27 @@ export function ComplianceAudit() {
                           <td colSpan="8" className="py-12 text-center text-gray-500">
                             <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                             <p className="font-medium">No reports generated yet</p>
-                            <p className="text-sm text-gray-400 mt-2">
-                              Generate your first audit report using the button above
-                            </p>
+                            <p className="text-sm text-gray-400 mt-2">Generate your first audit report using the button above</p>
                           </td>
                         </tr>
                       ) : (
                         data.reports.map(report => {
                           const audit = data.audits.find(a => a.id === report.audit);
-
                           return (
                             <tr key={report.id} className="hover:bg-gray-50">
                               <td className="py-4 px-6">
-                                <div className="font-mono text-sm text-gray-900 font-medium">
-                                  {report.report_id}
-                                </div>
+                                <div className="font-mono text-sm text-gray-900 font-medium">{report.report_id}</div>
                               </td>
                               <td className="py-4 px-6">
                                 <div className="max-w-xs">
-                                  <div className="font-medium text-sm text-gray-900 truncate">
-                                    {report.title}
-                                  </div>
+                                  <div className="font-medium text-sm text-gray-900 truncate">{report.title}</div>
                                 </div>
                               </td>
                               <td className="py-4 px-6">
                                 {audit ? (
                                   <div className="max-w-xs">
-                                    <div className="text-sm text-gray-900 truncate">
-                                      {audit.audit_id}
-                                    </div>
-                                    <div className="text-xs text-gray-500 truncate">
-                                      {audit.title.substring(0, 30)}...
-                                    </div>
+                                    <div className="text-sm text-gray-900 truncate">{audit.audit_id}</div>
+                                    <div className="text-xs text-gray-500 truncate">{audit.title.substring(0, 30)}...</div>
                                   </div>
                                 ) : (
                                   <span className="text-sm text-gray-500">N/A</span>
@@ -2957,33 +2859,20 @@ export function ComplianceAudit() {
                               <td className="py-4 px-6">
                                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${report.format === 'pdf' ? 'bg-red-100 text-red-800' :
                                   report.format === 'excel' ? 'bg-green-100 text-green-800' :
-                                    report.format === 'csv' ? 'bg-blue-100 text-blue-800' :
-                                      'bg-purple-100 text-purple-800'
-                                  }`}>
+                                    report.format === 'csv' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
                                   {report.format.toUpperCase()}
                                 </span>
                               </td>
                               <td className="py-4 px-6">
                                 <div className="text-sm text-gray-700">
-                                  {report.generated_by_details?.full_name ||
-                                    report.generated_by?.full_name || 'System'}
+                                  {report.generated_by_details?.full_name || report.generated_by?.full_name || 'System'}
                                 </div>
                               </td>
                               <td className="py-4 px-6">
-                                <div className="text-sm text-gray-600">
-                                  {formatDate(report.generated_at)}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {new Date(report.generated_at).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </div>
+                                <div className="text-sm text-gray-600">{formatDate(report.generated_at)}</div>
                               </td>
                               <td className="py-4 px-6">
-                                <div className="text-sm text-gray-700 font-medium">
-                                  {report.download_count}
-                                </div>
+                                <div className="text-sm text-gray-700 font-medium">{report.download_count || 0}</div>
                               </td>
                               <td className="py-4 px-6">
                                 <div className="flex items-center gap-2">
@@ -2994,7 +2883,7 @@ export function ComplianceAudit() {
                                   >
                                     <Download className="h-4 w-4" />
                                   </button>
-                                  {(user?.role === 'admin' || user?.role === 'compliance_officer') && (
+                                  {hasFullAccess && (
                                     <button
                                       onClick={() => handleDeleteReport(report.id)}
                                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
@@ -3011,32 +2900,6 @@ export function ComplianceAudit() {
                       )}
                     </tbody>
                   </table>
-                </div>
-
-                {/* Statistics Summary */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-600">{data.reports.length}</div>
-                    <div className="text-sm text-gray-600">Total Reports</div>
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {data.reports.filter(r => r.format === 'pdf').length}
-                    </div>
-                    <div className="text-sm text-gray-600">PDF Reports</div>
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {data.reports.reduce((sum, report) => sum + (report.download_count || 0), 0)}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Downloads</div>
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {data.reports.filter(r => new Date(r.generated_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length}
-                    </div>
-                    <div className="text-sm text-gray-600">Last 30 Days</div>
-                  </div>
                 </div>
               </div>
             )}
@@ -3076,6 +2939,10 @@ export function ComplianceAudit() {
         }}
         findings={data.findings.filter(f => f.audit === selectedAudit?.id)}
         controls={data.controls.filter(c => c.audit === selectedAudit?.id)}
+        onFindingUpdate={handleCreateFinding}
+        onControlUpdate={handleCreateControl}
+        onFindingDelete={handleDeleteFinding}
+        onControlDelete={handleDeleteControl}
       />
 
       <CreateStandardModal
@@ -3115,8 +2982,9 @@ export function ComplianceAudit() {
         onClose={() => setShowReportGeneratorModal(false)}
         onSubmit={handleGenerateReport}
         audits={data.audits}
-        standards={data.standards}
       />
     </div>
   );
 }
+
+export default ComplianceAudit;

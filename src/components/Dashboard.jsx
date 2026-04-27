@@ -245,7 +245,8 @@ const StatCard = ({
     yellow: 'bg-yellow-100 text-yellow-600',
     purple: 'bg-purple-100 text-purple-600',
     indigo: 'bg-indigo-100 text-indigo-600',
-    gray: 'bg-gray-100 text-gray-600'
+    gray: 'bg-gray-100 text-gray-600',
+    orange: 'bg-orange-100 text-orange-600'
   };
 
   const formattedValue = useMemo(() => {
@@ -436,7 +437,6 @@ const FilterPanel = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
         <div className="border-b border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -448,18 +448,13 @@ const FilterPanel = ({
                 <p className="text-sm text-gray-600">Refine your dashboard view with filters</p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <X className="h-5 w-5 text-gray-500" />
             </button>
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Timeframe */}
           <div>
             <h3 className="text-sm font-medium text-gray-900 mb-3">Time Period</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -479,13 +474,10 @@ const FilterPanel = ({
             </div>
           </div>
 
-          {/* Custom Date Range */}
           {showCustomDate && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Start Date
-                </label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Start Date</label>
                 <input
                   type="date"
                   value={localFilters.start_date || ''}
@@ -494,9 +486,7 @@ const FilterPanel = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  End Date
-                </label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">End Date</label>
                 <input
                   type="date"
                   value={localFilters.end_date || ''}
@@ -507,7 +497,6 @@ const FilterPanel = ({
             </div>
           )}
 
-          {/* Department Filter */}
           {availableFilters.departments?.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-900 mb-2">Department</h3>
@@ -526,7 +515,6 @@ const FilterPanel = ({
             </div>
           )}
 
-          {/* Severity Filter */}
           <div>
             <h3 className="text-sm font-medium text-gray-900 mb-2">Severity Level</h3>
             <div className="flex flex-wrap gap-2">
@@ -548,7 +536,6 @@ const FilterPanel = ({
             </div>
           </div>
 
-          {/* Status Filter */}
           {availableFilters.statuses?.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-900 mb-2">Status</h3>
@@ -573,123 +560,22 @@ const FilterPanel = ({
           )}
         </div>
 
-        {/* Footer */}
         <div className="border-t border-gray-200 p-6 bg-gray-50">
           <div className="flex items-center justify-between">
-            <button
-              onClick={handleReset}
-              className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium"
-            >
+            <button onClick={handleReset} className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
               Reset All
             </button>
             <div className="flex items-center gap-3">
-              <button
-                onClick={onClose}
-                className="px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 font-medium"
-              >
+              <button onClick={onClose} className="px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 font-medium">
                 Cancel
               </button>
-              <button
-                onClick={handleApply}
-                className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              >
+              <button onClick={handleApply} className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
                 Apply Filters
               </button>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
-
-const ExportMenu = ({ filters, loading = false }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
-
-  const exportOptions = [
-    { value: 'json', label: 'JSON Format', icon: FileText, color: 'text-purple-600 bg-purple-100' },
-    { value: 'csv', label: 'CSV Format', icon: BarChart3, color: 'text-green-600 bg-green-100' },
-    { value: 'pdf', label: 'PDF Report', icon: Download, color: 'text-red-600 bg-red-100' },
-  ];
-
-  const handleExport = async (format) => {
-    setIsOpen(false);
-    setExporting(true);
-    
-    try {
-      const response = await apiRequest('POST', '/reports/dashboard/export/', {
-        format: format,
-        filters: filters
-      }, format !== 'json');
-
-      let blob;
-      if (format === 'json') {
-        blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
-      } else {
-        blob = response;
-      }
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.${format}`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-
-      toast.success(`Dashboard exported as ${format.toUpperCase()}`);
-    } catch (err) {
-      toast.error(`Export failed: ${err.message}`);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={loading || exporting}
-        className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {exporting ? (
-          <>
-            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-            <span>Exporting...</span>
-          </>
-        ) : (
-          <>
-            <Download className="h-4 w-4" />
-            Export
-            <ChevronDown className="h-4 w-4" />
-          </>
-        )}
-      </button>
-
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
-          <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
-            <div className="p-3 border-b border-gray-100">
-              <p className="font-medium text-gray-900">Export Options</p>
-            </div>
-            <div className="py-1">
-              {exportOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleExport(option.value)}
-                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
-                >
-                  <div className={`p-2 rounded-lg ${option.color}`}>
-                    <option.icon className="h-4 w-4" />
-                  </div>
-                  <span className="font-medium text-gray-900">{option.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 };
@@ -750,40 +636,76 @@ export function Dashboard() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [filterLoading, setFilterLoading] = useState(false);
 
-  // Data validation and transformation
-  const validateAndTransformData = useCallback((data) => {
-    if (!data) return null;
+  // Format date function
+  const formatDate = useCallback((dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
+  }, []);
+
+  // Format chart date
+  const formatChartDate = useCallback((dateString) => {
+    if (!dateString) return '';
+    try {
+      if (dateString.includes('T')) {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      }
+      return dateString;
+    } catch {
+      return dateString;
+    }
+  }, []);
+
+  // Transform incident trends data for frontend
+  const transformIncidentTrends = useCallback((data) => {
+    if (!data || !Array.isArray(data)) return [];
     
-    // Ensure access_trends has both successful and failed logins
-    if (data.access_trends && Array.isArray(data.access_trends)) {
-      data.access_trends = data.access_trends.map(item => ({
-        date: item.date,
-        successful_logins: item.successful_logins || item.success || item.successful || 0,
-        failed_logins: item.failed_logins || item.failed || 0
+    return data.map(item => ({
+      date: formatChartDate(item.date),
+      created_incidents: item.total_incidents || item.created_incidents || 0,
+      resolved_incidents: item.resolved_incidents || 0,
+      total_incidents: item.total_incidents || 0
+    }));
+  }, [formatChartDate]);
+
+  // Transform training progress for frontend
+  const transformTrainingProgress = useCallback((data) => {
+    if (!data) return [];
+    
+    // For employee view
+    if (data.user_progress && Array.isArray(data.user_progress)) {
+      return data.user_progress.map(training => ({
+        training_name: training.training_name,
+        completion_rate: training.progress_percentage || 0,
+        status: training.status,
+        total_modules: training.total_modules,
+        completed_modules: training.completed_modules
       }));
     }
     
-    // Ensure risk_distribution has proper format
-    if (data.risk_distribution && Array.isArray(data.risk_distribution)) {
-      const total = data.risk_distribution.reduce((sum, item) => sum + (item.count || 0), 0);
-      data.risk_distribution = data.risk_distribution.map(item => ({
-        risk_level: item.risk_level || item.severity || 'unknown',
-        count: item.count || 0,
-        percentage: total > 0 ? ((item.count || 0) / total) * 100 : 0
+    // For admin/manager view
+    if (data.trainings_progress && Array.isArray(data.trainings_progress)) {
+      return data.trainings_progress.map(training => ({
+        training_name: training.training_name,
+        completion_rate: training.completion_rate || 0,
+        total_candidates: training.total_candidates,
+        completed_candidates: training.completed_candidates
       }));
     }
     
-    // Ensure incident_trends has proper format
-    if (data.incident_trends && Array.isArray(data.incident_trends)) {
-      data.incident_trends = data.incident_trends.map(item => ({
-        date: item.date,
-        created_incidents: item.created_incidents || item.created || item.new_incidents || 0,
-        resolved_incidents: item.resolved_incidents || item.resolved || 0,
-        total_incidents: item.total_incidents || item.active || item.open || 0
-      }));
-    }
-    
-    return data;
+    return [];
   }, []);
 
   // Fetch dashboard data
@@ -805,8 +727,28 @@ export function Dashboard() {
       params.append('_t', Date.now());
 
       const data = await apiRequest('GET', `/reports/dashboard/?${params}`);
-      const validatedData = validateAndTransformData(data);
-      setDashboardData(validatedData);
+      
+      console.log('Raw dashboard data:', data);
+      
+      // Transform data for frontend
+      const transformedData = {
+        ...data,
+        incident_trends: transformIncidentTrends(data.incident_trends),
+        training_progress_display: transformTrainingProgress(data.training_progress),
+        // Ensure access trends have required fields
+        access_trends: data.access_trends?.map(trend => ({
+          date: formatChartDate(trend.date),
+          successful_logins: trend.successful_logins || 0,
+          failed_logins: trend.failed_logins || 0
+        })) || [],
+        // Ensure risk distribution has proper format
+        risk_distribution: data.risk_distribution?.map(risk => ({
+          ...risk,
+          percentage: risk.percentage || (risk.count / (data.stats?.total_incidents || 1) * 100)
+        })) || []
+      };
+      
+      setDashboardData(transformedData);
       setLastRefresh(new Date());
       
     } catch (err) {
@@ -815,7 +757,7 @@ export function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, filters, validateAndTransformData]);
+  }, [isAuthenticated, filters, transformIncidentTrends, transformTrainingProgress, formatChartDate]);
 
   // Fetch available filters
   const fetchAvailableFilters = useCallback(async () => {
@@ -825,7 +767,6 @@ export function Dashboard() {
       setAvailableFilters(data);
     } catch (err) {
       console.error('Failed to fetch filters:', err);
-      // Fallback to default filters
       setAvailableFilters({
         timeframes: [
           { value: 'today', label: 'Today' },
@@ -843,6 +784,8 @@ export function Dashboard() {
         ],
         statuses: [
           { value: 'pending', label: 'Pending' },
+          { value: 'investigating', label: 'Investigating' },
+          { value: 'assigned', label: 'Assigned' },
           { value: 'in_progress', label: 'In Progress' },
           { value: 'resolved', label: 'Resolved' },
           { value: 'closed', label: 'Closed' }
@@ -907,44 +850,48 @@ export function Dashboard() {
     return () => clearInterval(interval);
   }, [isAuthenticated, fetchDashboardData, fetchAvailableFilters]);
 
-  // Calculate stats based on user role and real data
+  // Calculate stats based on user role
   const stats = useMemo(() => {
     if (!dashboardData?.stats) return [];
 
     const statsData = dashboardData.stats;
     const role = user?.role || 'employee';
 
+    // Helper to get training progress value
+    const getTrainingProgressValue = () => {
+      if (dashboardData?.training_progress?.user_progress?.length > 0) {
+        const avgProgress = dashboardData.training_progress.overall_stats?.average_progress || 0;
+        return Math.round(avgProgress);
+      } else if (dashboardData?.training_progress?.trainings_progress?.length > 0) {
+        const avgProgress = dashboardData.training_progress.overall_stats?.average_training_progress || 0;
+        return Math.round(avgProgress);
+      }
+      return 0;
+    };
+
     const statConfigs = {
       admin: [
         {
           title: 'Total Users',
           value: statsData.total_users || 0,
-          trend: statsData.user_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Users,
           color: 'blue'
         },
         {
           title: 'Active Users',
           value: statsData.active_users || 0,
-          trend: statsData.active_user_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Activity,
           color: 'green'
         },
         {
           title: 'Total Incidents',
           value: statsData.total_incidents || 0,
-          trend: statsData.incident_trend || 0,
-          trendLabel: 'vs previous period',
           icon: AlertTriangle,
           color: 'red'
         },
         {
           title: 'Compliance Score',
           value: statsData.compliance_score || 0,
-          trend: statsData.compliance_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Shield,
           color: 'purple',
           format: 'percentage'
@@ -954,32 +901,24 @@ export function Dashboard() {
         {
           title: 'Total Employees',
           value: statsData.total_users || 0,
-          trend: statsData.user_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Users,
           color: 'blue'
         },
         {
           title: 'Pending Approvals',
           value: statsData.pending_users || 0,
-          trend: statsData.pending_trend || 0,
-          trendLabel: 'vs previous period',
           icon: AlertCircle,
           color: 'yellow'
         },
         {
           title: 'Active Trainings',
-          value: statsData.active_trainings || 0,
-          trend: statsData.training_trend || 0,
-          trendLabel: 'vs previous period',
+          value: statsData.total_trainings || 0,
           icon: BookOpen,
           color: 'green'
         },
         {
           title: 'Compliance Score',
           value: statsData.compliance_score || 0,
-          trend: statsData.compliance_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Shield,
           color: 'purple',
           format: 'percentage'
@@ -989,24 +928,18 @@ export function Dashboard() {
         {
           title: 'Active Incidents',
           value: statsData.open_incidents || 0,
-          trend: statsData.open_incident_trend || 0,
-          trendLabel: 'vs previous period',
           icon: AlertTriangle,
           color: 'red'
         },
         {
           title: 'Critical Alerts',
           value: statsData.critical_incidents || 0,
-          trend: statsData.critical_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Shield,
           color: 'orange'
         },
         {
           title: 'Risk Score',
           value: statsData.risk_score || 0,
-          trend: statsData.risk_trend || 0,
-          trendLabel: 'vs previous period',
           icon: TrendingDown,
           color: 'blue',
           format: 'percentage'
@@ -1014,8 +947,6 @@ export function Dashboard() {
         {
           title: 'Compliance Score',
           value: statsData.compliance_score || 0,
-          trend: statsData.compliance_trend || 0,
-          trendLabel: 'vs previous period',
           icon: CheckCircle,
           color: 'green',
           format: 'percentage'
@@ -1025,24 +956,18 @@ export function Dashboard() {
         {
           title: 'Total Audits',
           value: statsData.total_audits || 0,
-          trend: statsData.audit_trend || 0,
-          trendLabel: 'vs previous period',
           icon: FileText,
           color: 'blue'
         },
         {
           title: 'Active Audits',
           value: statsData.active_audits || 0,
-          trend: statsData.active_audit_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Activity,
           color: 'yellow'
         },
         {
           title: 'Compliance Score',
           value: statsData.compliance_score || 0,
-          trend: statsData.compliance_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Shield,
           color: 'green',
           format: 'percentage'
@@ -1050,44 +975,35 @@ export function Dashboard() {
         {
           title: 'Completed Audits',
           value: statsData.completed_audits || 0,
-          trend: statsData.completed_audit_trend || 0,
-          trendLabel: 'vs previous period',
           icon: CheckCircle,
           color: 'purple'
         }
       ],
       employee: [
         {
-          title: 'Training Progress',
-          value: dashboardData?.training_progress?.[0]?.completion_rate || 0,
-          trend: dashboardData?.training_trend || 0,
-          trendLabel: 'vs previous period',
+          title: 'My Training Progress',
+          value: getTrainingProgressValue(),
           icon: BookOpen,
           color: 'blue',
           format: 'percentage'
         },
         {
-          title: 'Total Trainings',
+          title: 'My Trainings',
           value: statsData.total_trainings || 0,
-          trend: statsData.training_trend || 0,
-          trendLabel: 'vs previous period',
           icon: Award,
           color: 'green'
         },
         {
-          title: 'Compliance Status',
-          value: statsData.compliance_score >= 80 ? 'Compliant' : 'Needs Review',
-          trend: 0,
-          icon: CheckCircle,
-          color: 'purple'
-        },
-        {
-          title: 'Active Incidents',
+          title: 'My Incidents',
           value: statsData.open_incidents || 0,
-          trend: statsData.open_incident_trend || 0,
-          trendLabel: 'vs previous period',
           icon: AlertTriangle,
           color: statsData.open_incidents > 0 ? 'red' : 'green'
+        },
+        {
+          title: 'Compliance Status',
+          value: statsData.compliance_score >= 80 ? 'Compliant' : 'Needs Review',
+          icon: CheckCircle,
+          color: statsData.compliance_score >= 80 ? 'green' : 'yellow'
         }
       ]
     };
@@ -1101,38 +1017,6 @@ export function Dashboard() {
       ([key, value]) => value && value !== '' && key !== 'timeframe' && value !== 'month'
     ).length;
   }, [filters]);
-
-  // Format date
-  const formatDate = useCallback((dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return dateString;
-    }
-  }, []);
-
-  // Format chart date
-  const formatChartDate = useCallback((dateString) => {
-    if (!dateString) return '';
-    try {
-      if (dateString.includes('T')) {
-        return new Date(dateString).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric' 
-        });
-      }
-      return dateString;
-    } catch {
-      return dateString;
-    }
-  }, []);
 
   // Get role title
   const getRoleTitle = useMemo(() => {
@@ -1237,8 +1121,6 @@ export function Dashboard() {
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
-            
-            <ExportMenu filters={filters} loading={loading} />
           </div>
         </div>
 
@@ -1258,7 +1140,7 @@ export function Dashboard() {
               <p className="font-semibold text-blue-800">Real-time Security Intelligence Dashboard</p>
               <p className="text-gray-700 text-sm leading-relaxed">
                 Monitor security metrics, track incidents, analyze trends, and maintain compliance across your organization. 
-                All data is fetched in real-time from security system.
+                All data is fetched in real-time from the security system.
               </p>
             </div>
           </div>
@@ -1276,440 +1158,269 @@ export function Dashboard() {
         ))}
       </div>
 
-      {/* Charts Section */}
+      {/* Charts Section - Only show for relevant roles */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Access Trends - Fixed */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Access Activity Trends</h2>
-                <p className="text-gray-600 text-sm mt-1">Authentication patterns over time</p>
-              </div>
-              <LineChart className="h-5 w-5 text-blue-600" />
-            </div>
-          </div>
-          
-          <div className="h-80">
-            {loading ? (
-              <LoadingSpinner size="lg" text="Loading access trends..." />
-            ) : dashboardData?.access_trends?.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dashboardData.access_trends}>
-                  <defs>
-                    <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor={COLORS.success} stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={COLORS.danger} stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor={COLORS.danger} stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date"
-                    tickFormatter={formatChartDate}
-                  />
-                  <YAxis />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend 
-                    formatter={(value) => {
-                      if (value === 'successful_logins') return 'Successful Logins';
-                      if (value === 'failed_logins') return 'Failed Logins';
-                      return value;
-                    }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="successful_logins" 
-                    stroke={COLORS.success} 
-                    fill="url(#colorSuccess)"
-                    name="Successful Logins"
-                    strokeWidth={2}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="failed_logins" 
-                    stroke={COLORS.danger} 
-                    fill="url(#colorFailed)"
-                    name="Failed Logins"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyState 
-                icon={LineChart}
-                title="No Access Data"
-                description="No authentication data available for the selected period."
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Risk Distribution - Fixed */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Risk Distribution</h2>
-                <p className="text-gray-600 text-sm mt-1">Incident severity breakdown</p>
-              </div>
-              <PieChart className="h-5 w-5 text-blue-600" />
-            </div>
-          </div>
-          
-          <div className="h-80">
-            {loading ? (
-              <LoadingSpinner size="lg" text="Loading risk data..." />
-            ) : dashboardData?.risk_distribution?.length > 0 ? (
-              <div className="flex flex-col lg:flex-row h-full">
-                {/* Pie Chart */}
-                <div className="lg:w-2/3 h-64 lg:h-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPie>
-                      <Pie
-                        data={dashboardData.risk_distribution}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={(entry) => `${entry.risk_level.toUpperCase()}: ${entry.count}`}
-                        outerRadius={100}
-                        innerRadius={40}
-                        paddingAngle={2}
-                        dataKey="count"
-                      >
-                        {dashboardData.risk_distribution.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={RISK_LEVEL_COLORS[entry.risk_level] || COLORS.gray} 
-                            stroke="#fff"
-                            strokeWidth={2}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        formatter={(value, name, props) => {
-                          const entry = props.payload;
-                          return [
-                            <div key="tooltip" className="space-y-1">
-                              <div className="font-medium capitalize">{entry.risk_level}</div>
-                              <div className="text-sm">Count: {entry.count}</div>
-                              {entry.percentage && (
-                                <div className="text-sm">Percentage: {entry.percentage.toFixed(1)}%</div>
-                              )}
-                            </div>
-                          ];
-                        }}
-                      />
-                    </RechartsPie>
-                  </ResponsiveContainer>
+        {/* Access Trends - For all roles except employee (or show limited for employee) */}
+        {(user?.role !== 'employee' || dashboardData?.access_trends?.length > 0) && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Access Activity Trends</h2>
+                  <p className="text-gray-600 text-sm mt-1">Authentication patterns over time</p>
                 </div>
-                
-                {/* Legend and Details */}
-                <div className="lg:w-1/3 lg:pl-6 mt-4 lg:mt-0">
-                  <div className="space-y-3">
-                    <h3 className="font-medium text-gray-900">Severity Breakdown</h3>
-                    {dashboardData.risk_distribution.map((entry, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: RISK_LEVEL_COLORS[entry.risk_level] || COLORS.gray }}
-                          />
-                          <span className="font-medium capitalize">{entry.risk_level}</span>
+                <LineChart className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+            
+            <div className="h-80">
+              {loading ? (
+                <LoadingSpinner size="lg" text="Loading access trends..." />
+              ) : dashboardData?.access_trends?.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={dashboardData.access_trends}>
+                    <defs>
+                      <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor={COLORS.success} stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={COLORS.danger} stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor={COLORS.danger} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Area 
+                      type="monotone" 
+                      dataKey="successful_logins" 
+                      stroke={COLORS.success} 
+                      fill="url(#colorSuccess)"
+                      name="Successful Logins"
+                      strokeWidth={2}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="failed_logins" 
+                      stroke={COLORS.danger} 
+                      fill="url(#colorFailed)"
+                      name="Failed Logins"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyState 
+                  icon={LineChart}
+                  title="No Access Data"
+                  description="No authentication data available for the selected period."
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Risk Distribution */}
+        {(user?.role !== 'employee' || dashboardData?.risk_distribution?.length > 0) && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Risk Distribution</h2>
+                  <p className="text-gray-600 text-sm mt-1">Incident severity breakdown</p>
+                </div>
+                <PieChart className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+            
+            <div className="h-80">
+              {loading ? (
+                <LoadingSpinner size="lg" text="Loading risk data..." />
+              ) : dashboardData?.risk_distribution?.length > 0 ? (
+                <div className="flex flex-col lg:flex-row h-full">
+                  <div className="lg:w-2/3 h-64 lg:h-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPie>
+                        <Pie
+                          data={dashboardData.risk_distribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={(entry) => `${entry.risk_level?.toUpperCase() || 'Unknown'}: ${entry.count}`}
+                          outerRadius={100}
+                          innerRadius={40}
+                          paddingAngle={2}
+                          dataKey="count"
+                        >
+                          {dashboardData.risk_distribution.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={RISK_LEVEL_COLORS[entry.risk_level] || COLORS.gray} 
+                              stroke="#fff"
+                              strokeWidth={2}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </RechartsPie>
+                    </ResponsiveContainer>
+                  </div>
+                  
+                  <div className="lg:w-1/3 lg:pl-6 mt-4 lg:mt-0">
+                    <div className="space-y-3">
+                      <h3 className="font-medium text-gray-900">Severity Breakdown</h3>
+                      {dashboardData.risk_distribution.map((entry, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: RISK_LEVEL_COLORS[entry.risk_level] || COLORS.gray }}
+                            />
+                            <span className="font-medium capitalize">{entry.risk_level || 'Unknown'}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-gray-900">{entry.count}</div>
+                            {entry.percentage && (
+                              <div className="text-sm text-gray-600">
+                                {entry.percentage.toFixed(1)}%
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-bold text-gray-900">{entry.count}</div>
-                          {entry.percentage && (
-                            <div className="text-sm text-gray-600">
-                              {entry.percentage.toFixed(1)}%
-                            </div>
-                          )}
+                      ))}
+                      
+                      {dashboardData.stats?.total_incidents && (
+                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-blue-900">Total Incidents</span>
+                            <span className="font-bold text-blue-700">
+                              {formatNumber(dashboardData.stats.total_incidents)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    
-                    {/* Total Incidents */}
-                    {dashboardData.stats?.total_incidents && (
-                      <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-blue-900">Total Incidents</span>
-                          <span className="font-bold text-blue-700">
-                            {formatNumber(dashboardData.stats.total_incidents)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <EmptyState 
-                icon={AlertTriangle}
-                title="No Risk Data"
-                description="No incident data available for risk analysis."
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Incident Trends - Fixed */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Incident Trends</h2>
-                <p className="text-gray-600 text-sm mt-1">Daily incident creation and resolution rates</p>
-              </div>
-              <BarChart3 className="h-5 w-5 text-blue-600" />
+              ) : (
+                <EmptyState 
+                  icon={AlertTriangle}
+                  title="No Risk Data"
+                  description="No incident data available for risk analysis."
+                />
+              )}
             </div>
           </div>
-          
-          <div className="h-80">
-            {loading ? (
-              <LoadingSpinner size="lg" text="Loading incident trends..." />
-            ) : dashboardData?.incident_trends?.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={dashboardData.incident_trends}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date"
-                    tickFormatter={formatChartDate}
-                  />
-                  <YAxis />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend 
-                    formatter={(value) => {
-                      const nameMap = {
-                        'created_incidents': 'Created Today',
-                        'resolved_incidents': 'Resolved Today',
-                        'total_incidents': 'Total Active'
-                      };
-                      return nameMap[value] || value;
-                    }}
-                  />
-                  <Bar 
-                    dataKey="created_incidents" 
-                    fill={COLORS.blue[500]} 
-                    name="Created Today"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar 
-                    dataKey="resolved_incidents" 
-                    fill={COLORS.success} 
-                    name="Resolved Today"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="total_incidents" 
-                    stroke={COLORS.purple} 
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    name="Total Active"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            ) : dashboardData?.incidents_by_severity?.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsBar data={dashboardData.incidents_by_severity}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="severity" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => [value, 'Incidents']} />
-                  <Legend />
-                  <Bar 
-                    dataKey="count" 
-                    fill={(entry) => SEVERITY_COLORS[entry.severity] || COLORS.gray}
-                    name="Incidents by Severity"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </RechartsBar>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyState 
-                icon={AlertTriangle}
-                title="No Incident Data"
-                description="No incident data available for the selected period."
-              />
-            )}
+        )}
+
+        {/* Incident Trends */}
+        {dashboardData?.incident_trends?.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Incident Trends</h2>
+                  <p className="text-gray-600 text-sm mt-1">Daily incident activity</p>
+                </div>
+                <BarChart3 className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+            
+            <div className="h-80">
+              {loading ? (
+                <LoadingSpinner size="lg" text="Loading incident trends..." />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={dashboardData.incident_trends}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Bar 
+                      dataKey="created_incidents" 
+                      fill={COLORS.blue[500]} 
+                      name="Created Incidents"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar 
+                      dataKey="resolved_incidents" 
+                      fill={COLORS.success} 
+                      name="Resolved Incidents"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="total_incidents" 
+                      stroke={COLORS.purple} 
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      name="Total Active"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Training Progress */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Training Progress</h2>
-                <p className="text-gray-600 text-sm mt-1">Completion rates across training programs</p>
-              </div>
-              <BookOpen className="h-5 w-5 text-blue-600" />
-            </div>
-          </div>
-          
-          <div className="h-80">
-            {loading ? (
-              <LoadingSpinner size="lg" text="Loading training data..." />
-            ) : dashboardData?.training_progress?.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsBar data={dashboardData.training_progress}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="training_name"
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip formatter={(value) => [`${value}%`, 'Completion Rate']} />
-                  <Legend />
-                  <Bar 
-                    dataKey="completion_rate" 
-                    fill={COLORS.success} 
-                    name="Completion Rate (%)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </RechartsBar>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyState 
-                icon={BookOpen}
-                title="No Training Data"
-                description="No training progress data available."
-              />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Activities and System Health */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activities */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Recent Activities</h2>
-                <p className="text-gray-600 text-sm mt-1">Latest security events and user actions</p>
-              </div>
-              <Activity className="h-5 w-5 text-blue-600" />
-            </div>
-          </div>
-          
-          <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-            {loading ? (
-              Array(5).fill(0).map((_, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg">
-                  <div className="h-10 w-10 bg-gray-200 rounded-lg animate-pulse"></div>
-                  <div className="space-y-2 flex-1">
-                    <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-3 bg-gray-100 rounded animate-pulse"></div>
-                  </div>
+        {dashboardData?.training_progress_display?.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Training Progress</h2>
+                  <p className="text-gray-600 text-sm mt-1">
+                    {user?.role === 'employee' ? 'My training completion' : 'Training completion rates'}
+                  </p>
                 </div>
-              ))
-            ) : dashboardData?.recent_activities?.length > 0 ? (
-              dashboardData.recent_activities.slice(0, 10).map((activity, index) => (
-                <div key={index} className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className={`p-2 rounded-lg ${getStatusColor(activity.severity)}`}>
-                    {activity.severity === 'critical' || activity.severity === 'high' ? (
-                      <AlertTriangle className="h-4 w-4" />
+                <BookOpen className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+            
+            <div className="h-80">
+              {loading ? (
+                <LoadingSpinner size="lg" text="Loading training data..." />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBar 
+                    data={dashboardData.training_progress_display}
+                    layout={dashboardData.training_progress_display.length > 3 ? "vertical" : "horizontal"}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    {dashboardData.training_progress_display.length > 3 ? (
+                      <YAxis dataKey="training_name" type="category" width={150} />
                     ) : (
-                      <Activity className="h-4 w-4" />
+                      <XAxis dataKey="training_name" />
                     )}
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium text-gray-900">{activity.activity}</h4>
-                      <SeverityBadge severity={activity.severity} size="sm" />
-                    </div>
-                    <p className="text-sm text-gray-600 truncate">{activity.description}</p>
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {activity.user}
-                      </span>
-                      <span>•</span>
-                      <span>{formatDate(activity.timestamp)}</span>
-                      <span>•</span>
-                      <span className="text-blue-600 font-medium">{activity.category}</span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState 
-                icon={Activity}
-                title="No Recent Activities"
-                description="No user activities recorded in the selected period."
-              />
-            )}
-          </div>
-        </div>
-
-        {/* System Health */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">System Health</h2>
-                <p className="text-gray-600 text-sm mt-1">Status of security components and services</p>
-              </div>
-              <Server className="h-5 w-5 text-blue-600" />
+                    {dashboardData.training_progress_display.length > 3 ? (
+                      <XAxis type="number" domain={[0, 100]} />
+                    ) : (
+                      <YAxis domain={[0, 100]} />
+                    )}
+                    <Tooltip formatter={(value) => [`${value}%`, 'Completion Rate']} />
+                    <Legend />
+                    <Bar 
+                      dataKey="completion_rate" 
+                      fill={COLORS.success} 
+                      name="Completion Rate (%)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </RechartsBar>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
-          
-          <div className="space-y-4">
-            {loading ? (
-              Array(4).fill(0).map((_, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                  <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
-                    <div className="h-3 bg-gray-100 rounded w-24 animate-pulse"></div>
-                  </div>
-                  <div className="h-8 bg-gray-200 rounded w-16 animate-pulse"></div>
-                </div>
-              ))
-            ) : dashboardData?.system_health?.length > 0 ? (
-              dashboardData.system_health.map((component, index) => (
-                <div key={index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${getStatusColor(component.status)}`}>
-                      <CheckCircle className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">{component.component}</h4>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <SeverityBadge severity={component.status.toLowerCase()} size="sm" />
-                        {component.issues > 0 && (
-                          <span className="text-xs text-red-600">
-                            {component.issues} issue{component.issues !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold text-gray-900">{component.uptime}%</div>
-                    <div className="text-xs text-gray-500">uptime</div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState 
-                icon={Server}
-                title="No System Health Data"
-                description="System health metrics are not available."
-              />
-            )}
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Department Performance (for non-employees) */}
-      {user?.role !== 'employee' && dashboardData?.department_performance?.length > 0 && (
+      {/* Department Performance - For admin, HR, security analyst */}
+      {['admin', 'hr_manager', 'security_analyst'].includes(user?.role) && 
+       dashboardData?.department_performance?.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
           <div className="mb-6">
             <div className="flex items-center justify-between">
@@ -1794,52 +1505,126 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* User Activities (for admin/HR/analyst) */}
-      {['admin', 'hr_manager', 'security_analyst', 'compliance_officer'].includes(user?.role) && 
-       dashboardData?.user_activities?.length > 0 && (
+      {/* Recent Activities */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Recent Activities</h2>
+              <p className="text-gray-600 text-sm mt-1">Latest security events and user actions</p>
+            </div>
+            <Activity className="h-5 w-5 text-blue-600" />
+          </div>
+        </div>
+        
+        <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+          {loading ? (
+            Array(5).fill(0).map((_, idx) => (
+              <div key={idx} className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg">
+                <div className="h-10 w-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-3 bg-gray-100 rounded animate-pulse"></div>
+                </div>
+              </div>
+            ))
+          ) : dashboardData?.recent_activities?.length > 0 ? (
+            dashboardData.recent_activities.slice(0, 10).map((activity, index) => (
+              <div key={index} className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <div className={`p-2 rounded-lg ${getStatusColor(activity.severity)}`}>
+                  {activity.severity === 'critical' || activity.severity === 'high' ? (
+                    <AlertTriangle className="h-4 w-4" />
+                  ) : (
+                    <Activity className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-900">{activity.activity}</h4>
+                    <SeverityBadge severity={activity.severity} size="sm" />
+                  </div>
+                  <p className="text-sm text-gray-600 truncate">{activity.description}</p>
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {activity.user}
+                    </span>
+                    <span>•</span>
+                    <span>{formatDate(activity.timestamp)}</span>
+                    <span>•</span>
+                    <span className="text-blue-600 font-medium">{activity.category}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <EmptyState 
+              icon={Activity}
+              title="No Recent Activities"
+              description="No user activities recorded in the selected period."
+            />
+          )}
+        </div>
+      </div>
+
+      {/* System Health - For admin and security analyst */}
+      {['admin', 'security_analyst', 'compliance_officer'].includes(user?.role) && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
           <div className="mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">User Activity Overview</h2>
-                <p className="text-gray-600 text-sm mt-1">Recent user activity and engagement</p>
+                <h2 className="text-xl font-bold text-gray-900">System Health</h2>
+                <p className="text-gray-600 text-sm mt-1">Status of security components and services</p>
               </div>
-              <Users className="h-5 w-5 text-blue-600" />
+              <Server className="h-5 w-5 text-blue-600" />
             </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {dashboardData.user_activities.slice(0, 6).map((userActivity, index) => (
-              <div key={index} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <User className="h-5 w-5 text-blue-600" />
+            {loading ? (
+              Array(4).fill(0).map((_, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+                    <div className="h-3 bg-gray-100 rounded w-24 animate-pulse"></div>
                   </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900">{userActivity.user_name}</h4>
-                    <p className="text-sm text-gray-500">{userActivity.user_email}</p>
+                  <div className="h-8 bg-gray-200 rounded w-16 animate-pulse"></div>
+                </div>
+              ))
+            ) : dashboardData?.system_health?.length > 0 ? (
+              dashboardData.system_health.map((component, index) => (
+                <div key={index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${getStatusColor(component.status)}`}>
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">{component.component}</h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <SeverityBadge severity={component.status?.toLowerCase()} size="sm" />
+                        {component.issues > 0 && (
+                          <span className="text-xs text-red-600">
+                            {component.issues} issue{component.issues !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-gray-900">{component.uptime}%</div>
+                    <div className="text-xs text-gray-500">uptime</div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Role</span>
-                    <span className="font-medium">{userActivity.role}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Total Activities</span>
-                    <span className="font-medium">{formatNumber(userActivity.total_activities)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Flagged</span>
-                    <span className="font-medium text-red-600">{formatNumber(userActivity.flagged_activities)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Last Activity</span>
-                    <span className="font-medium">{formatDate(userActivity.last_activity)}</span>
-                  </div>
-                </div>
+              ))
+            ) : (
+              <div className="col-span-full">
+                <EmptyState 
+                  icon={Server}
+                  title="No System Health Data"
+                  description="System health metrics are not available."
+                />
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
@@ -1860,18 +1645,18 @@ export function Dashboard() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${
-              dashboardData?.system_health?.every(c => c.status === 'Operational' || c.status === 'Active') 
+              dashboardData?.system_health?.every(c => c.status === 'Operational' || c.status === 'Healthy') 
                 ? 'bg-green-500' 
                 : 'bg-yellow-500'
             }`} />
             <span>
               System Status: 
               <span className={`font-medium ml-1 ${
-                dashboardData?.system_health?.every(c => c.status === 'Operational' || c.status === 'Active')
+                dashboardData?.system_health?.every(c => c.status === 'Operational' || c.status === 'Healthy')
                   ? 'text-green-600'
                   : 'text-yellow-600'
               }`}>
-                {dashboardData?.system_health?.every(c => c.status === 'Operational' || c.status === 'Active')
+                {dashboardData?.system_health?.every(c => c.status === 'Operational' || c.status === 'Healthy')
                   ? 'Operational'
                   : 'Partially Degraded'}
               </span>

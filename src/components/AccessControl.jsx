@@ -3,7 +3,8 @@ import {
   X, Calendar, Activity, Clock, User, Shield, CheckCircle,
   XCircle, Search, Filter, Download, AlertCircle, RefreshCw,
   Eye, Lock, Unlock, Mail, Smartphone, Building, Globe,
-  ChevronLeft, ChevronRight, BarChart, MoreVertical, TrendingUp
+  ChevronLeft, ChevronRight, BarChart, MoreVertical, TrendingUp,
+  AlertTriangle, Loader2
 } from "lucide-react";
 import axios from "axios";
 
@@ -78,7 +79,6 @@ const accessControlAPI = {
     console.log("🚀 === GET USER LOGS API CALL ===");
     console.log("📌 User ID:", userId);
     console.log("🎛️  Filters:", filters);
-    console.log("🌐 Full URL:", `${API_BASE_URL}/get_user_activity_logs/${userId}/`);
 
     try {
       const response = await api.get(`/get_user_activity_logs/${userId}/`, {
@@ -89,7 +89,19 @@ const accessControlAPI = {
       console.log("📊 Status:", response.status);
       console.log("📦 Full response data:", response.data);
 
-      return response.data;
+      // Ensure each log has a risk_score field
+      const logs = response.data.logs || [];
+      const enrichedLogs = logs.map(log => ({
+        ...log,
+        // Calculate risk score based on activity type if not provided
+        risk_score: log.risk_score || calculateRiskScore(log),
+        danger_level: log.danger_level || getDangerLevel(log.risk_score || calculateRiskScore(log))
+      }));
+
+      return {
+        ...response.data,
+        logs: enrichedLogs
+      };
 
     } catch (error) {
       console.error("❌ API CALL FAILED");
@@ -120,25 +132,69 @@ const accessControlAPI = {
 
     try {
       const response = await api({ method, url: endpoint });
-
-      // Log this activity
-      try {
-        await api.post("/log_activity/", {
-          activity: `user_${action}`,
-          description: `${action}d user with ID ${userId}`,
-          user_id: userId,
-          is_success: true
-        });
-      } catch (logError) {
-        console.log("⚠️ Activity logging failed:", logError);
-      }
-
       return response.data;
     } catch (error) {
       console.error(`❌ Error ${action} user:`, error);
       throw error;
     }
+  },
+
+  // Create incident from log
+  createIncidentFromLog: async (data) => {
+    const response = await api.post('/incidents/from-log/', data);
+    return response.data;
+  },
+
+  // Get assignable users for incident assignment
+  getAssignableUsers: async () => {
+    const response = await api.get('/incidents/assignable-users/');
+    return response.data;
   }
+};
+
+// Helper function to calculate risk score based on activity
+const calculateRiskScore = (log) => {
+  const riskScores = {
+    'login_failed': 85,
+    'multiple_failed_logins': 95,
+    'suspicious_activity': 75,
+    'unauthorized_access': 90,
+    'data_breach': 100,
+    'password_change': 30,
+    'profile_update': 20,
+    'login': 10,
+    'logout': 5,
+    'view_user_logs': 40,
+    'user_create': 50,
+    'user_update': 35
+  };
+
+  // Check activity type
+  const activity = log.activity?.toLowerCase() || '';
+  for (const [key, score] of Object.entries(riskScores)) {
+    if (activity.includes(key)) {
+      return score;
+    }
+  }
+
+  // Check if it's a failed action
+  if (log.is_success === false) {
+    return 70;
+  }
+
+  // Default risk score based on log type
+  if (log.log_type === 'authentication') return 60;
+  if (log.log_type === 'system') return 50;
+  if (log.log_type === 'user_management') return 40;
+  
+  return 25;
+};
+
+// Helper function to get danger level
+const getDangerLevel = (riskScore) => {
+  if (riskScore >= 70) return 'high';
+  if (riskScore >= 50) return 'medium';
+  return 'low';
 };
 
 // Helper Components
@@ -301,27 +357,8 @@ const formatDate = (dateString) => {
   }
 };
 
-const formatDuration = (duration) => {
-  if (!duration) return 'N/A';
-
-  try {
-    const seconds = Math.floor(duration);
-    if (seconds < 60) return `${seconds}s`;
-
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
-
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
-  } catch {
-    return 'N/A';
-  }
-};
-
 // User Logs Modal Component
-const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
+const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncident }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -438,19 +475,37 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
   // Get logs to display (either top 5 or all)
   const displayLogs = showAllLogs ? filteredLogs : recentLogs;
 
+  // Helper function to determine if log has high or medium risk
+  const isHighOrMediumRisk = (log) => {
+    const riskScore = log.risk_score || 0;
+    return riskScore >= 50; // Medium (50-69) and High (70+) risk
+  };
+
+  // Get danger level color
+  const getDangerLevelColor = (level) => {
+    switch(level?.toLowerCase()) {
+      case 'high':
+        return 'text-red-600 bg-red-100';
+      case 'medium':
+        return 'text-yellow-600 bg-yellow-100';
+      case 'low':
+        return 'text-green-600 bg-green-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
+  };
+
   // Close modal if no user
   if (!isOpen || !user) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-      {/* Backdrop - Click to close */}
       <div
         className="fixed inset-0 bg-gray-900 bg-opacity-75"
         onClick={onClose}
       ></div>
 
-      {/* Modal Container - FIXED positioning */}
-      <div className="relative z-50 w-full max-w-6xl bg-white shadow-2xl rounded-lg overflow-hidden max-h-[95vh] flex flex-col">
+      <div className="relative z-50 w-full max-w-7xl bg-white shadow-2xl rounded-lg overflow-hidden max-h-[95vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -581,7 +636,6 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            {/* Activity Type Filter */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
                 Activity Type
@@ -603,7 +657,6 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
               </select>
             </div>
 
-            {/* Log Type Filter */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
                 Log Category
@@ -621,7 +674,6 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
               </select>
             </div>
 
-            {/* Date From */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
                 Date From
@@ -634,7 +686,6 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
               />
             </div>
 
-            {/* Date To */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
                 Date To
@@ -648,7 +699,6 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
             </div>
           </div>
 
-          {/* Search */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
               Search Logs
@@ -699,14 +749,9 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
                   ? "Try changing your search or filters"
                   : "No activity logs recorded for this user yet"}
               </p>
-              <div className="inline-block bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                <p className="mb-1 font-medium">User ID: <span className="font-bold">{user.id}</span></p>
-                <p className="font-medium">Total logs in database: <span className="font-bold">{logs.length}</span></p>
-              </div>
             </div>
           ) : (
             <>
-              {/* Section Header */}
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-bold text-gray-800">
@@ -729,7 +774,6 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
                 )}
               </div>
 
-              {/* Logs Table */}
               <div className="overflow-hidden border border-gray-200 rounded-lg bg-white shadow-sm">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
@@ -745,84 +789,114 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
                           Time
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Device
+                          IP Address
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          IP Address
+                          Risk Score
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                           Status
                         </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {displayLogs.map((log, index) => (
-                        <tr
-                          key={log.id || index}
-                          className="hover:bg-blue-50 transition-colors"
-                        >
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <ActivityIcon activity={log.activity} />
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {formatActivityName(log.activity)}
-                                </div>
-                                <div className="text-xs text-gray-500 capitalize">
-                                  {log.log_type?.replace('_', ' ') || 'N/A'}
+                      {displayLogs.map((log, index) => {
+                        const riskScore = log.risk_score || 0;
+                        const isRiskLog = riskScore >= 50;
+                        
+                        return (
+                          <tr
+                            key={log.id || index}
+                            className={`hover:bg-blue-50 transition-colors ${isRiskLog ? 'bg-red-50' : ''}`}
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <ActivityIcon activity={log.activity} />
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {formatActivityName(log.activity)}
+                                  </div>
+                                  <div className="text-xs text-gray-500 capitalize">
+                                    {log.log_type?.replace('_', ' ') || 'N/A'}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="max-w-xs">
-                              <div className="text-sm text-gray-900">
-                                {log.description || 'No description'}
-                              </div>
-                              {log.endpoint && (
-                                <div className="text-xs text-gray-600 truncate mt-1 font-mono">
-                                  <span className="font-semibold text-blue-700">{log.http_method}</span> {log.endpoint}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="max-w-xs">
+                                <div className="text-sm text-gray-900">
+                                  {log.description || 'No description'}
                                 </div>
+                                {log.endpoint && (
+                                  <div className="text-xs text-gray-600 truncate mt-1 font-mono">
+                                    {log.endpoint}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-3 w-3 text-gray-400" />
+                                <div className="text-sm text-gray-900 font-medium">
+                                  {formatDate(log.timestamp)}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <Globe className="h-3 w-3 text-gray-400" />
+                                <span className="text-sm text-gray-900 font-mono">
+                                  {log.ip_address || 'N/A'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-20 bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className={`h-2 rounded-full ${riskScore < 20 ? "bg-green-500" :
+                                        riskScore < 50 ? "bg-yellow-500" : "bg-red-500"
+                                        }`}
+                                      style={{ width: `${Math.min(riskScore, 100)}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-xs font-bold">{riskScore}</span>
+                                </div>
+                                <RiskBadge score={riskScore} />
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <StatusIcon isSuccess={log.is_success} />
+                                <span className={`text-xs font-bold px-2 py-1 rounded ${log.is_success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                  {log.is_success ? 'Success' : 'Failed'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {isRiskLog && (
+                                <button
+                                  onClick={() => onCreateIncident && onCreateIncident(log)}
+                                  className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center gap-1 font-medium shadow-sm"
+                                  title="Create Incident from this log"
+                                >
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Create Incident
+                                </button>
                               )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <Clock className="h-3 w-3 text-gray-400" />
-                              <div className="text-sm text-gray-900 font-medium">
-                                {formatDate(log.timestamp)}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="text-sm text-gray-900 font-medium bg-gray-100 px-2 py-1 rounded">
-                              {log.user_agent || 'N/A'}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <Globe className="h-3 w-3 text-gray-400" />
-                              <span className="text-sm text-gray-900 font-mono bg-gray-100 px-2 py-1 rounded">
-                                {log.ip_address || 'N/A'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <StatusIcon isSuccess={log.is_success} />
-                              <span className={`text-xs font-bold px-2 py-1 rounded ${log.is_success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                {log.is_success ? 'Success' : 'Failed'}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              {/* Logs information */}
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <div className="flex items-center justify-between text-xs">
                   <div className="text-blue-800">
@@ -883,6 +957,171 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI }) => {
   );
 };
 
+// Create Incident Modal Component
+function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCreating, onCreate, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="border-b border-gray-200 p-6 bg-gradient-to-r from-red-50 to-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-100 rounded-xl">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Create Incident from Danger Log</h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Risk Score: <span className="font-bold text-red-600">{log.risk_score || 0}/100</span>
+                </p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+          <div className="space-y-6">
+            {/* Log Summary */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Source Log Information</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-gray-500">User:</span>
+                  <div className="font-medium">{log.user_email || 'N/A'}</div>
+                </div>
+                <div>
+                  <span className="text-gray-500">Activity:</span>
+                  <div className="font-medium">{log.activity || 'N/A'}</div>
+                </div>
+                <div>
+                  <span className="text-gray-500">IP Address:</span>
+                  <div className="font-mono text-sm">{log.ip_address || 'N/A'}</div>
+                </div>
+                <div>
+                  <span className="text-gray-500">Timestamp:</span>
+                  <div>{log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Incident Form */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Title <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter incident title"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Description <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={8}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter incident description"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Severity
+                </label>
+                <select
+                  value={formData.severity}
+                  onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Priority
+                </label>
+                <select
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Assign To (Optional)
+              </label>
+              <select
+                value={formData.assigned_to || ''}
+                onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value || null })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Unassigned</option>
+                {assignableUsers.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.full_name || user.name} ({user.email}) - {user.role}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-200 p-6 bg-gray-50">
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onCreate}
+              disabled={isCreating || !formData.title || !formData.description}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4" />
+                  Create Incident
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Main Access Control Dashboard Component
 export function AccessControl() {
   const [loading, setLoading] = useState(true);
@@ -890,13 +1129,150 @@ export function AccessControl() {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filters, setFilters] = useState({
-    role: "",
-    status: ""
-  });
+  const [filters, setFilters] = useState({ role: "", status: "" });
   const [refreshing, setRefreshing] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showLogsModal, setShowLogsModal] = useState(false);
+  
+  const [showCreateIncidentModal, setShowCreateIncidentModal] = useState(false);
+  const [selectedLogForIncident, setSelectedLogForIncident] = useState(null);
+  const [incidentFormData, setIncidentFormData] = useState({
+    title: '',
+    description: '',
+    severity: 'medium',
+    priority: 'medium',
+    assigned_to: null
+  });
+  const [creatingIncident, setCreatingIncident] = useState(false);
+  const [assignableUsers, setAssignableUsers] = useState([]);
+
+  // Fetch assignable users for incident assignment
+  const fetchAssignableUsers = async () => {
+    try {
+      const response = await accessControlAPI.getAssignableUsers();
+      if (response.success) {
+        setAssignableUsers(response.users || []);
+      }
+    } catch (error) {
+      console.error('Error fetching assignable users:', error);
+    }
+  };
+
+  // Open create incident modal from a specific log
+  const openCreateIncidentModal = (log) => {
+    setSelectedLogForIncident(log);
+    
+    // Pre-fill form based on log risk score
+    const riskScore = log.risk_score || 0;
+    let defaultSeverity = 'medium';
+    let defaultPriority = 'medium';
+    
+    if (riskScore >= 85) {
+      defaultSeverity = 'critical';
+      defaultPriority = 'urgent';
+    } else if (riskScore >= 70) {
+      defaultSeverity = 'high';
+      defaultPriority = 'high';
+    } else if (riskScore >= 50) {
+      defaultSeverity = 'medium';
+      defaultPriority = 'medium';
+    } else {
+      defaultSeverity = 'low';
+      defaultPriority = 'low';
+    }
+    
+    // Generate default title and description
+    const defaultTitle = `[${log.danger_level?.toUpperCase() || 'MEDIUM'}] ${log.activity || 'Security Incident'}: ${log.user_email || 'Unknown User'}`;
+    const defaultDescription = generateIncidentDescription(log);
+    
+    setIncidentFormData({
+      title: defaultTitle,
+      description: defaultDescription,
+      severity: defaultSeverity,
+      priority: defaultPriority,
+      assigned_to: null
+    });
+    
+    setShowCreateIncidentModal(true);
+    fetchAssignableUsers();
+  };
+
+  // Generate incident description from log data
+  const generateIncidentDescription = (log) => {
+    return `
+🚨 INCIDENT FROM DANGER ZONE LOG
+${'='.repeat(60)}
+
+RISK ASSESSMENT:
+- Risk Score: ${log.risk_score || 0}/100
+- Danger Level: ${log.danger_level?.toUpperCase() || 'MEDIUM'}
+- Detection Time: ${new Date().toLocaleString()}
+
+USER INFORMATION:
+- Email: ${log.user_email || 'N/A'}
+- IP Address: ${log.ip_address || 'N/A'}
+
+ACTIVITY DETAILS:
+- Activity Type: ${log.activity || 'Unknown'}
+- Endpoint: ${log.endpoint || 'N/A'}
+- Timestamp: ${log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
+
+DESCRIPTION:
+${log.description || 'No description available'}
+
+${'='.repeat(60)}
+RECOMMENDED ACTION:
+Review and investigate immediately.
+    `.trim();
+  };
+
+  // Handle incident creation
+  const handleCreateIncident = async () => {
+    if (!selectedLogForIncident) {
+      alert('No log selected for incident creation');
+      return;
+    }
+
+    if (!incidentFormData.title || !incidentFormData.description) {
+      alert('Please provide title and description');
+      return;
+    }
+
+    setCreatingIncident(true);
+    
+    try {
+      const incidentData = {
+        log_id: selectedLogForIncident.id,
+        title: incidentFormData.title,
+        description: incidentFormData.description,
+        severity: incidentFormData.severity,
+        priority: incidentFormData.priority,
+        assigned_to: incidentFormData.assigned_to
+      };
+      
+      const response = await accessControlAPI.createIncidentFromLog(incidentData);
+      
+      if (response.success) {
+        alert(`Incident ${response.incident?.incident_number || ''} created successfully!`);
+        setShowCreateIncidentModal(false);
+        setSelectedLogForIncident(null);
+        setIncidentFormData({
+          title: '',
+          description: '',
+          severity: 'medium',
+          priority: 'medium',
+          assigned_to: null
+        });
+      } else {
+        alert(response.error || 'Failed to create incident');
+      }
+    } catch (error) {
+      console.error('Error creating incident:', error);
+      alert(error.response?.data?.error || 'Failed to create incident');
+    } finally {
+      setCreatingIncident(false);
+    }
+  };
 
   // Fetch stats data
   const fetchStats = async () => {
@@ -973,17 +1349,6 @@ export function AccessControl() {
       ...prev,
       [filterType]: value
     }));
-  };
-
-  // Handle user actions
-  const handleUserAction = async (userId, action) => {
-    try {
-      const response = await accessControlAPI.updateUserStatus(userId, action);
-      alert(`User ${action}d successfully!`);
-      loadData(); // Refresh data
-    } catch (error) {
-      alert(`Failed to ${action} user: ${error.response?.data?.error || error.message}`);
-    }
   };
 
   // Handle view logs
@@ -1330,6 +1695,23 @@ export function AccessControl() {
             setSelectedUser(null);
           }}
           accessControlAPI={accessControlAPI}
+          onCreateIncident={openCreateIncidentModal}
+        />
+      )}
+
+      {/* Create Incident Modal */}
+      {showCreateIncidentModal && selectedLogForIncident && (
+        <CreateIncidentModal
+          log={selectedLogForIncident}
+          formData={incidentFormData}
+          setFormData={setIncidentFormData}
+          assignableUsers={assignableUsers}
+          isCreating={creatingIncident}
+          onCreate={handleCreateIncident}
+          onClose={() => {
+            setShowCreateIncidentModal(false);
+            setSelectedLogForIncident(null);
+          }}
         />
       )}
     </div>
@@ -1337,3 +1719,168 @@ export function AccessControl() {
 }
 
 export default AccessControl;
+
+// Create Incident Modal Component
+// function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCreating, onCreate, onClose }) {
+//   return (
+//     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+//       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+//         {/* Header */}
+//         <div className="border-b border-gray-200 p-6 bg-gradient-to-r from-red-50 to-white">
+//           <div className="flex items-center justify-between">
+//             <div className="flex items-center gap-3">
+//               <div className="p-3 bg-red-100 rounded-xl">
+//                 <AlertTriangle className="h-6 w-6 text-red-600" />
+//               </div>
+//               <div>
+//                 <h2 className="text-2xl font-bold text-gray-900">Create Incident from Danger Log</h2>
+//                 <p className="text-gray-600 text-sm mt-1">
+//                   Risk Score: <span className="font-bold text-red-600">{log.risk_score}/100</span>
+//                 </p>
+//               </div>
+//             </div>
+//             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+//               <X className="h-5 w-5 text-gray-500" />
+//             </button>
+//           </div>
+//         </div>
+
+//         {/* Content */}
+//         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+//           <div className="space-y-6">
+//             {/* Log Summary */}
+//             <div className="bg-gray-50 rounded-xl p-4">
+//               <h3 className="text-sm font-semibold text-gray-700 mb-3">Source Log Information</h3>
+//               <div className="grid grid-cols-2 gap-3 text-sm">
+//                 <div>
+//                   <span className="text-gray-500">User:</span>
+//                   <div className="font-medium">{log.user_email}</div>
+//                 </div>
+//                 <div>
+//                   <span className="text-gray-500">Activity:</span>
+//                   <div className="font-medium">{log.activity}</div>
+//                 </div>
+//                 <div>
+//                   <span className="text-gray-500">IP Address:</span>
+//                   <div className="font-mono text-sm">{log.ip_address || 'N/A'}</div>
+//                 </div>
+//                 <div>
+//                   <span className="text-gray-500">Timestamp:</span>
+//                   <div>{new Date(log.timestamp).toLocaleString()}</div>
+//                 </div>
+//               </div>
+//             </div>
+
+//             {/* Incident Form */}
+//             <div>
+//               <label className="block text-sm font-medium text-gray-700 mb-2">
+//                 Title <span className="text-red-500">*</span>
+//               </label>
+//               <input
+//                 type="text"
+//                 value={formData.title}
+//                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+//                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                 placeholder="Enter incident title"
+//               />
+//             </div>
+
+//             <div>
+//               <label className="block text-sm font-medium text-gray-700 mb-2">
+//                 Description <span className="text-red-500">*</span>
+//               </label>
+//               <textarea
+//                 value={formData.description}
+//                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+//                 rows={8}
+//                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                 placeholder="Enter incident description"
+//               />
+//             </div>
+
+//             <div className="grid grid-cols-2 gap-4">
+//               <div>
+//                 <label className="block text-sm font-medium text-gray-700 mb-2">
+//                   Severity
+//                 </label>
+//                 <select
+//                   value={formData.severity}
+//                   onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
+//                   className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                 >
+//                   <option value="critical">Critical</option>
+//                   <option value="high">High</option>
+//                   <option value="medium">Medium</option>
+//                   <option value="low">Low</option>
+//                 </select>
+//               </div>
+
+//               <div>
+//                 <label className="block text-sm font-medium text-gray-700 mb-2">
+//                   Priority
+//                 </label>
+//                 <select
+//                   value={formData.priority}
+//                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+//                   className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                 >
+//                   <option value="urgent">Urgent</option>
+//                   <option value="high">High</option>
+//                   <option value="medium">Medium</option>
+//                   <option value="low">Low</option>
+//                 </select>
+//               </div>
+//             </div>
+
+//             <div>
+//               <label className="block text-sm font-medium text-gray-700 mb-2">
+//                 Assign To (Optional)
+//               </label>
+//               <select
+//                 value={formData.assigned_to || ''}
+//                 onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value || null })}
+//                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+//               >
+//                 <option value="">Unassigned</option>
+//                 {assignableUsers.map(user => (
+//                   <option key={user.id} value={user.id}>
+//                     {user.full_name} ({user.email}) - {user.role}
+//                   </option>
+//                 ))}
+//               </select>
+//             </div>
+//           </div>
+//         </div>
+
+//         {/* Footer */}
+//         <div className="border-t border-gray-200 p-6 bg-gray-50">
+//           <div className="flex items-center justify-end gap-3">
+//             <button
+//               onClick={onClose}
+//               className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors"
+//             >
+//               Cancel
+//             </button>
+//             <button
+//               onClick={onCreate}
+//               disabled={isCreating || !formData.title || !formData.description}
+//               className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+//             >
+//               {isCreating ? (
+//                 <>
+//                   <Loader2 className="h-4 w-4 animate-spin" />
+//                   Creating...
+//                 </>
+//               ) : (
+//                 <>
+//                   <AlertTriangle className="h-4 w-4" />
+//                   Create Incident
+//                 </>
+//               )}
+//             </button>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }

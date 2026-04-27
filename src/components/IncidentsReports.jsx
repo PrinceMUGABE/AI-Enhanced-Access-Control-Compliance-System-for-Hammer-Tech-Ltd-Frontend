@@ -65,7 +65,7 @@ const safeRender = (value, defaultValue = '') => {
 const apiRequest = async (method, endpoint, body = null, isBlob = false) => {
   try {
     const token = localStorage.getItem('access_token');
-    
+
     const options = {
       method,
       headers: {
@@ -113,15 +113,15 @@ const apiRequest = async (method, endpoint, body = null, isBlob = false) => {
 
   } catch (error) {
     console.error('API request failed:', error);
-    
+
     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
       throw new Error('Network error. Please check your connection.');
     }
-    
+
     if (error.name === 'SyntaxError' && error.message.includes('JSON')) {
       throw new Error('Server returned invalid response format.');
     }
-    
+
     throw error;
   }
 };
@@ -273,7 +273,16 @@ export function IncidentsReports() {
       params.append('page', incidentPagination.currentPage);
       params.append('page_size', incidentPagination.pageSize);
 
-      const endpoint = `/incidents/my/?${params.toString()}`;
+      // Use different endpoints based on user role
+      let endpoint;
+      if (user?.is_admin) {
+        // Admin users get ALL incidents
+        endpoint = `/incidents/all/?${params.toString()}`;
+      } else {
+        // Non-admin users get only their incidents
+        endpoint = `/incidents/my/?${params.toString()}`;
+      }
+
       const response = await apiRequest('GET', endpoint);
 
       if (response.success) {
@@ -354,16 +363,47 @@ export function IncidentsReports() {
 
   const fetchDangerZoneLogs = async () => {
     try {
+      // Fetch danger zone logs
       const response = await apiRequest('GET', '/incidents/danger-zone/');
       if (response.success) {
         setDangerZoneLogs(response.logs || []);
       } else {
         showToast(response.error || 'Failed to fetch danger zone logs', 'error');
       }
+
+      // Fetch high-risk incidents based on user role
+      const params = new URLSearchParams();
+      params.append('severity', 'critical,high');
+      params.append('page_size', 100);
+
+      let endpoint;
+      if (user?.is_admin) {
+        // Admin users get ALL high-risk incidents
+        endpoint = `/incidents/all/?${params.toString()}`;
+      } else {
+        // Non-admin users get only their incidents
+        endpoint = `/incidents/my/?${params.toString()}`;
+      }
+
+      const incidentsResponse = await apiRequest('GET', endpoint);
+      if (incidentsResponse.success) {
+        // This will update the incidents state with high-risk incidents
+        // The DangerZoneTab will use the incidents prop to show them
+        const highRiskIncidents = incidentsResponse.incidents.filter(inc =>
+          inc.severity === 'critical' || inc.severity === 'high'
+        );
+        // Merge with existing incidents or update state as needed
+      }
     } catch (err) {
       showToast(err.message || 'Failed to fetch danger zone logs', 'error');
     }
   };
+
+  useEffect(() => {
+    if (activeTab === 'danger-zone' && incidents.length === 0) {
+      fetchIncidents();
+    }
+  }, [activeTab]);
 
   const fetchAssignableUsers = async (incidentId = null) => {
     try {
@@ -679,7 +719,7 @@ export function IncidentsReports() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       showToast(`Incidents exported successfully to ${format.toUpperCase()}`);
     } catch (err) {
       showToast('Failed to export incidents: ' + err.message, 'error');
@@ -903,7 +943,7 @@ export function IncidentsReports() {
       escalated: ['assigned', 'in_progress'],
       closed: []
     };
-    
+
     return transitions[currentStatus] || [];
   };
 
@@ -1110,6 +1150,7 @@ export function IncidentsReports() {
         {activeTab === "danger-zone" && (
           <DangerZoneTab
             logs={dangerZoneLogs}
+            incidents={incidents}  // Add this line to pass incidents
             loading={loading}
             formatDate={formatDate}
             formatTimeAgo={formatTimeAgo}
@@ -1180,7 +1221,7 @@ export function IncidentsReports() {
           getStatusOptions={getStatusOptions}
           assignableUsers={assignableUsers}
           user={user}
-          formatDate={formatDate} 
+          formatDate={formatDate}
         />
       )}
     </div>
@@ -1306,11 +1347,7 @@ function IncidentsTab({
                         }`}>
                         <AlertTriangle className="h-4 w-4" />
                       </div>
-                      <div className="min-w-0">
-                        <div className="font-medium text-gray-900 truncate">{incident.title}</div>
-                        <div className="text-sm text-gray-500 truncate">{incident.incident_number}</div>
-                        <div className="text-xs text-gray-400 mt-1">{getAssignedUserName(incident)}</div>
-                      </div>
+                      <div className="text-sm text-gray-500 truncate">{incident.incident_number}</div>
                     </div>
                   </td>
                   <td className="py-4 px-6">
@@ -1667,6 +1704,7 @@ function ReportsTab({
 
 function DangerZoneTab({
   logs,
+  incidents,
   loading,
   formatDate,
   formatTimeAgo,
@@ -1678,10 +1716,43 @@ function DangerZoneTab({
     user?.role === 'security_analyst' ||
     user?.role === 'compliance_officer';
 
+  // Get high-risk incidents (critical or high severity)
+  const highRiskIncidents = incidents?.filter(inc =>
+    inc.severity === 'critical' || inc.severity === 'high' || inc.danger_zone === true
+  ) || [];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  const hasDangerZoneItems = (logs && logs.length > 0) || highRiskIncidents.length > 0;
+
+  if (!hasDangerZoneItems) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-red-50 to-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Danger Zone</h2>
+              <p className="text-gray-600 text-sm mt-1">High-risk logs and incidents requiring immediate attention</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <AlertOctagon className="h-5 w-5 text-green-600" />
+              <span className="text-sm font-medium text-green-700">All Clear!</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-center py-12">
+          <div className="w-16 h-16 mx-auto mb-6 bg-green-100 rounded-full flex items-center justify-center">
+            <CheckCircle className="h-8 w-8 text-green-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">All Clear!</h3>
+          <p className="text-gray-600 max-w-md mx-auto">No high-risk activities detected. System is operating normally.</p>
+        </div>
       </div>
     );
   }
@@ -1691,100 +1762,155 @@ function DangerZoneTab({
       <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-red-50 to-white">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Danger Zone Logs</h2>
-            <p className="text-gray-600 text-sm mt-1">High-risk logs requiring immediate attention</p>
+            <h2 className="text-xl font-bold text-gray-900">Danger Zone</h2>
+            <p className="text-gray-600 text-sm mt-1">High-risk logs and incidents requiring immediate attention</p>
           </div>
           <div className="flex items-center gap-2">
             <AlertOctagon className="h-5 w-5 text-red-600" />
             <span className="text-sm font-medium text-red-700">
-              {logs?.length || 0} critical logs detected
+              {logs?.length + highRiskIncidents.length} critical items detected
             </span>
           </div>
         </div>
       </div>
 
-      <div className="p-6">
-        {!logs || logs.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-6 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle className="h-8 w-8 text-green-600" />
+      <div className="p-6 space-y-6">
+        {/* High-Risk Incidents Section */}
+        {highRiskIncidents.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              High-Risk Incidents ({highRiskIncidents.length})
+            </h3>
+            <div className="space-y-4">
+              {highRiskIncidents.map((incident) => (
+                <div
+                  key={incident.id}
+                  className="border border-red-200 rounded-xl p-6 bg-gradient-to-r from-red-50 to-white hover:from-red-100 transition-all"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 rounded-lg bg-red-100 text-red-600">
+                          <AlertTriangle className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-900">{incident.title}</div>
+                          <div className="text-sm text-gray-600">{incident.incident_number}</div>
+                        </div>
+                        <div className="px-3 py-1.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                          {incident.severity?.toUpperCase()}
+                        </div>
+                      </div>
+
+                      <p className="text-gray-700 text-sm mb-4">{incident.description?.substring(0, 200)}...</p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Status:</span>
+                          <div className="font-medium">{incident.status}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Priority:</span>
+                          <div className="font-medium">{incident.priority}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Created:</span>
+                          <div className="font-medium">{formatDate(incident.created_at)}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Assigned To:</span>
+                          <div className="font-medium">{incident.assigned_to?.full_name || 'Unassigned'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">All Clear!</h3>
-            <p className="text-gray-600 max-w-md mx-auto">No high-risk activities detected in recent logs. System is operating normally.</p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {logs.map((log) => (
-              <div
-                key={log.id}
-                className="border border-red-200 rounded-xl p-6 bg-gradient-to-r from-red-50 to-white hover:from-red-100 transition-all"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`p-2 rounded-lg ${log.risk_score > 80 ? 'bg-red-100 text-red-600' :
-                        log.risk_score > 60 ? 'bg-orange-100 text-orange-600' :
-                          'bg-yellow-100 text-yellow-600'
-                        }`}>
-                        <AlertTriangle className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">{log.activity || 'Unknown Activity'}</div>
-                        <div className="text-sm text-gray-600">{log.user_email || 'Unknown User'}</div>
-                      </div>
-                      <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${log.risk_score > 80 ? 'bg-red-100 text-red-800 border border-red-200' :
-                        log.risk_score > 60 ? 'bg-orange-100 text-orange-800 border border-orange-200' :
-                          'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                        }`}>
-                        Risk: {log.risk_score || 0}/100
-                      </div>
-                    </div>
+        )}
 
-                    <p className="text-gray-700 text-sm mb-4">{log.description || 'No description available'}</p>
+        {/* Danger Zone Logs Section */}
+        {logs && logs.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <AlertOctagon className="h-5 w-5 text-orange-600" />
+              Danger Zone Logs ({logs.length})
+            </h3>
+            <div className="space-y-4">
+              {logs.map((log) => (
+                <div
+                  key={log.id}
+                  className="border border-orange-200 rounded-xl p-6 bg-gradient-to-r from-orange-50 to-white hover:from-orange-100 transition-all"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`p-2 rounded-lg ${log.risk_score > 80 ? 'bg-red-100 text-red-600' :
+                          log.risk_score > 60 ? 'bg-orange-100 text-orange-600' :
+                            'bg-yellow-100 text-yellow-600'
+                          }`}>
+                          <AlertTriangle className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-900">{log.activity || 'Unknown Activity'}</div>
+                          <div className="text-sm text-gray-600">{log.user_email || 'Unknown User'}</div>
+                        </div>
+                        <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${log.risk_score > 80 ? 'bg-red-100 text-red-800 border border-red-200' :
+                          log.risk_score > 60 ? 'bg-orange-100 text-orange-800 border border-orange-200' :
+                            'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                          }`}>
+                          Risk: {log.risk_score || 0}/100
+                        </div>
+                      </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Timestamp:</span>
-                        <div className="font-medium">{formatDate(log.timestamp)}</div>
-                        <div className="text-xs text-gray-500">{formatTimeAgo(log.timestamp)}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">IP Address:</span>
-                        <div className="font-medium">{log.ip_address || 'N/A'}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Endpoint:</span>
-                        <div className="font-medium truncate">{log.endpoint || 'N/A'}</div>
-                      </div>
-                    </div>
+                      <p className="text-gray-700 text-sm mb-4">{log.description || 'No description available'}</p>
 
-                    {log.recommended_action && (
-                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <div className="text-sm font-medium text-blue-800">Recommended Action:</div>
-                            <div className="text-sm text-blue-700">{log.recommended_action}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Timestamp:</span>
+                          <div className="font-medium">{formatDate(log.timestamp)}</div>
+                          <div className="text-xs text-gray-500">{formatTimeAgo(log.timestamp)}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">IP Address:</span>
+                          <div className="font-medium">{log.ip_address || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Endpoint:</span>
+                          <div className="font-medium truncate">{log.endpoint || 'N/A'}</div>
+                        </div>
+                      </div>
+
+                      {log.recommended_action && (
+                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <div className="text-sm font-medium text-blue-800">Recommended Action:</div>
+                              <div className="text-sm text-blue-700">{log.recommended_action}</div>
+                            </div>
                           </div>
                         </div>
+                      )}
+                    </div>
+
+                    {canCreateIncidents && (
+                      <div className="ml-4">
+                        <button
+                          onClick={() => createIncidentFromLog(log.id)}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-sm"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                          Create Incident
+                        </button>
                       </div>
                     )}
                   </div>
-
-                  {canCreateIncidents && (
-                    <div className="ml-4">
-                      <button
-                        onClick={() => createIncidentFromLog(log.id)}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-sm"
-                      >
-                        <AlertTriangle className="h-4 w-4" />
-                        Create Incident
-                      </button>
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -2140,7 +2266,7 @@ function UpdateIncidentModal({
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
       <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose}></div>
-      
+
       <div className="relative z-10 flex flex-col bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
         {/* Fixed Header */}
         <div className="border-b border-gray-200 p-6 flex-shrink-0 bg-white">
