@@ -166,7 +166,7 @@ function AppContent() {
         } />
 
         <Route path="/compliance-audit" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer']}>
+          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'security_analyst']}>
             <MainLayout
               user={user}
               sidebarOpen={sidebarOpen}
@@ -213,7 +213,7 @@ function AppContent() {
 
 
         <Route path="/report" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'security_analyst', 'hr_manager']}>
+          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
             <MainLayout
               user={user}
               sidebarOpen={sidebarOpen}
@@ -228,7 +228,7 @@ function AppContent() {
         } />
 
         <Route path="/admin/training" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'hr_manager']}>
+          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
             <MainLayout
               user={user}
               sidebarOpen={sidebarOpen}
@@ -258,7 +258,7 @@ function AppContent() {
         } />
 
         <Route path="/admin/createTraining" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'hr_manager']}>
+          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
             <MainLayout
               user={user}
               sidebarOpen={sidebarOpen}
@@ -273,7 +273,7 @@ function AppContent() {
         } />
 
         <Route path="/admin/editTraining/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'hr_manager']}>
+          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
             <MainLayout
               user={user}
               sidebarOpen={sidebarOpen}
@@ -288,7 +288,7 @@ function AppContent() {
         } />
 
         <Route path="/admin/viewTraining/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'hr_manager']}>
+          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
             <MainLayout
               user={user}
               sidebarOpen={sidebarOpen}

@@ -144,7 +144,7 @@ export function MainLayout({
         name: "Dashboard",
         icon: LayoutDashboard,
         path: "/dashboard",
-        roles: ["admin", "compliance_officer", "security_analyst", "employee", "hr_manager"],
+        roles: ["admin", "hr_manager"],
       },
       {
         id: "access",
@@ -158,7 +158,7 @@ export function MainLayout({
         name: "Risk Assessment",
         icon: Target,
         path: "/risk-assessment",
-        roles: ["admin", "compliance_officer", "security_analyst"],
+        roles: ["admin", "security_analyst"],
       },
       {
         id: "compliance",
@@ -179,7 +179,7 @@ export function MainLayout({
         name: "Training & Awareness",
         icon: GraduationCap,
         path: user?.role === "employee" ? "/training" : "/admin/training",
-        roles: ["admin", "compliance_officer", "hr_manager", "employee"],
+        roles: ["admin", "hr_manager", "employee"],
       },
     ];
 
@@ -348,7 +348,7 @@ export function MainLayout({
                 </a>
               )}
 
-              {(user?.role === "admin" || user?.role === "hr_manager" || user?.role === "compliance_officer") && (
+              {(user?.role === "admin" || user?.role === "hr_manager") && (
                 <a
                   href="/training-candidates"
                   onClick={(e) => {
@@ -386,7 +386,7 @@ export function MainLayout({
              
             
               
-              {["admin", "compliance_officer", "security_analyst", "hr_manager"].includes(user?.role) && (
+              {["admin", "hr_manager"].includes(user?.role) && (
                 <a
                   href="/report"
                   onClick={(e) => {

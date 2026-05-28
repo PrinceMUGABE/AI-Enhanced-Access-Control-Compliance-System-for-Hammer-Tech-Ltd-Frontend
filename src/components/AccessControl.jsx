@@ -27,18 +27,25 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`, config.data || {});
     return config;
   },
   (error) => {
+    console.error("❌ Request interceptor error:", error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor to handle errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`📥 API Response: ${response.status} ${response.config.url}`, response.data);
+    return response;
+  },
   (error) => {
+    console.error("❌ Response interceptor error:", error);
     if (error.response?.status === 401) {
+      console.warn("⚠️ Token expired or invalid, redirecting to login...");
       localStorage.removeItem("access_token");
       window.location.href = "/login";
     }
@@ -78,7 +85,7 @@ const accessControlAPI = {
   getUserLogs: async (userId, filters = {}) => {
     console.log("🚀 === GET USER LOGS API CALL ===");
     console.log("📌 User ID:", userId);
-    console.log("🎛️  Filters:", filters);
+    console.log("🎛️ Filters:", filters);
 
     try {
       const response = await api.get(`/get_user_activity_logs/${userId}/`, {
@@ -89,11 +96,9 @@ const accessControlAPI = {
       console.log("📊 Status:", response.status);
       console.log("📦 Full response data:", response.data);
 
-      // Ensure each log has a risk_score field
       const logs = response.data.logs || [];
       const enrichedLogs = logs.map(log => ({
         ...log,
-        // Calculate risk score based on activity type if not provided
         risk_score: log.risk_score || calculateRiskScore(log),
         danger_level: log.danger_level || getDangerLevel(log.risk_score || calculateRiskScore(log))
       }));
@@ -132,6 +137,7 @@ const accessControlAPI = {
 
     try {
       const response = await api({ method, url: endpoint });
+      console.log("✅ User status updated:", response.data);
       return response.data;
     } catch (error) {
       console.error(`❌ Error ${action} user:`, error);
@@ -141,14 +147,57 @@ const accessControlAPI = {
 
   // Create incident from log
   createIncidentFromLog: async (data) => {
-    const response = await api.post('/incidents/from-log/', data);
-    return response.data;
+    console.log("🚨 Creating incident with data:", data);
+    console.log("📋 Incident data details:", {
+      log_id: data.log_id,
+      title: data.title,
+      description_length: data.description?.length,
+      severity: data.severity,
+      priority: data.priority,
+      assigned_to: data.assigned_to
+    });
+
+    try {
+      const response = await api.post("/incidents/from-log/", data);
+      console.log("✅ Full API Response:", response);
+      console.log("📦 Response data:", response.data);
+      console.log("🔍 Response status:", response.status);
+      console.log("🔍 Response headers:", response.headers);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Incident creation failed:");
+      console.error("Error object:", error);
+      console.error("Error response:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+      console.error("Error headers:", error.response?.headers);
+      throw error;
+    }
   },
 
   // Get assignable users for incident assignment
   getAssignableUsers: async () => {
-    const response = await api.get('/incidents/assignable-users/');
-    return response.data;
+    console.log("👥 Fetching assignable users...");
+    try {
+      const response = await api.get("/incidents/assignable-users/");
+      console.log("👥 Assignable users response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching assignable users:", error);
+      throw error;
+    }
+  },
+
+  // Test API connectivity
+  testConnection: async () => {
+    console.log("🔍 Testing API connectivity...");
+    try {
+      const response = await api.get("/health/");
+      console.log("✅ API health check:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ API health check failed:", error);
+      throw error;
+    }
   }
 };
 
@@ -169,7 +218,6 @@ const calculateRiskScore = (log) => {
     'user_update': 35
   };
 
-  // Check activity type
   const activity = log.activity?.toLowerCase() || '';
   for (const [key, score] of Object.entries(riskScores)) {
     if (activity.includes(key)) {
@@ -177,16 +225,14 @@ const calculateRiskScore = (log) => {
     }
   }
 
-  // Check if it's a failed action
   if (log.is_success === false) {
     return 70;
   }
 
-  // Default risk score based on log type
   if (log.log_type === 'authentication') return 60;
   if (log.log_type === 'system') return 50;
   if (log.log_type === 'user_management') return 40;
-  
+
   return 25;
 };
 
@@ -273,14 +319,8 @@ const StatusBadge = ({ status }) => {
 const UserAvatar = ({ user }) => {
   const getColorClass = (name) => {
     const colors = [
-      "bg-blue-600",
-      "bg-green-600",
-      "bg-purple-600",
-      "bg-red-600",
-      "bg-yellow-600",
-      "bg-indigo-600",
-      "bg-pink-600",
-      "bg-teal-600"
+      "bg-blue-600", "bg-green-600", "bg-purple-600", "bg-red-600",
+      "bg-yellow-600", "bg-indigo-600", "bg-pink-600", "bg-teal-600"
     ];
     const index = (name?.charCodeAt(0) || 0) % colors.length;
     return colors[index];
@@ -364,17 +404,14 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
   const [logs, setLogs] = useState([]);
   const [summary, setSummary] = useState(null);
   const [showAllLogs, setShowAllLogs] = useState(false);
-
   const [filters, setFilters] = useState({
     activity: '',
     log_type: '',
     date_from: '',
     date_to: ''
   });
-
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch user logs
   const fetchUserLogs = async () => {
     if (!user || !isOpen) {
       console.log("❌ Cannot fetch logs: No user or modal not open");
@@ -422,22 +459,16 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
     }
   };
 
-  // Initial fetch
   useEffect(() => {
     if (isOpen && user) {
       fetchUserLogs();
     }
   }, [isOpen, user]);
 
-  // Handle filter changes
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value
-    }));
+    setFilters(prev => ({ ...prev, [key]: value }));
   };
 
-  // Clear all filters
   const clearFilters = () => {
     setFilters({
       activity: '',
@@ -448,15 +479,12 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
     setSearchQuery('');
   };
 
-  // Apply filters
   const applyFilters = () => {
     fetchUserLogs();
   };
 
-  // Filter logs by search query
   const filteredLogs = logs.filter(log => {
     if (!searchQuery) return true;
-
     const searchLower = searchQuery.toLowerCase();
     return (
       (log.description?.toLowerCase() || '').includes(searchLower) ||
@@ -467,43 +495,22 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
     );
   });
 
-  // Get top 5 recent logs
   const recentLogs = [...filteredLogs]
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     .slice(0, 5);
 
-  // Get logs to display (either top 5 or all)
   const displayLogs = showAllLogs ? filteredLogs : recentLogs;
 
-  // Helper function to determine if log has high or medium risk
   const isHighOrMediumRisk = (log) => {
     const riskScore = log.risk_score || 0;
-    return riskScore >= 50; // Medium (50-69) and High (70+) risk
+    return riskScore >= 50;
   };
 
-  // Get danger level color
-  const getDangerLevelColor = (level) => {
-    switch(level?.toLowerCase()) {
-      case 'high':
-        return 'text-red-600 bg-red-100';
-      case 'medium':
-        return 'text-yellow-600 bg-yellow-100';
-      case 'low':
-        return 'text-green-600 bg-green-100';
-      default:
-        return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  // Close modal if no user
   if (!isOpen || !user) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-      <div
-        className="fixed inset-0 bg-gray-900 bg-opacity-75"
-        onClick={onClose}
-      ></div>
+      <div className="fixed inset-0 bg-gray-900 bg-opacity-75" onClick={onClose}></div>
 
       <div className="relative z-50 w-full max-w-7xl bg-white shadow-2xl rounded-lg overflow-hidden max-h-[95vh] flex flex-col">
         {/* Header */}
@@ -514,9 +521,7 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
                 <Activity className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">
-                  User Activity Logs
-                </h2>
+                <h2 className="text-xl font-bold text-white">User Activity Logs</h2>
                 <div className="flex items-center gap-2 mt-1 text-blue-100 text-sm">
                   <User className="h-3 w-3" />
                   <span className="font-medium">{user.name}</span>
@@ -597,12 +602,6 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
                           ? formatActivityName(filteredLogs[0].activity)
                           : 'N/A'}
                     </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {summary.top_activities?.[0]?.count ||
-                        (filteredLogs.length > 0
-                          ? `${filteredLogs.filter(l => l.activity === filteredLogs[0].activity).length} times`
-                          : '0 times')}
-                    </p>
                   </div>
                 </div>
               </div>
@@ -637,9 +636,7 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
-                Activity Type
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">Activity Type</label>
               <select
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 value={filters.activity}
@@ -658,9 +655,7 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
-                Log Category
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">Log Category</label>
               <select
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 value={filters.log_type}
@@ -675,9 +670,7 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
-                Date From
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">Date From</label>
               <input
                 type="date"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
@@ -687,9 +680,7 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
-                Date To
-              </label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">Date To</label>
               <input
                 type="date"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
@@ -700,9 +691,7 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">
-              Search Logs
-            </label>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wider">Search Logs</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
               <input
@@ -725,10 +714,7 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
                 <div>
                   <h3 className="font-bold text-red-800 text-sm mb-1">Error Loading Data</h3>
                   <p className="text-red-700 text-sm mb-3">{error}</p>
-                  <button
-                    onClick={fetchUserLogs}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-xs font-medium transition-colors shadow-sm"
-                  >
+                  <button onClick={fetchUserLogs} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-xs font-medium transition-colors shadow-sm">
                     Try Again
                   </button>
                 </div>
@@ -738,13 +724,12 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
             <div className="flex flex-col items-center justify-center py-12 bg-white rounded-lg border border-gray-200">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4"></div>
               <p className="text-gray-600 font-medium text-sm">Loading activity logs...</p>
-              <p className="text-gray-500 text-xs mt-1">Please wait while we fetch the data</p>
             </div>
           ) : filteredLogs.length === 0 ? (
             <div className="py-12 text-center bg-white rounded-lg border border-gray-200">
               <Eye className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-800 mb-2">No Activity Logs Found</h3>
-              <p className="text-gray-600 text-sm mb-4">
+              <p className="text-gray-600 text-sm">
                 {searchQuery || filters.activity || filters.date_from
                   ? "Try changing your search or filters"
                   : "No activity logs recorded for this user yet"}
@@ -759,10 +744,8 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
                   </h3>
                   <p className="text-xs text-gray-600 mt-1">
                     Showing <span className="font-semibold">{displayLogs.length}</span> of <span className="font-semibold">{filteredLogs.length}</span> logs
-                    {searchQuery && ` (filtered by "${searchQuery}")`}
                   </p>
                 </div>
-
                 {filteredLogs.length > 5 && (
                   <button
                     onClick={() => setShowAllLogs(!showAllLogs)}
@@ -779,90 +762,54 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Activity
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Description
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Time
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          IP Address
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Risk Score
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Actions
-                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Activity</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Description</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">IP Address</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Risk Score</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {displayLogs.map((log, index) => {
                         const riskScore = log.risk_score || 0;
                         const isRiskLog = riskScore >= 50;
-                        
+
                         return (
-                          <tr
-                            key={log.id || index}
-                            className={`hover:bg-blue-50 transition-colors ${isRiskLog ? 'bg-red-50' : ''}`}
-                          >
+                          <tr key={log.id || index} className={`hover:bg-blue-50 transition-colors ${isRiskLog ? 'bg-red-50' : ''}`}>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <ActivityIcon activity={log.activity} />
                                 <div>
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {formatActivityName(log.activity)}
-                                  </div>
-                                  <div className="text-xs text-gray-500 capitalize">
-                                    {log.log_type?.replace('_', ' ') || 'N/A'}
-                                  </div>
+                                  <div className="text-sm font-medium text-gray-900">{formatActivityName(log.activity)}</div>
+                                  <div className="text-xs text-gray-500 capitalize">{log.log_type?.replace('_', ' ') || 'N/A'}</div>
                                 </div>
                               </div>
                             </td>
                             <td className="px-4 py-3">
                               <div className="max-w-xs">
-                                <div className="text-sm text-gray-900">
-                                  {log.description || 'No description'}
-                                </div>
-                                {log.endpoint && (
-                                  <div className="text-xs text-gray-600 truncate mt-1 font-mono">
-                                    {log.endpoint}
-                                  </div>
-                                )}
+                                <div className="text-sm text-gray-900">{log.description || 'No description'}</div>
+                                {log.endpoint && <div className="text-xs text-gray-600 truncate mt-1 font-mono">{log.endpoint}</div>}
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <Clock className="h-3 w-3 text-gray-400" />
-                                <div className="text-sm text-gray-900 font-medium">
-                                  {formatDate(log.timestamp)}
-                                </div>
+                                <div className="text-sm text-gray-900 font-medium">{formatDate(log.timestamp)}</div>
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <Globe className="h-3 w-3 text-gray-400" />
-                                <span className="text-sm text-gray-900 font-mono">
-                                  {log.ip_address || 'N/A'}
-                                </span>
+                                <span className="text-sm text-gray-900 font-mono">{log.ip_address || 'N/A'}</span>
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
                                   <div className="w-20 bg-gray-200 rounded-full h-2">
-                                    <div
-                                      className={`h-2 rounded-full ${riskScore < 20 ? "bg-green-500" :
-                                        riskScore < 50 ? "bg-yellow-500" : "bg-red-500"
-                                        }`}
-                                      style={{ width: `${Math.min(riskScore, 100)}%` }}
-                                    ></div>
+                                    <div className={`h-2 rounded-full ${riskScore < 20 ? "bg-green-500" : riskScore < 50 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${Math.min(riskScore, 100)}%` }}></div>
                                   </div>
                                   <span className="text-xs font-bold">{riskScore}</span>
                                 </div>
@@ -896,22 +843,6 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
                   </table>
                 </div>
               </div>
-
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="text-blue-800">
-                    <span className="font-bold">Displaying:</span> {displayLogs.length} logs
-                    {filteredLogs.length !== logs.length && (
-                      <span className="ml-3">
-                        <span className="font-bold">Filtered:</span> {filteredLogs.length} of {logs.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-blue-700 text-xs font-medium">
-                    Last updated: {new Date().toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
             </>
           )}
         </div>
@@ -943,10 +874,7 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
                 <Download className="h-3 w-3" />
                 Export JSON
               </button>
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors font-medium"
-              >
+              <button onClick={onClose} className="px-4 py-2 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors font-medium">
                 Close
               </button>
             </div>
@@ -958,7 +886,16 @@ const UserLogsModal = ({ user, isOpen, onClose, accessControlAPI, onCreateIncide
 };
 
 // Create Incident Modal Component
-function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCreating, onCreate, onClose }) {
+const CreateIncidentModal = ({ log, formData, setFormData, assignableUsers, isCreating, onCreate, onClose }) => {
+  // Log when modal props change
+  useEffect(() => {
+    console.log("📝 CreateIncidentModal - Form data updated:", formData);
+  }, [formData]);
+
+  useEffect(() => {
+    console.log("🎯 CreateIncidentModal - Log data:", log);
+  }, [log]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
@@ -972,7 +909,9 @@ function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCr
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Create Incident from Danger Log</h2>
                 <p className="text-gray-600 text-sm mt-1">
-                  Risk Score: <span className="font-bold text-red-600">{log.risk_score || 0}/100</span>
+                  Risk Score: <span className="font-bold text-red-600">{log?.risk_score || 0}/100</span>
+                  {' • '}
+                  Danger Level: <span className="font-bold capitalize text-red-600">{log?.danger_level || 'medium'}</span>
                 </p>
               </div>
             </div>
@@ -991,19 +930,19 @@ function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCr
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-gray-500">User:</span>
-                  <div className="font-medium">{log.user_email || 'N/A'}</div>
+                  <div className="font-medium">{log?.user_email || 'N/A'}</div>
                 </div>
                 <div>
                   <span className="text-gray-500">Activity:</span>
-                  <div className="font-medium">{log.activity || 'N/A'}</div>
+                  <div className="font-medium">{log?.activity || 'N/A'}</div>
                 </div>
                 <div>
                   <span className="text-gray-500">IP Address:</span>
-                  <div className="font-mono text-sm">{log.ip_address || 'N/A'}</div>
+                  <div className="font-mono text-sm">{log?.ip_address || 'N/A'}</div>
                 </div>
                 <div>
                   <span className="text-gray-500">Timestamp:</span>
-                  <div>{log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}</div>
+                  <div>{log?.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}</div>
                 </div>
               </div>
             </div>
@@ -1037,9 +976,7 @@ function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCr
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Severity
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
                 <select
                   value={formData.severity}
                   onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
@@ -1053,9 +990,7 @@ function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCr
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Priority
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
@@ -1070,9 +1005,7 @@ function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCr
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Assign To (Optional)
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Assign To (Optional)</label>
               <select
                 value={formData.assigned_to || ''}
                 onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value || null })}
@@ -1120,7 +1053,7 @@ function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCr
       </div>
     </div>
   );
-}
+};
 
 // Main Access Control Dashboard Component
 export function AccessControl() {
@@ -1133,7 +1066,6 @@ export function AccessControl() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showLogsModal, setShowLogsModal] = useState(false);
-  
   const [showCreateIncidentModal, setShowCreateIncidentModal] = useState(false);
   const [selectedLogForIncident, setSelectedLogForIncident] = useState(null);
   const [incidentFormData, setIncidentFormData] = useState({
@@ -1146,27 +1078,67 @@ export function AccessControl() {
   const [creatingIncident, setCreatingIncident] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState([]);
 
+  // Generate incident description from log data
+  const generateIncidentDescription = (log) => {
+    return `
+🚨 INCIDENT FROM DANGER ZONE LOG
+${'='.repeat(60)}
+
+RISK ASSESSMENT:
+- Risk Score: ${log?.risk_score || 0}/100
+- Danger Level: ${log?.danger_level?.toUpperCase() || 'MEDIUM'}
+- Detection Time: ${new Date().toLocaleString()}
+
+USER INFORMATION:
+- Email: ${log?.user_email || 'N/A'}
+- IP Address: ${log?.ip_address || 'N/A'}
+
+ACTIVITY DETAILS:
+- Activity Type: ${log?.activity || 'Unknown'}
+- Endpoint: ${log?.endpoint || 'N/A'}
+- Timestamp: ${log?.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
+
+DESCRIPTION:
+${log?.description || 'No description available'}
+
+${'='.repeat(60)}
+RECOMMENDED ACTION:
+Review and investigate immediately.
+    `.trim();
+  };
+
   // Fetch assignable users for incident assignment
   const fetchAssignableUsers = async () => {
+    console.log("👥 Fetching assignable users...");
     try {
       const response = await accessControlAPI.getAssignableUsers();
+      console.log("✅ Assignable users fetched:", response);
       if (response.success) {
         setAssignableUsers(response.users || []);
+        console.log(`📊 Loaded ${response.users?.length || 0} assignable users`);
+      } else {
+        console.warn("⚠️ Failed to fetch assignable users:", response.error);
       }
     } catch (error) {
-      console.error('Error fetching assignable users:', error);
+      console.error('❌ Error fetching assignable users:', error);
     }
   };
 
   // Open create incident modal from a specific log
   const openCreateIncidentModal = (log) => {
+    console.log('🚪 Opening Create Incident Modal');
+    console.log('📋 Log data received:', log);
+    console.log('🆔 Log ID:', log?.id);
+    console.log('📊 Log risk score:', log?.risk_score);
+    console.log('⚠️ Log danger level:', log?.danger_level);
+
     setSelectedLogForIncident(log);
-    
+
     // Pre-fill form based on log risk score
-    const riskScore = log.risk_score || 0;
+    const riskScore = log?.risk_score || 0;
     let defaultSeverity = 'medium';
     let defaultPriority = 'medium';
-    
+
     if (riskScore >= 85) {
       defaultSeverity = 'critical';
       defaultPriority = 'urgent';
@@ -1180,66 +1152,55 @@ export function AccessControl() {
       defaultSeverity = 'low';
       defaultPriority = 'low';
     }
-    
+
+    console.log('🎯 Derived severity:', defaultSeverity);
+    console.log('🎯 Derived priority:', defaultPriority);
+
     // Generate default title and description
-    const defaultTitle = `[${log.danger_level?.toUpperCase() || 'MEDIUM'}] ${log.activity || 'Security Incident'}: ${log.user_email || 'Unknown User'}`;
+    const defaultTitle = `[${log?.danger_level?.toUpperCase() || 'MEDIUM'}] ${log?.activity || 'Security Incident'}: ${log?.user_email || 'Unknown User'}`;
     const defaultDescription = generateIncidentDescription(log);
-    
-    setIncidentFormData({
+
+    console.log('📝 Generated title:', defaultTitle);
+    console.log('📝 Generated description length:', defaultDescription.length);
+
+    const newFormData = {
       title: defaultTitle,
       description: defaultDescription,
       severity: defaultSeverity,
       priority: defaultPriority,
       assigned_to: null
-    });
-    
-    setShowCreateIncidentModal(true);
+    };
+
+    console.log('📦 Setting form data:', newFormData);
+    setIncidentFormData(newFormData);
+
+    console.log('👥 Fetching assignable users for the modal...');
     fetchAssignableUsers();
-  };
 
-  // Generate incident description from log data
-  const generateIncidentDescription = (log) => {
-    return `
-🚨 INCIDENT FROM DANGER ZONE LOG
-${'='.repeat(60)}
-
-RISK ASSESSMENT:
-- Risk Score: ${log.risk_score || 0}/100
-- Danger Level: ${log.danger_level?.toUpperCase() || 'MEDIUM'}
-- Detection Time: ${new Date().toLocaleString()}
-
-USER INFORMATION:
-- Email: ${log.user_email || 'N/A'}
-- IP Address: ${log.ip_address || 'N/A'}
-
-ACTIVITY DETAILS:
-- Activity Type: ${log.activity || 'Unknown'}
-- Endpoint: ${log.endpoint || 'N/A'}
-- Timestamp: ${log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
-
-DESCRIPTION:
-${log.description || 'No description available'}
-
-${'='.repeat(60)}
-RECOMMENDED ACTION:
-Review and investigate immediately.
-    `.trim();
+    console.log('🔓 Opening modal...');
+    setShowCreateIncidentModal(true);
   };
 
   // Handle incident creation
   const handleCreateIncident = async () => {
+    console.log('🚀 Starting incident creation process...');
+    console.log('📋 Selected log:', selectedLogForIncident);
+    console.log('📝 Form data:', incidentFormData);
+
     if (!selectedLogForIncident) {
+      console.error('❌ No log selected for incident creation');
       alert('No log selected for incident creation');
       return;
     }
 
     if (!incidentFormData.title || !incidentFormData.description) {
+      console.error('❌ Missing title or description');
       alert('Please provide title and description');
       return;
     }
 
     setCreatingIncident(true);
-    
+
     try {
       const incidentData = {
         log_id: selectedLogForIncident.id,
@@ -1249,11 +1210,24 @@ Review and investigate immediately.
         priority: incidentFormData.priority,
         assigned_to: incidentFormData.assigned_to
       };
-      
+
+      console.log('📤 Sending incident data to API:', incidentData);
+      console.log('📤 API endpoint: /incidents/from-log/');
+
       const response = await accessControlAPI.createIncidentFromLog(incidentData);
-      
-      if (response.success) {
-        alert(`Incident ${response.incident?.incident_number || ''} created successfully!`);
+
+      console.log('🎉 SUCCESS! Full response received:', response);
+      console.log('📊 Response type:', typeof response);
+      console.log('🔑 Response keys:', Object.keys(response));
+
+      if (response && response.success) {
+        const incidentNumber = response.incident?.incident_number || 'Unknown';
+        const successMessage = `✅ Incident ${incidentNumber} created successfully!`;
+        console.log(successMessage);
+        console.log('📋 Created incident details:', response.incident);
+        alert(successMessage);
+
+        // Reset form and close modal
         setShowCreateIncidentModal(false);
         setSelectedLogForIncident(null);
         setIncidentFormData({
@@ -1263,34 +1237,70 @@ Review and investigate immediately.
           priority: 'medium',
           assigned_to: null
         });
+
+        console.log('🔄 Modal closed and form reset');
+
+        // Optionally refresh the logs or show a success notification
+        if (selectedUser && showLogsModal) {
+          console.log('🔄 Refreshing user logs...');
+          // You could trigger a refresh of the logs here if needed
+        }
       } else {
-        alert(response.error || 'Failed to create incident');
+        const errorMsg = response?.error || 'Failed to create incident';
+        console.error('❌ API returned success=false:', errorMsg);
+        console.error('📋 Full response:', response);
+        alert(errorMsg);
       }
+
     } catch (error) {
-      console.error('Error creating incident:', error);
-      alert(error.response?.data?.error || 'Failed to create incident');
+      console.error('🔥 CATCH BLOCK - Error creating incident:');
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Full error object:', error);
+
+      if (error.response) {
+        console.error('📡 Error response data:', error.response.data);
+        console.error('📡 Error response status:', error.response.status);
+        console.error('📡 Error response headers:', error.response.headers);
+
+        const errorMessage = error.response.data?.error ||
+          error.response.data?.message ||
+          `Server error: ${error.response.status}`;
+        alert(errorMessage);
+      } else if (error.request) {
+        console.error('📡 No response received:', error.request);
+        alert('No response from server. Please check if the backend is running.');
+      } else {
+        console.error('📡 Request setup error:', error.message);
+        alert(`Error: ${error.message}`);
+      }
     } finally {
       setCreatingIncident(false);
+      console.log('🏁 Incident creation process completed');
     }
   };
 
   // Fetch stats data
   const fetchStats = async () => {
+    console.log("📊 Fetching stats...");
     try {
       const response = await accessControlAPI.getStats();
+      console.log("📊 Stats response:", response);
       if (response.success) {
         setStats(response.data);
+        console.log("✅ Stats loaded successfully");
       } else {
         throw new Error(response.error || "Failed to fetch stats");
       }
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      console.error("❌ Error fetching stats:", error);
       setError(error.message);
     }
   };
 
   // Fetch users data
   const fetchUsers = async () => {
+    console.log("👥 Fetching users with filters:", { searchQuery, filters });
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
@@ -1298,24 +1308,29 @@ Review and investigate immediately.
       if (filters.status) params.append("status", filters.status);
 
       const response = await accessControlAPI.getUsers(params);
+      console.log("👥 Users response:", response);
       if (response.success) {
         setUsers(response.data);
+        console.log(`✅ Loaded ${response.data?.length || 0} users`);
       } else {
         throw new Error(response.error || "Failed to fetch users");
       }
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("❌ Error fetching users:", error);
       setError(error.message);
     }
   };
 
   // Load all data
   const loadData = async () => {
+    console.log("🔄 Loading all data...");
     setLoading(true);
     setError(null);
     try {
       await Promise.all([fetchStats(), fetchUsers()]);
+      console.log("✅ All data loaded successfully");
     } catch (error) {
+      console.error("❌ Error loading data:", error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -1324,10 +1339,26 @@ Review and investigate immediately.
 
   // Refresh data
   const handleRefresh = async () => {
+    console.log("🔄 Manual refresh triggered");
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
+    console.log("✅ Refresh completed");
   };
+
+  // Test API connection on mount
+  useEffect(() => {
+    const testConnection = async () => {
+      console.log("🔍 Testing API connection...");
+      try {
+        await accessControlAPI.testConnection();
+        console.log("✅ API connection successful");
+      } catch (error) {
+        console.warn("⚠️ API connection test failed, but continuing...");
+      }
+    };
+    testConnection();
+  }, []);
 
   // Initial data load
   useEffect(() => {
@@ -1337,7 +1368,9 @@ Review and investigate immediately.
   // Filter users based on search and filters
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchUsers();
+      if (!loading) {
+        fetchUsers();
+      }
     }, 500);
 
     return () => clearTimeout(timer);
@@ -1345,15 +1378,16 @@ Review and investigate immediately.
 
   // Handle filter changes
   const handleFilterChange = (filterType, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: value
-    }));
+    console.log(`🔍 Filter changed: ${filterType} = ${value}`);
+    setFilters(prev => ({ ...prev, [filterType]: value }));
   };
 
   // Handle view logs
   const handleViewLogs = (user) => {
     console.log("👁️ VIEWING LOGS FOR USER:", user);
+    console.log("👤 User ID:", user.id);
+    console.log("👤 User name:", user.name);
+    console.log("👤 User email:", user.email);
     setSelectedUser(user);
     setShowLogsModal(true);
   };
@@ -1558,17 +1592,12 @@ Review and investigate immediately.
                           <div>
                             <p className="font-medium text-gray-900">{user.name}</p>
                             <p className="text-sm text-gray-600">{user.email}</p>
-                            {user.work_mail_address && (
-                              <p className="text-xs text-gray-500">{user.work_mail_address}</p>
-                            )}
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          {user.role === "admin" && (
-                            <Shield className="h-4 w-4 text-blue-600" />
-                          )}
+                          {user.role === "admin" && <Shield className="h-4 w-4 text-blue-600" />}
                           <span className="capitalize text-gray-700">{user.role?.replace(/_/g, ' ')}</span>
                         </div>
                       </td>
@@ -1576,11 +1605,6 @@ Review and investigate immediately.
                         <div className="flex items-center gap-2">
                           <Building className="h-4 w-4 text-gray-400" />
                           <span className="text-gray-700">{user.department || 'No Department'}</span>
-                          {user.departments && user.departments.length > 0 && (
-                            <span className="text-xs text-gray-500">
-                              (+{user.departments.length} more)
-                            </span>
-                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -1593,9 +1617,7 @@ Review and investigate immediately.
                         <div className="flex items-center gap-3">
                           <div className="w-24 bg-gray-200 rounded-full h-2">
                             <div
-                              className={`h-2 rounded-full ${user.risk_score < 20 ? "bg-green-500" :
-                                user.risk_score < 50 ? "bg-yellow-500" : "bg-red-500"
-                                }`}
+                              className={`h-2 rounded-full ${user.risk_score < 20 ? "bg-green-500" : user.risk_score < 50 ? "bg-yellow-500" : "bg-red-500"}`}
                               style={{ width: `${Math.min(user.risk_score || 0, 100)}%` }}
                             ></div>
                           </div>
@@ -1643,16 +1665,7 @@ Review and investigate immediately.
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
-                <div
-                  className="bg-blue-600 h-3 rounded-full"
-                  style={{ width: `${stats.mfa_enabled_percentage}%` }}
-                ></div>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <span>Not Enabled</span>
-                <span>
-                  {stats.total_users - stats.mfa_enabled_count} users ({100 - stats.mfa_enabled_percentage}%)
-                </span>
+                <div className="bg-blue-600 h-3 rounded-full" style={{ width: `${stats.mfa_enabled_percentage}%` }}></div>
               </div>
             </div>
           </div>
@@ -1663,14 +1676,12 @@ Review and investigate immediately.
               <p className="text-gray-600 mt-1">Users by role category</p>
             </div>
             <div className="space-y-3">
-              {stats.role_distribution && stats.role_distribution.map((role) => (
+              {stats.role_distribution?.map((role) => (
                 <div key={role.role} className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full bg-blue-500"></div>
                   <span className="flex-1 capitalize text-gray-700">{role.role?.replace('_', ' ')}</span>
                   <span className="font-medium text-gray-900">{role.count}</span>
-                  <span className="text-sm text-gray-500">
-                    ({Math.round((role.count / stats.total_users) * 100)}%)
-                  </span>
+                  <span className="text-sm text-gray-500">({Math.round((role.count / stats.total_users) * 100)}%)</span>
                 </div>
               ))}
             </div>
@@ -1709,6 +1720,7 @@ Review and investigate immediately.
           isCreating={creatingIncident}
           onCreate={handleCreateIncident}
           onClose={() => {
+            console.log("🔒 Closing Create Incident Modal");
             setShowCreateIncidentModal(false);
             setSelectedLogForIncident(null);
           }}
@@ -1719,168 +1731,3 @@ Review and investigate immediately.
 }
 
 export default AccessControl;
-
-// Create Incident Modal Component
-// function CreateIncidentModal({ log, formData, setFormData, assignableUsers, isCreating, onCreate, onClose }) {
-//   return (
-//     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-//       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
-//         {/* Header */}
-//         <div className="border-b border-gray-200 p-6 bg-gradient-to-r from-red-50 to-white">
-//           <div className="flex items-center justify-between">
-//             <div className="flex items-center gap-3">
-//               <div className="p-3 bg-red-100 rounded-xl">
-//                 <AlertTriangle className="h-6 w-6 text-red-600" />
-//               </div>
-//               <div>
-//                 <h2 className="text-2xl font-bold text-gray-900">Create Incident from Danger Log</h2>
-//                 <p className="text-gray-600 text-sm mt-1">
-//                   Risk Score: <span className="font-bold text-red-600">{log.risk_score}/100</span>
-//                 </p>
-//               </div>
-//             </div>
-//             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-//               <X className="h-5 w-5 text-gray-500" />
-//             </button>
-//           </div>
-//         </div>
-
-//         {/* Content */}
-//         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-//           <div className="space-y-6">
-//             {/* Log Summary */}
-//             <div className="bg-gray-50 rounded-xl p-4">
-//               <h3 className="text-sm font-semibold text-gray-700 mb-3">Source Log Information</h3>
-//               <div className="grid grid-cols-2 gap-3 text-sm">
-//                 <div>
-//                   <span className="text-gray-500">User:</span>
-//                   <div className="font-medium">{log.user_email}</div>
-//                 </div>
-//                 <div>
-//                   <span className="text-gray-500">Activity:</span>
-//                   <div className="font-medium">{log.activity}</div>
-//                 </div>
-//                 <div>
-//                   <span className="text-gray-500">IP Address:</span>
-//                   <div className="font-mono text-sm">{log.ip_address || 'N/A'}</div>
-//                 </div>
-//                 <div>
-//                   <span className="text-gray-500">Timestamp:</span>
-//                   <div>{new Date(log.timestamp).toLocaleString()}</div>
-//                 </div>
-//               </div>
-//             </div>
-
-//             {/* Incident Form */}
-//             <div>
-//               <label className="block text-sm font-medium text-gray-700 mb-2">
-//                 Title <span className="text-red-500">*</span>
-//               </label>
-//               <input
-//                 type="text"
-//                 value={formData.title}
-//                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-//                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-//                 placeholder="Enter incident title"
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-sm font-medium text-gray-700 mb-2">
-//                 Description <span className="text-red-500">*</span>
-//               </label>
-//               <textarea
-//                 value={formData.description}
-//                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-//                 rows={8}
-//                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-//                 placeholder="Enter incident description"
-//               />
-//             </div>
-
-//             <div className="grid grid-cols-2 gap-4">
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-700 mb-2">
-//                   Severity
-//                 </label>
-//                 <select
-//                   value={formData.severity}
-//                   onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-//                   className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-//                 >
-//                   <option value="critical">Critical</option>
-//                   <option value="high">High</option>
-//                   <option value="medium">Medium</option>
-//                   <option value="low">Low</option>
-//                 </select>
-//               </div>
-
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-700 mb-2">
-//                   Priority
-//                 </label>
-//                 <select
-//                   value={formData.priority}
-//                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-//                   className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-//                 >
-//                   <option value="urgent">Urgent</option>
-//                   <option value="high">High</option>
-//                   <option value="medium">Medium</option>
-//                   <option value="low">Low</option>
-//                 </select>
-//               </div>
-//             </div>
-
-//             <div>
-//               <label className="block text-sm font-medium text-gray-700 mb-2">
-//                 Assign To (Optional)
-//               </label>
-//               <select
-//                 value={formData.assigned_to || ''}
-//                 onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value || null })}
-//                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-//               >
-//                 <option value="">Unassigned</option>
-//                 {assignableUsers.map(user => (
-//                   <option key={user.id} value={user.id}>
-//                     {user.full_name} ({user.email}) - {user.role}
-//                   </option>
-//                 ))}
-//               </select>
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Footer */}
-//         <div className="border-t border-gray-200 p-6 bg-gray-50">
-//           <div className="flex items-center justify-end gap-3">
-//             <button
-//               onClick={onClose}
-//               className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors"
-//             >
-//               Cancel
-//             </button>
-//             <button
-//               onClick={onCreate}
-//               disabled={isCreating || !formData.title || !formData.description}
-//               className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-//             >
-//               {isCreating ? (
-//                 <>
-//                   <Loader2 className="h-4 w-4 animate-spin" />
-//                   Creating...
-//                 </>
-//               ) : (
-//                 <>
-//                   <AlertTriangle className="h-4 w-4" />
-//                   Create Incident
-//                 </>
-//               )}
-//             </button>
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }

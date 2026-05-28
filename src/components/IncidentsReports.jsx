@@ -1055,15 +1055,15 @@ export function IncidentsReports() {
 
       {/* Tabs */}
       <div className="space-y-6">
-        <div className="flex border-b border-gray-200 overflow-x-auto">
+        <div className="flex border-b border-gray-200">
           <button
-            className={`px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === "incidents"
+            className={`flex-1 px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === "incidents"
               ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
               : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
               }`}
             onClick={() => setActiveTab("incidents")}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>All Incidents</span>
               {statistics?.open_incidents > 0 && (
@@ -1073,7 +1073,8 @@ export function IncidentsReports() {
               )}
             </div>
           </button>
-          <button
+
+          {/* <button
             className={`px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === "reports"
               ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
               : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
@@ -1084,15 +1085,16 @@ export function IncidentsReports() {
               <FileText className="h-4 w-4" />
               <span>Generated Reports</span>
             </div>
-          </button>
+          </button> */}
+
           <button
-            className={`px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === "danger-zone"
+            className={`flex-1 px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === "danger-zone"
               ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
               : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
               }`}
             onClick={() => setActiveTab("danger-zone")}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2">
               <AlertOctagon className="h-4 w-4" />
               <span>Danger Zone</span>
               {statistics?.danger_zone_logs > 0 && (

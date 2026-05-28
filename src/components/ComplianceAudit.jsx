@@ -1,4 +1,4 @@
-                              import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield, FileText, AlertTriangle, CheckCircle, XCircle,
   Search, Download, Eye, Edit, Trash2, Plus,
@@ -926,232 +926,7 @@ const CreateAuditModal = ({ isOpen, onClose, onSubmit, standards = [], incidents
   );
 };
 
-// Report Generator Modal
-const ReportGeneratorModal = ({ isOpen, onClose, onSubmit, audits = [] }) => {
-  const [formData, setFormData] = useState({
-    title: `Audit Report ${new Date().toLocaleDateString()}`,
-    format: 'pdf',
-    audit_ids: [],
-    generate_for_all: false,
-  });
-
-  const [loading, setLoading] = useState(false);
-  const [selectedAuditIds, setSelectedAuditIds] = useState([]);
-  const [auditSearch, setAuditSearch] = useState('');
-
-  const formatOptions = [
-    { value: 'pdf', label: 'PDF Document', icon: <FileText /> },
-    { value: 'excel', label: 'Excel Spreadsheet', icon: <FileBarChart /> },
-    { value: 'csv', label: 'CSV File', icon: <Database /> },
-    { value: 'html', label: 'HTML Report', icon: <FileText /> },
-  ];
-
-  // Filter audits based on search
-  const filteredAudits = audits.filter(audit =>
-    audit.title?.toLowerCase().includes(auditSearch.toLowerCase()) ||
-    audit.audit_id?.toLowerCase().includes(auditSearch.toLowerCase())
-  );
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-
-    let auditIdsToUse = [];
-    if (formData.generate_for_all) {
-      auditIdsToUse = audits.map(a => a.id);
-    } else if (selectedAuditIds.length === 0) {
-      alert('Please select at least one audit or choose "Generate for All"');
-      setLoading(false);
-      return;
-    } else {
-      auditIdsToUse = selectedAuditIds;
-    }
-
-    try {
-      const reportData = {
-        ...formData,
-        audit_ids: auditIdsToUse,
-        parameters: JSON.stringify({
-          date_from: '',
-          date_to: '',
-          include_findings: true,
-          include_controls: true,
-        }),
-      };
-      await onSubmit(reportData);
-      onClose();
-    } catch (error) {
-      console.error('Error generating report:', error);
-      alert(error.response?.data?.error || 'Failed to generate report');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleAuditSelection = (auditId) => {
-    setSelectedAuditIds(prev =>
-      prev.includes(auditId) ? prev.filter(id => id !== auditId) : [...prev, auditId]
-    );
-  };
-
-  const toggleAllAudits = () => {
-    if (selectedAuditIds.length === filteredAudits.length) {
-      setSelectedAuditIds([]);
-    } else {
-      setSelectedAuditIds(filteredAudits.map(a => a.id));
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="p-8">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Generate Audit Report</h2>
-              <p className="text-gray-600 mt-1">Create detailed audit reports in various formats</p>
-            </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Report Title *</label>
-              <input
-                type="text"
-                required
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Report Format *</label>
-              <div className="grid grid-cols-2 gap-4">
-                {formatOptions.map(format => (
-                  <button
-                    key={format.value}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, format: format.value })}
-                    className={`p-4 border rounded-xl text-left transition-all ${formData.format === format.value
-                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500 ring-opacity-30'
-                      : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50'
-                      }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${formData.format === format.value ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
-                        {format.icon}
-                      </div>
-                      <div>
-                        <div className="font-medium text-sm text-gray-900">{format.label}</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {format.value === 'pdf' ? 'Best for printing' :
-                            format.value === 'excel' ? 'For data analysis' :
-                              format.value === 'csv' ? 'For data import' :
-                                'For web viewing'}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <label className="block text-sm font-medium text-gray-700">Select Audits</label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.generate_for_all}
-                      onChange={(e) => setFormData({ ...formData, generate_for_all: e.target.checked })}
-                      className="h-4 w-4 text-blue-600 rounded"
-                    />
-                    <span className="text-sm text-gray-600">Generate for All Audits</span>
-                  </label>
-                </div>
-              </div>
-
-              {!formData.generate_for_all && (
-                <>
-                  <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search audits..."
-                      value={auditSearch}
-                      onChange={(e) => setAuditSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div className="border border-gray-300 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                    <div className="p-2 border-b border-gray-200 bg-gray-50">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedAuditIds.length === filteredAudits.length && filteredAudits.length > 0}
-                          onChange={toggleAllAudits}
-                          className="h-4 w-4 text-blue-600 rounded"
-                        />
-                        <span className="text-sm font-medium text-gray-700">Select All ({filteredAudits.length})</span>
-                      </label>
-                    </div>
-                    {filteredAudits.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">No audits found</div>
-                    ) : (
-                      filteredAudits.map(audit => (
-                        <label
-                          key={audit.id}
-                          className={`flex items-center gap-3 p-3 border-b border-gray-200 last:border-b-0 cursor-pointer hover:bg-gray-50 ${selectedAuditIds.includes(audit.id) ? 'bg-blue-50' : ''}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedAuditIds.includes(audit.id)}
-                            onChange={() => toggleAuditSelection(audit.id)}
-                            className="h-4 w-4 text-blue-600 rounded"
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium text-sm text-gray-900">{audit.audit_id}</div>
-                            <div className="text-xs text-gray-500">{audit.title}</div>
-                          </div>
-                          <StatusBadge status={audit.status} size="sm" />
-                        </label>
-                      ))
-                    )}
-                  </div>
-                  <div className="mt-2 text-xs text-gray-500">
-                    {selectedAuditIds.length} audit(s) selected
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-4 pt-6 border-t">
-              <button type="button" onClick={onClose} className="px-6 py-3 border rounded-xl hover:bg-gray-50">
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || (!formData.generate_for_all && selectedAuditIds.length === 0)}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
-              >
-                {loading ? 'Generating...' : 'Generate Report'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Audit Detail Modal - Fixed Version
+// Audit Detail Modal
 const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, onAddFinding, onAddControl, findings = [], controls = [], onFindingUpdate, onControlUpdate, onFindingDelete, onControlDelete }) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -1167,9 +942,8 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
   const hasMiddleAccess = user && (user.role === 'security_analyst');
   const hasLessAccess = user && !(user.role === 'admin' || user.is_admin || user.role === 'security_analyst');
   const canView = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin || user.role === 'compliance_officer');
-  
-  // NEW: Determine if user can edit/delete findings and controls
-  // This allows security_analyst and compliance_officer to have action buttons
+
+  // Determine if user can edit/delete findings and controls
   const canEditFindings = user && (user.role === 'admin' || user.role === 'security_analyst' || user.role === 'compliance_officer' || user.is_admin);
   const canEditControls = user && (user.role === 'admin' || user.role === 'security_analyst' || user.role === 'compliance_officer' || user.is_admin);
   const canDeleteFindings = user && (user.role === 'admin' || user.role === 'security_analyst' || user.is_admin);
@@ -1470,9 +1244,8 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
                     <tbody className="divide-y divide-gray-200">
                       {findings.map(finding => {
                         const isSolved = finding.status === 'solved' || finding.status === 'closed';
-                        // FIXED: Allow editing for security_analyst and compliance_officer
                         const isEditable = canEditFindings && audit.status !== 'completed' && !isSolved;
-                        
+
                         return (
                           <tr key={finding.id} className="hover:bg-gray-50">
                             <td className="py-4 px-6">
@@ -1499,7 +1272,7 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
                             </td>
                             <td className="py-4 px-6">
                               <StatusBadge status={finding.status} />
-                             </td>
+                            </td>
                             <td className="py-4 px-6">
                               <span className={`text-sm ${finding.target_completion_date &&
                                 new Date(finding.target_completion_date) < new Date() &&
@@ -1508,7 +1281,7 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
                                 }`}>
                                 {formatDate(finding.target_completion_date)}
                               </span>
-                             </td>
+                            </td>
                             {canEditFindings && audit.status !== 'completed' && (
                               <td className="py-4 px-6">
                                 <div className="flex items-center gap-2">
@@ -1581,9 +1354,8 @@ const AuditDetailModal = ({ isOpen, onClose, audit, user, onUpdate, onDelete, on
                     <tbody className="divide-y divide-gray-200">
                       {controls.map(control => {
                         const isCompleted = control.remediation_status === 'completed' || control.remediation_status === 'verified';
-                        // FIXED: Allow editing for security_analyst and compliance_officer
                         const isEditable = canEditControls && audit.status !== 'completed' && !isCompleted;
-                        
+
                         return (
                           <tr key={control.id} className="hover:bg-gray-50">
                             <td className="py-4 px-6">
@@ -1741,7 +1513,6 @@ export function ComplianceAudit() {
   const [showCreateStandardModal, setShowCreateStandardModal] = useState(false);
   const [showCreateFindingModal, setShowCreateFindingModal] = useState(false);
   const [showControlAssessmentModal, setShowControlAssessmentModal] = useState(false);
-  const [showReportGeneratorModal, setShowReportGeneratorModal] = useState(false);
 
   const [selectedAudit, setSelectedAudit] = useState(null);
   const [selectedFinding, setSelectedFinding] = useState(null);
@@ -1772,7 +1543,7 @@ export function ComplianceAudit() {
       });
       const standards = standardsRes.data?.results?.standards || standardsRes.data || [];
 
-      // Fetch audits based on user role
+      // Fetch audits
       const auditsRes = await axios.get(`${API_BASE_URL}/compliance-audit/audits/`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
@@ -1799,19 +1570,12 @@ export function ComplianceAudit() {
       }).catch(() => ({ data: [] }));
       const controls = controlsRes.data.control_assessments || controlsRes.data?.results?.control_assessments || controlsRes.data || [];
 
-      // Fetch incidents for audit creation (based on user role)
+      // Fetch incidents for audit creation
       const incidentsRes = await axios.get(`${API_BASE_URL}/compliance-audit/incidents/for-audit/`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { page_size: 100 }
       }).catch(() => ({ data: [] }));
       const incidents = incidentsRes.data.incidents || incidentsRes.data || [];
-
-      // Fetch reports based on user role
-      const reportsRes = await axios.get(`${API_BASE_URL}/compliance-audit/reports/by-role/`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { page_size: 100 }
-      }).catch(() => ({ data: [] }));
-      const reports = reportsRes.data.reports || reportsRes.data?.results?.reports || reportsRes.data || [];
 
       // Fetch dashboard overview
       const overviewRes = await axios.get(`${API_BASE_URL}/compliance-audit/dashboard/`, {
@@ -1826,7 +1590,7 @@ export function ComplianceAudit() {
         findings: Array.isArray(findings) ? findings : [],
         controls: Array.isArray(controls) ? controls : [],
         incidents: Array.isArray(incidents) ? incidents : [],
-        reports: Array.isArray(reports) ? reports : [],
+        reports: [],
       });
 
     } catch (error) {
@@ -1980,91 +1744,6 @@ export function ComplianceAudit() {
     }
   };
 
-  // Handle generate report
-  const handleGenerateReport = async (reportData) => {
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/compliance-audit/reports/generate/`,
-        reportData,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.data.success) {
-        alert('Report generated successfully!');
-        fetchAllData();
-
-        if (response.data.report?.id) {
-          await downloadReport(response.data.report.id);
-        }
-      } else {
-        alert('Report generation failed: ' + (response.data.error || 'Unknown error'));
-      }
-    } catch (error) {
-      console.error('Error generating report:', error);
-      alert(error.response?.data?.error || 'Failed to generate report');
-    }
-  };
-
-  // Download report
-  const downloadReport = async (reportId) => {
-    try {
-      const downloadUrl = `${API_BASE_URL}/compliance-audit/reports/${reportId}/download/`;
-      const response = await fetch(downloadUrl, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = 'report.pdf';
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (filenameMatch && filenameMatch[1]) {
-          filename = filenameMatch[1].replace(/['"]/g, '');
-        }
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-    } catch (error) {
-      console.error('Error downloading report:', error);
-      alert('Failed to download report');
-    }
-  };
-
-  // Handle delete report
-  const handleDeleteReport = async (reportId) => {
-    if (!window.confirm('Are you sure you want to delete this report?')) return;
-    try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/compliance-audit/reports/delete/${reportId}/`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.data.success) {
-        alert('Report deleted successfully!');
-        fetchAllData();
-      }
-    } catch (error) {
-      console.error('Error deleting report:', error);
-      alert('Failed to delete report');
-    }
-  };
-
   // Handle delete audit
   const handleDeleteAudit = async (auditId) => {
     if (!window.confirm('Are you sure you want to delete this audit?')) return;
@@ -2190,15 +1869,6 @@ export function ComplianceAudit() {
                   New Audit
                 </button>
               )}
-              {hasFullAccess && (
-                <button
-                  onClick={() => setShowReportGeneratorModal(true)}
-                  className="bg-white/10 hover:bg-white/20 border border-white/30 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
-                >
-                  <FileBarChart className="h-4 w-4" />
-                  Generate Report
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -2238,29 +1908,28 @@ export function ComplianceAudit() {
           />
         </div>
 
-        {/* View Tabs */}
+        {/* View Tabs - Only Audits*/}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-8">
           <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-8 overflow-x-auto">
+            <nav className="flex w-full">
               {[
-                { key: 'audits', label: 'Audits', count: statistics.totalAudits, icon: <Shield /> },
-                { key: 'standards', label: 'Standards', count: statistics.totalStandards, icon: <Award /> },
-                { key: 'findings', label: 'Findings', count: data.findings.length, icon: <Flag /> },
-                { key: 'controls', label: 'Controls', count: data.controls.length, icon: <CheckSquare /> },
-                { key: 'incidents', label: 'Incidents', count: data.incidents.length, icon: <AlertTriangle /> },
-                { key: 'reports', label: 'Reports', count: data.reports.length, icon: <FileText /> },
+                { key: 'audits', label: 'Audits', count: statistics.totalAudits, icon: <Shield className="h-4 w-4" /> },
+                { key: 'standards', label: 'Standards', count: statistics.totalStandards, icon: <Award className="h-4 w-4" /> },
               ].map(({ key, label, count, icon }) => (
                 <button
                   key={key}
                   onClick={() => setActiveView(key)}
-                  className={`py-4 px-1 border-b-2 font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${activeView === key
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                  className={`flex-1 py-4 px-4 border-b-2 font-medium flex items-center justify-center gap-2 transition-colors text-sm sm:text-base ${activeView === key
+                      ? 'border-blue-600 text-blue-600 bg-blue-50/40'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                     }`}
                 >
                   {icon}
-                  {label}
-                  <span className="bg-gray-100 text-gray-600 text-xs font-medium px-2 py-1 rounded-full">
+                  <span>{label}</span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${activeView === key
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-600'
+                    }`}>
                     {count}
                   </span>
                 </button>
@@ -2489,230 +2158,6 @@ export function ComplianceAudit() {
               </div>
             )}
 
-            {activeView === 'findings' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-medium text-gray-900">Audit Findings</h3>
-                  <p className="text-sm text-gray-600">Findings discovered during compliance audits</p>
-                </div>
-
-                <div className="grid grid-cols-4 gap-4 mb-6">
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-gray-900">{data.findings.length}</div>
-                    <div className="text-sm text-gray-600">Total Findings</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-red-600">
-                      {data.findings.filter(f => f.finding_type === 'major').length}
-                    </div>
-                    <div className="text-sm text-gray-600">Major Findings</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {data.findings.filter(f => f.risk_level === 'high' || f.risk_level === 'critical').length}
-                    </div>
-                    <div className="text-sm text-gray-600">High Risk</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {data.findings.filter(f => f.status === 'solved' || f.status === 'closed').length}
-                    </div>
-                    <div className="text-sm text-gray-600">Resolved</div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto rounded-lg border border-gray-200">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Title</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Audit</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Type/Risk</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Status</th>
-                        {hasFullAccess && <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {data.findings.map(finding => {
-                        const isSolved = finding.status === 'solved' || finding.status === 'closed';
-                        return (
-                          <tr key={finding.id} className="hover:bg-gray-50">
-                            <td className="py-4 px-6">
-                              <div className="max-w-xs">
-                                <div className="font-medium text-sm text-gray-900 truncate">{finding.title}</div>
-                                <div className="text-xs text-gray-500 truncate">{finding.description?.substring(0, 50)}...</div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <span className="text-sm text-gray-700">
-                                {finding.audit_details?.audit_id || finding.audit?.audit_id || 'N/A'}
-                              </span>
-                            </td>
-                            <td className="py-4 px-6">
-                              <div className="flex flex-col gap-1">
-                                <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.finding_type === 'major' ? 'bg-red-100 text-red-800' :
-                                  finding.finding_type === 'minor' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
-                                  {finding.finding_type}
-                                </span>
-                                <span className={`text-xs px-2 py-1 rounded-full w-fit ${finding.risk_level === 'high' ? 'bg-red-100 text-red-800' :
-                                  finding.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                                  {finding.risk_level}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <StatusBadge status={finding.status} />
-                            </td>
-                            {hasFullAccess && !isSolved && (
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => {
-                                      setSelectedFinding(finding);
-                                      const audit = data.audits.find(a => a.id === finding.audit);
-                                      setSelectedAudit(audit);
-                                      setShowCreateFindingModal(true);
-                                    }}
-                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                    title="Edit"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </button>
-                                  {canDeleteCompletedIncident && (
-                                    <button
-                                      onClick={() => handleDeleteFinding(finding.id)}
-                                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {activeView === 'controls' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-medium text-gray-900">Control Assessments</h3>
-                  <p className="text-sm text-gray-600">Security controls assessed during audits</p>
-                </div>
-
-                <div className="grid grid-cols-4 gap-4 mb-6">
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-gray-900">{data.controls.length}</div>
-                    <div className="text-sm text-gray-600">Total Controls</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {data.controls.filter(c => c.status === 'compliant').length}
-                    </div>
-                    <div className="text-sm text-gray-600">Compliant</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {data.controls.filter(c => c.status === 'partially_compliant').length}
-                    </div>
-                    <div className="text-sm text-gray-600">Partial</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-red-600">
-                      {data.controls.filter(c => c.status === 'non_compliant').length}
-                    </div>
-                    <div className="text-sm text-gray-600">Non-Compliant</div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto rounded-lg border border-gray-200">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Control Name</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Audit</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Status</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Remediation</th>
-                        {hasFullAccess && <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {data.controls.map(control => {
-                        const isCompleted = control.remediation_status === 'completed' || control.remediation_status === 'verified';
-                        return (
-                          <tr key={control.id} className="hover:bg-gray-50">
-                            <td className="py-4 px-6">
-                              <div className="max-w-xs">
-                                <div className="font-medium text-sm text-gray-900 truncate">{control.control_name}</div>
-                                <div className="text-xs text-gray-500 truncate">{control.control_description?.substring(0, 50)}...</div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <span className="text-sm text-gray-700">
-                                {control.audit_details?.audit_id || control.audit?.audit_id || 'N/A'}
-                              </span>
-                            </td>
-                            <td className="py-4 px-6">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${control.status === 'compliant' ? 'bg-green-100 text-green-800' :
-                                control.status === 'non_compliant' ? 'bg-red-100 text-red-800' :
-                                  control.status === 'partially_compliant' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
-                                {control.status.replace('_', ' ')}
-                              </span>
-                            </td>
-                            <td className="py-4 px-6">
-                              {control.remediation_required ? (
-                                <div className="space-y-1">
-                                  <RemediationStatusBadge status={control.remediation_status} />
-                                  {control.remediation_deadline && (
-                                    <div className="text-xs text-gray-500">Due: {formatDate(control.remediation_deadline)}</div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-sm text-gray-500">Not required</span>
-                              )}
-                            </td>
-                            {hasFullAccess && !isCompleted && (
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => {
-                                      setSelectedControl(control);
-                                      const audit = data.audits.find(a => a.id === control.audit);
-                                      setSelectedAudit(audit);
-                                      setShowControlAssessmentModal(true);
-                                    }}
-                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                    title="Edit"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </button>
-                                  {canDeleteCompletedIncident && (
-                                    <button
-                                      onClick={() => handleDeleteControl(control.id)}
-                                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
             {activeView === 'incidents' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-4 gap-4 mb-6">
@@ -2793,116 +2238,6 @@ export function ComplianceAudit() {
                 </div>
               </div>
             )}
-
-            {activeView === 'reports' && (
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-medium text-gray-900">Generated Reports</h3>
-                    <p className="text-sm text-gray-600">Audit reports available for download</p>
-                  </div>
-                  <button
-                    onClick={() => setShowReportGeneratorModal(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Generate New Report
-                  </button>
-                </div>
-
-                <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Report ID</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Title</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Audit</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Format</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Generated By</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Date</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Downloads</th>
-                        <th className="text-left py-3 px-6 font-medium text-gray-700 text-sm">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {data.reports.length === 0 ? (
-                        <tr>
-                          <td colSpan="8" className="py-12 text-center text-gray-500">
-                            <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                            <p className="font-medium">No reports generated yet</p>
-                            <p className="text-sm text-gray-400 mt-2">Generate your first audit report using the button above</p>
-                          </td>
-                        </tr>
-                      ) : (
-                        data.reports.map(report => {
-                          const audit = data.audits.find(a => a.id === report.audit);
-                          return (
-                            <tr key={report.id} className="hover:bg-gray-50">
-                              <td className="py-4 px-6">
-                                <div className="font-mono text-sm text-gray-900 font-medium">{report.report_id}</div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="max-w-xs">
-                                  <div className="font-medium text-sm text-gray-900 truncate">{report.title}</div>
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                {audit ? (
-                                  <div className="max-w-xs">
-                                    <div className="text-sm text-gray-900 truncate">{audit.audit_id}</div>
-                                    <div className="text-xs text-gray-500 truncate">{audit.title.substring(0, 30)}...</div>
-                                  </div>
-                                ) : (
-                                  <span className="text-sm text-gray-500">N/A</span>
-                                )}
-                              </td>
-                              <td className="py-4 px-6">
-                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${report.format === 'pdf' ? 'bg-red-100 text-red-800' :
-                                  report.format === 'excel' ? 'bg-green-100 text-green-800' :
-                                    report.format === 'csv' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
-                                  {report.format.toUpperCase()}
-                                </span>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="text-sm text-gray-700">
-                                  {report.generated_by_details?.full_name || report.generated_by?.full_name || 'System'}
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="text-sm text-gray-600">{formatDate(report.generated_at)}</div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="text-sm text-gray-700 font-medium">{report.download_count || 0}</div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => downloadReport(report.id)}
-                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                    title="Download Report"
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </button>
-                                  {hasFullAccess && (
-                                    <button
-                                      onClick={() => handleDeleteReport(report.id)}
-                                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                      title="Delete Report"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -2975,13 +2310,6 @@ export function ComplianceAudit() {
         onSubmit={handleCreateControl}
         audit={selectedAudit}
         control={selectedControl}
-      />
-
-      <ReportGeneratorModal
-        isOpen={showReportGeneratorModal}
-        onClose={() => setShowReportGeneratorModal(false)}
-        onSubmit={handleGenerateReport}
-        audits={data.audits}
       />
     </div>
   );
