@@ -181,7 +181,7 @@ function AppContent() {
         } />
 
         <Route path="/incidents-reports" element={
-          <ProtectedRoute allowedRoles={['admin', 'security_analyst', 'compliance_officer']}>
+          <ProtectedRoute allowedRoles={['admin', 'security_analyst', 'compliance_officer', 'employee']}>
             <MainLayout
               user={user}
               sidebarOpen={sidebarOpen}

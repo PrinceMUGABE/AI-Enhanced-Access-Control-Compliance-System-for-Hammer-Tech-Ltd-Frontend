@@ -968,13 +968,13 @@ export function IncidentsReports() {
             <p className="text-gray-600 mt-1">Comprehensive incident management and reporting system</p>
           </div>
           <div className="flex gap-3">
-            <button
+            {/* <button
               onClick={openGenerateReportModal}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg flex items-center gap-2 font-medium transition-colors shadow-sm"
             >
               <FileText className="h-4 w-4" />
               Generate Report
-            </button>
+            </button> */}
           </div>
         </div>
 

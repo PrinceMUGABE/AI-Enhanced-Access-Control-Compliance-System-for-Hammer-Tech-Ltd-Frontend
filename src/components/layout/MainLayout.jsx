@@ -172,7 +172,7 @@ export function MainLayout({
         name: "Incidents & Reports",
         icon: AlertTriangle,
         path: "/incidents-reports",
-        roles: ["admin", "security_analyst", "compliance_officer"],
+        roles: ["admin", "security_analyst", "compliance_officer", "employee"],
       },
       {
         id: "training",
