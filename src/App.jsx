@@ -1,5 +1,12 @@
 import React, { useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from 'react-hot-toast';
+
+// Context Providers
+import { AuthProvider } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext";
+
+// Components
 import { LandingPage } from "./components/LandingPage";
 import { LoginScreen } from "./components/auth/LoginPage";
 import { Dashboard } from "./components/Dashboard";
@@ -13,7 +20,6 @@ import { Settings } from "./components/Settings";
 import { UserManagement } from "./components/UserManagement";
 import { UserProfile } from "./components/UserProfile";
 import { MainLayout } from "./components/layout/MainLayout";
-import { useAuth } from "./context/AuthContext";
 import { ResetPasswordPage } from "./components/auth/ResetPassword";
 import { ManageTrainings } from "./components/ManageTrainings";
 import { CreateTraining } from "./components/CreateNewTraining";
@@ -26,61 +32,208 @@ import { AdminViewTrainingCandidateDetails } from "./components/ViewCandidateDet
 import { EmployeeTrainings } from "./components/ManageMyTrainings";
 import { EmployeeViewTrainingDetails } from "./components/MyTrainingDetails";
 import { ApplyNewTraining } from "./components/EmployeeTakeNewTraining";
-import { Toaster } from 'react-hot-toast';
 import { MyIncidentsReports } from "./components/MyIncidentsReport";
 import { ReportPage } from "./components/ReportPage";
+import { useAuth } from "./context/AuthContext";
 
-// Protected Route Wrapper
+// ============================================================
+// PROTECTED ROUTE COMPONENT
+// ============================================================
+
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, isLoading } = useAuth();
 
-  console.log('===== PROTECTED ROUTE DEBUG =====');
-  console.log('isLoading:', isLoading);
-  console.log('User object:', user);
-  console.log('Has user?', !!user);
-  console.log('User role:', user?.role);
-  console.log('Allowed roles:', allowedRoles);
-  console.log('Path:', window.location.pathname);
-  console.log('=============================');
-
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-gray-50">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading authentication...</p>
+          <div className="w-12 h-12 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm text-gray-500">Loading...</p>
         </div>
       </div>
     );
   }
 
   if (!user) {
-    console.log('❌ No user found, redirecting to /login');
     return <Navigate to="/login" replace />;
   }
 
-  // Check role-based access
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    console.log(`❌ Role not allowed! User role: ${user.role}, Allowed: ${allowedRoles.join(', ')}`);
     return <Navigate to="/dashboard" replace />;
   }
 
-  console.log('✅ Access granted!');
   return children;
 };
 
-// AppContent component that handles routing
-function AppContent() {
-  const { user, isLoading, logout } = useAuth();
+// ============================================================
+// LAYOUT WRAPPER COMPONENT
+// ============================================================
+
+const LayoutWrapper = ({ children }) => {
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
+  return (
+    <MainLayout
+      user={user}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      showProfileMenu={showProfileMenu}
+      setShowProfileMenu={setShowProfileMenu}
+      onLogout={logout}
+    >
+      {children}
+    </MainLayout>
+  );
+};
+
+// ============================================================
+// ROUTE CONFIGURATION
+// ============================================================
+
+const routeConfigs = [
+  // Public Routes
+  { path: "/", element: <LandingPage />, protected: false },
+  { path: "/login", element: <LoginScreen />, protected: false },
+  { path: "/reset-password", element: <ResetPasswordPage />, protected: false },
+  
+  // Protected Routes
+  { 
+    path: "/dashboard", 
+    element: <Dashboard />, 
+    protected: true,
+    roles: ['admin', 'hr_manager']
+  },
+  { 
+    path: "/access-control", 
+    element: <AccessControl />, 
+    protected: true,
+    roles: ['admin', 'security_analyst']
+  },
+  { 
+    path: "/ai-monitoring", 
+    element: <AIMonitoring />, 
+    protected: true,
+    roles: ['admin', 'security_analyst']
+  },
+  { 
+    path: "/risk-assessment", 
+    element: <RiskAssessment />, 
+    protected: true,
+    roles: ['admin', 'compliance_officer', 'security_analyst']
+  },
+  { 
+    path: "/compliance-audit", 
+    element: <ComplianceAudit />, 
+    protected: true,
+    roles: ['admin', 'compliance_officer', 'security_analyst']
+  },
+  { 
+    path: "/incidents-reports", 
+    element: <IncidentsReports />, 
+    protected: true,
+    roles: ['admin', 'security_analyst', 'compliance_officer', 'employee']
+  },
+  { 
+    path: "/assigned-incidents", 
+    element: <MyIncidentsReports />, 
+    protected: true,
+    roles: ['admin', 'compliance_officer', 'security_analyst', 'employee', 'hr_manager']
+  },
+  { 
+    path: "/report", 
+    element: <ReportPage />, 
+    protected: true,
+    roles: ['admin', 'hr_manager']
+  },
+  { 
+    path: "/admin/training", 
+    element: <ManageTrainings />, 
+    protected: true,
+    roles: ['admin', 'hr_manager']
+  },
+  { 
+    path: "/training-candidates", 
+    element: <ManageTrainingCandidates />, 
+    protected: true,
+    roles: ['admin', 'hr_manager']
+  },
+  { 
+    path: "/admin/createTraining", 
+    element: <CreateTraining />, 
+    protected: true,
+    roles: ['admin', 'hr_manager']
+  },
+  { 
+    path: "/admin/editTraining/:id", 
+    element: <EditTraining />, 
+    protected: true,
+    roles: ['admin', 'hr_manager']
+  },
+  { 
+    path: "/admin/viewTraining/:id", 
+    element: <AdminViewTraining />, 
+    protected: true,
+    roles: ['admin', 'hr_manager']
+  },
+  { 
+    path: "/user-management", 
+    element: <UserManagement />, 
+    protected: true,
+    roles: ['admin', 'hr_manager']
+  },
+  { 
+    path: "/settings", 
+    element: <Settings />, 
+    protected: true,
+    roles: ['admin', 'compliance_officer', 'security_analyst']
+  },
+  { 
+    path: "/training", 
+    element: <EmployeeTrainings />, 
+    protected: true,
+    roles: ['employee']
+  },
+  { 
+    path: "/learner/training", 
+    element: <ApplyNewTraining />, 
+    protected: true,
+    roles: ['employee']
+  },
+  { 
+    path: "/learner/apply-training/:trainingId", 
+    element: <ApplyNewTraining />, 
+    protected: true,
+    roles: ['employee']
+  },
+  { 
+    path: "/learner/myTrainingDetails/:id", 
+    element: <EmployeeViewTrainingDetails />, 
+    protected: true,
+    roles: ['employee']
+  },
+  { 
+    path: "/profile", 
+    element: <UserProfile />, 
+    protected: true,
+    roles: []
+  },
+];
+
+// ============================================================
+// MAIN APP COMPONENT
+// ============================================================
+
+function AppContent() {
+  const { user, isLoading } = useAuth();
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-gray-50">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="w-12 h-12 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm text-gray-500">Loading application...</p>
         </div>
       </div>
     );
@@ -91,332 +244,66 @@ function AppContent() {
       <Toaster
         position="top-right"
         toastOptions={{
-          duration: 5000,
+          duration: 4000,
           style: {
             background: '#fff',
             color: '#374151',
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          },
+          success: {
+            style: {
+              borderLeft: '4px solid #10B981',
+            },
+          },
+          error: {
+            style: {
+              borderLeft: '4px solid #EF4444',
+            },
           },
         }}
       />
       <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginScreen />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-
-        {/* Protected Routes */}
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <Dashboard />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/access-control" element={
-          <ProtectedRoute allowedRoles={['admin', 'security_analyst']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <AccessControl />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/ai-monitoring" element={
-          <ProtectedRoute allowedRoles={['admin', 'security_analyst']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <AIMonitoring />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/risk-assessment" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'security_analyst']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <RiskAssessment />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/compliance-audit" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'security_analyst']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <ComplianceAudit />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/incidents-reports" element={
-          <ProtectedRoute allowedRoles={['admin', 'security_analyst', 'compliance_officer', 'employee']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <IncidentsReports />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        {/* Assigned Incidents Route - Available to all users who have assigned incidents */}
-        <Route path="/assigned-incidents" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'security_analyst', 'employee', 'hr_manager']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <MyIncidentsReports />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-
-        <Route path="/report" element={
-          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <ReportPage />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/admin/training" element={
-          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <ManageTrainings />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/training-candidates" element={
-          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <ManageTrainingCandidates />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/admin/createTraining" element={
-          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <CreateTraining />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/admin/editTraining/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <EditTraining />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/admin/viewTraining/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <AdminViewTraining />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/user-management" element={
-          <ProtectedRoute allowedRoles={['admin', 'hr_manager']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <UserManagement />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/settings" element={
-          <ProtectedRoute allowedRoles={['admin', 'compliance_officer', 'security_analyst']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <Settings />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/training" element={
-          <ProtectedRoute allowedRoles={['employee']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <EmployeeTrainings />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/learner/training" element={
-          <ProtectedRoute allowedRoles={['employee']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <ApplyNewTraining />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/learner/apply-training/:trainingId" element={
-          <ProtectedRoute allowedRoles={['employee']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <ApplyNewTraining />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/learner/myTrainingDetails/:id" element={
-          <ProtectedRoute allowedRoles={['employee']}>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <EmployeeViewTrainingDetails />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/profile" element={
-          <ProtectedRoute>
-            <MainLayout
-              user={user}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              showProfileMenu={showProfileMenu}
-              setShowProfileMenu={setShowProfileMenu}
-              onLogout={logout}
-            >
-              <UserProfile />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-
+        {routeConfigs.map((route) => (
+          <Route
+            key={route.path}
+            path={route.path}
+            element={
+              route.protected ? (
+                <ProtectedRoute allowedRoles={route.roles}>
+                  <LayoutWrapper>
+                    {route.element}
+                  </LayoutWrapper>
+                </ProtectedRoute>
+              ) : (
+                route.element
+              )
+            }
+          />
+        ))}
+        
         {/* Catch-all route */}
-        <Route path="*" element={
-          user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
-        } />
+        <Route 
+          path="*" 
+          element={
+            user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+          } 
+        />
       </Routes>
     </>
   );
 }
 
-// Main App component
+// ============================================================
+// APP EXPORT
+// ============================================================
+
 export default function App() {
-  return <AppContent />;
+  return (
+    <AuthProvider>
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
+    </AuthProvider>
+  );
 }

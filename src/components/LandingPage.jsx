@@ -13,12 +13,16 @@ import {
   Globe,
   Lock,
   Smartphone,
+  Menu,
+  X,
 } from "lucide-react";
-import {useNavigate} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import Logo from "../../public/hammerlogo.webp";
 
 export function LandingPage() {
   const currentYear = new Date().getFullYear();
   const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   const features = [
     {
@@ -60,14 +64,135 @@ export function LandingPage() {
     { value: "ISO Certified", label: "Compliance", icon: Award },
   ];
 
+  const navLinks = [
+    { label: "Features", href: "#features" },
+    { label: "Security", href: "#security" },
+    { label: "About", href: "#about" },
+  ];
+
   const handleClickGetStarted = () => {
     navigate("/login");
-  }
+  };
+
+  const handleSignIn = () => {
+    navigate("/login");
+  };
+
+  const scrollToSection = (e, href) => {
+    e.preventDefault();
+    const element = document.querySelector(href);
+    if (element) {
+      const offset = 80;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth",
+      });
+    }
+    setIsMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-r from-blue-50 to-blue-100">
+      {/* Navigation Bar */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <img 
+                src={Logo} 
+                alt="Hammer Tech Logo" 
+                className="h-10 w-auto object-contain"
+              />
+              <div className="hidden sm:block">
+                <span className="text-lg font-bold text-gray-900">Hammer Tech</span>
+                <span className="text-xs text-blue-600 block -mt-1">Security Platform</span>
+              </div>
+            </div>
+
+            {/* Desktop Navigation Links */}
+            <div className="hidden md:flex items-center gap-8">
+              {navLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  onClick={(e) => scrollToSection(e, link.href)}
+                  className="text-gray-600 hover:text-blue-600 transition-colors font-medium text-sm"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+
+            {/* Desktop Sign In Button */}
+            <div className="hidden md:flex items-center gap-4">
+              {/* <button
+                onClick={handleSignIn}
+                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                Sign In
+              </button> */}
+              <button
+                onClick={handleClickGetStarted}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm px-5 py-2 rounded-lg transition-all font-medium shadow-md hover:shadow-lg"
+              >
+                Get Started
+              </button>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-label="Toggle menu"
+            >
+              {isMenuOpen ? (
+                <X className="h-6 w-6 text-gray-600" />
+              ) : (
+                <Menu className="h-6 w-6 text-gray-600" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <div className="md:hidden bg-white border-t border-gray-200 shadow-lg">
+            <div className="px-4 py-3 space-y-3">
+              {navLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  onClick={(e) => scrollToSection(e, link.href)}
+                  className="block text-gray-600 hover:text-blue-600 transition-colors font-medium py-2"
+                >
+                  {link.label}
+                </a>
+              ))}
+              <div className="pt-3 border-t border-gray-200 space-y-3">
+                <button
+                  onClick={handleSignIn}
+                  className="w-full px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={handleClickGetStarted}
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm px-5 py-2 rounded-lg transition-all font-medium shadow-md"
+                >
+                  Get Started
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </nav>
+
       {/* Hero Section */}
-      <section className="relative overflow-hidden to-blue-700 text-white">
+      <section id="home" className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 text-white pt-20">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div
@@ -85,16 +210,16 @@ export function LandingPage() {
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-800/30 border border-blue-600/50">
                 <Globe className="h-4 w-4 text-white" />
-                <span className="text-sm text-blue-700 text-blue-200">
+                <span className="text-sm text-blue-200">
                   Powered by Hammer Group Rwanda
                 </span>
               </div>
 
-              <h1 className="text-4xl lg:text-5xl text-blue-700 font-bold leading-tight">
+              <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
                 AI-Enhanced Access Control & Compliance System
               </h1>
 
-              <p className="text-lg text-blue-700">
+              <p className="text-lg text-blue-100">
                 Enterprise-grade security platform for Hammer Tech Ltd, 
                 combining artificial intelligence with comprehensive compliance 
                 management to protect your organization.
@@ -102,7 +227,7 @@ export function LandingPage() {
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
-                  className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-lg px-8 py-4 rounded-lg flex items-center justify-center transition-all font-medium shadow-lg hover:shadow-xl"
+                  className="bg-white text-blue-700 hover:bg-gray-100 text-lg px-8 py-4 rounded-lg flex items-center justify-center transition-all font-medium shadow-lg hover:shadow-xl"
                   onClick={handleClickGetStarted}
                 >
                   Get Started
@@ -117,7 +242,7 @@ export function LandingPage() {
                     <div key={index} className="text-center">
                       <div className="flex items-center justify-center mb-1">
                         <Icon className="h-4 w-4 text-blue-300 mr-1" />
-                        <div className="text-xl text-blue-700 font-bold">{stat.value}</div>
+                        <div className="text-xl font-bold">{stat.value}</div>
                       </div>
                       <div className="text-xs text-blue-300">{stat.label}</div>
                     </div>
@@ -183,7 +308,7 @@ export function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 lg:py-24">
+      <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 py-16 lg:py-24 scroll-mt-20">
         <div className="text-center mb-12">
           <div className="inline-flex px-4 py-2 rounded-full bg-blue-100 text-blue-700 border border-blue-200 mb-4 font-medium">
             Comprehensive Security Platform
@@ -224,7 +349,7 @@ export function LandingPage() {
       </section>
 
       {/* Security Features */}
-      <section className="bg-gray-50 py-16">
+      <section id="security" className="bg-gray-50 py-16 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h3 className="text-2xl font-bold text-gray-900 mb-2">
@@ -253,7 +378,7 @@ export function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="bg-gradient-to-r from-blue-50 to-blue-100">
+      <section id="about" className="bg-gradient-to-r from-blue-50 to-blue-100 scroll-mt-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-16 lg:py-20 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 mb-6 shadow-lg">
             <Shield className="h-10 w-10 text-white" />

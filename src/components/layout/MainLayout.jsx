@@ -19,12 +19,26 @@ import {
   Activity,
   Zap,
   AlertCircle,
+  Home,
+  BarChart3,
+  Award,
+  Clock,
+  CheckCircle,
+  TrendingUp,
+  Fingerprint
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationContext";
+import { NotificationDropdown } from "../../components/NotificationDropdown";
 import axios from "axios";
 import toast from "react-hot-toast";
+import logo from "../../../public/hammerlogo.webp";
 
 const BASE_URL = "http://127.0.0.1:8000";
+
+// ============================================================
+// MAIN LAYOUT COMPONENT
+// ============================================================
 
 export function MainLayout({
   children,
@@ -40,8 +54,12 @@ export function MainLayout({
   const [urgentCount, setUrgentCount] = useState(0);
   const [isChecking, setIsChecking] = useState(false);
   const { logout } = useAuth();
+  const { unreadCount, showDropdown, setShowDropdown } = useNotifications();
 
-  // Function to check assigned incidents
+  // ============================================================
+  // CHECK ASSIGNED INCIDENTS
+  // ============================================================
+  
   const checkAssignedIncidents = async () => {
     try {
       setIsChecking(true);
@@ -63,79 +81,25 @@ export function MainLayout({
         setHasAssignedIncidents(has_assigned_incidents);
         setAssignedCount(total_assigned);
         setUrgentCount(urgent?.high_priority || 0);
-        
-        // Show toast for new assigned incidents
-        if (has_assigned_incidents && total_assigned > 0) {
-          const message = total_assigned === 1 
-            ? "You have 1 assigned incident to handle"
-            : `You have ${total_assigned} assigned incidents to handle`;
-          
-          if (urgent?.high_priority > 0) {
-            toast.custom((t) => (
-              <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} 
-                max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5 border-l-4 border-red-500`}>
-                <div className="flex-1 w-0 p-4">
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0 pt-0.5">
-                      <AlertCircle className="h-6 w-6 text-red-600" />
-                    </div>
-                    <div className="ml-3 flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        ⚠️ Urgent Incident Alert
-                      </p>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {message}. {urgent.high_priority} require immediate attention.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex border-l border-gray-200">
-                  <button
-                    onClick={() => {
-                      toast.dismiss(t.id);
-                      window.location.href = '/assigned-incidents';
-                    }}
-                    className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
-                  >
-                    View
-                  </button>
-                </div>
-              </div>
-            ), {
-              duration: 5000,
-              position: 'top-right'
-            });
-          }
-        }
       }
     } catch (error) {
       console.error('Error checking assigned incidents:', error);
-      // Don't show error toast for this background check
     } finally {
       setIsChecking(false);
     }
   };
 
-  // Check for assigned incidents on component mount and every minute
   useEffect(() => {
     if (user) {
-      // Initial check
       checkAssignedIncidents();
-      
-      // Set up interval to check every minute
-      const intervalId = setInterval(checkAssignedIncidents, 300000); // 60 seconds
-      
-      // Cleanup interval on component unmount
+      const intervalId = setInterval(checkAssignedIncidents, 300000);
       return () => clearInterval(intervalId);
     }
   }, [user]);
 
-  // Also check when user logs in or route changes
-  useEffect(() => {
-    if (user) {
-      checkAssignedIncidents();
-    }
-  }, [user, window.location.pathname]);
+  // ============================================================
+  // NAVIGATION CONFIGURATION - REMOVED "My Assigned" from sidebar
+  // ============================================================
 
   const getNavigationForRole = (role) => {
     const baseNavigation = [
@@ -145,6 +109,7 @@ export function MainLayout({
         icon: LayoutDashboard,
         path: "/dashboard",
         roles: ["admin", "hr_manager"],
+        description: "Overview & analytics"
       },
       {
         id: "access",
@@ -152,6 +117,7 @@ export function MainLayout({
         icon: Shield,
         path: "/access-control",
         roles: ["admin", "security_analyst"],
+        description: "Manage permissions"
       },
       {
         id: "risk",
@@ -159,6 +125,7 @@ export function MainLayout({
         icon: Target,
         path: "/risk-assessment",
         roles: ["admin", "security_analyst"],
+        description: "Analyze risks"
       },
       {
         id: "compliance",
@@ -166,6 +133,7 @@ export function MainLayout({
         icon: FileCheck,
         path: "/compliance-audit",
         roles: ["admin", "compliance_officer"],
+        description: "Audit & compliance"
       },
       {
         id: "incidents",
@@ -173,6 +141,7 @@ export function MainLayout({
         icon: AlertTriangle,
         path: "/incidents-reports",
         roles: ["admin", "security_analyst", "compliance_officer", "employee"],
+        description: "View incidents"
       },
       {
         id: "training",
@@ -180,24 +149,12 @@ export function MainLayout({
         icon: GraduationCap,
         path: user?.role === "employee" ? "/training" : "/admin/training",
         roles: ["admin", "hr_manager", "employee"],
+        description: "Learning modules"
       },
     ];
 
-    // Add assigned incidents menu item if user has assigned incidents
-    if (hasAssignedIncidents) {
-      baseNavigation.splice(2, 0, {
-        id: "assigned-incidents",
-        name: `My Assigned Incidents ${assignedCount > 0 ? `(${assignedCount})` : ''}`,
-        icon: AlertCircle,
-        path: "/assigned-incidents",
-        roles: ["admin", "compliance_officer", "security_analyst", "employee", "hr_manager"],
-        badge: urgentCount > 0 ? {
-          count: urgentCount,
-          color: "bg-red-500",
-          text: "text-white"
-        } : null
-      });
-    }
+    // REMOVED: "My Assigned" from sidebar navigation
+    // The assigned incidents are now only accessible via the notification bell
 
     return baseNavigation.filter((item) => item.roles.includes(role));
   };
@@ -214,17 +171,22 @@ export function MainLayout({
 
   const displayRole = roleDisplayMap[user?.role] || "Employee";
 
+  // ============================================================
+  // LOGOUT HANDLER
+  // ============================================================
+
   const handleLogout = async () => {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
-      
-      if (refreshToken) {
+      const accessToken = localStorage.getItem('access_token');
+
+      if (refreshToken && accessToken) {
         await axios.post(
           `${BASE_URL}/auth/logout/`,
           { refresh_token: refreshToken },
           {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+              'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json'
             }
           }
@@ -233,72 +195,62 @@ export function MainLayout({
     } catch (err) {
       console.error("Logout API error:", err);
     } finally {
-      // Always clear local storage and call logout
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
-      logout();
+      if (onLogout) {
+        onLogout();
+      } else {
+        logout();
+      }
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50/50 to-slate-50 flex">
+      {/* ============================================================
+          SIDEBAR
+          ============================================================ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white text-gray-800 transform transition-transform duration-300 ease-in-out lg:translate-x-0 shadow-lg ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 shadow-2xl ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo and Header */}
-          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700">
+          {/* Logo Section */}
+          <div className="p-5 border-b border-white/10 bg-gradient-to-r from-white/5 to-transparent">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                  <Shield className="h-6 w-6 text-blue-600" />
+                <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-lg overflow-hidden">
+                  <img src={logo} alt="Logo" className="w-9 h-9 object-contain" />
                 </div>
-                <div className="text-white">
-                  <h3 className="font-semibold">Hammer Tech</h3>
-                  <p className="text-xs text-blue-200">Security Platform</p>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-wide">Hammer Tech</h3>
+                  <p className="text-xs text-gray-400 font-medium">Security Platform</p>
                 </div>
               </div>
               <button
-                className="lg:hidden text-white hover:text-blue-200"
+                className="lg:hidden text-gray-400 hover:text-white transition-colors"
                 onClick={() => setSidebarOpen(false)}
               >
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5" />
               </button>
             </div>
-            {/* Assigned incidents indicator */}
-            {hasAssignedIncidents && (
-              <div className="mt-3 flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg p-2">
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-white">
-                    {assignedCount} assigned incident{assignedCount !== 1 ? 's' : ''}
-                  </p>
-                  {urgentCount > 0 && (
-                    <p className="text-xs text-red-200">
-                      {urgentCount} urgent
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => {
-                    window.location.href = '/assigned-incidents';
-                    setSidebarOpen(false);
-                  }}
-                  className="text-xs bg-white text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-medium transition-colors"
-                >
-                  View
-                </button>
-              </div>
-            )}
+
+            {/* REMOVED: Assigned Incidents Badge from sidebar */}
+            {/* The assigned incidents count is now only shown in the header */}
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            <p className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Main Menu
+            </p>
+
             {navigation.map((item) => {
               const Icon = item.icon;
+              const isActive = window.location.pathname === item.path;
+
               return (
                 <a
                   key={item.id}
@@ -308,84 +260,56 @@ export function MainLayout({
                     window.location.href = item.path;
                     setSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-blue-50 hover:border-blue-300 text-gray-700 hover:text-blue-600 border border-transparent ${
-                    window.location.pathname === item.path ? 'bg-blue-50 border-blue-200 text-blue-600' : ''
+                  className={`group relative w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 ${
+                    isActive
+                      ? 'bg-white/10 text-white shadow-lg'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
                   }`}
                 >
                   <div className="relative">
-                    <Icon className="h-5 w-5" />
-                    {item.badge && (
-                      <span className={`absolute -top-1 -right-1 h-4 w-4 ${item.badge.color} ${item.badge.text} text-xs rounded-full flex items-center justify-center`}>
-                        {item.badge.count}
-                      </span>
+                    <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-300'}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium">{item.name}</span>
+                    {item.description && (
+                      <p className={`text-[10px] ${isActive ? 'text-gray-300' : 'text-gray-500'} truncate`}>
+                        {item.description}
+                      </p>
                     )}
                   </div>
-                  <span className="font-medium">{item.name}</span>
-                  {item.id === "assigned-incidents" && isChecking && (
-                    <div className="ml-auto">
-                      <div className="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    </div>
+                  {isActive && (
+                    <div className="w-1 h-6 bg-white rounded-full shadow-lg"></div>
                   )}
                 </a>
               );
             })}
 
-            <div className="pt-6 mt-6 border-t border-gray-200 space-y-2">
-              {user?.role === "admin" && (
-                <a
-                  href="/user-management"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.location.href = "/user-management";
-                    setSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-blue-50 hover:border-blue-300 text-gray-700 hover:text-blue-600 border border-transparent ${
-                    window.location.pathname === '/user-management' ? 'bg-blue-50 border-blue-200 text-blue-600' : ''
-                  }`}
-                >
-                  <Users className="h-5 w-5" />
-                  <span className="font-medium">User Management</span>
-                </a>
-              )}
+            <div className="pt-3 mt-3 border-t border-white/10">
+              <p className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Management
+              </p>
 
+              {/* User Management */}
               {(user?.role === "admin" || user?.role === "hr_manager") && (
                 <a
-                  href="/training-candidates"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.location.href = "/training-candidates";
-                    setSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-blue-50 hover:border-blue-300 text-gray-700 hover:text-blue-600 border border-transparent ${
-                    window.location.pathname === '/training-candidates' ? 'bg-blue-50 border-blue-200 text-blue-600' : ''
-                  }`}
-                >
-                  <Users className="h-5 w-5" />
-                  <span className="font-medium">Training Candidates</span>
-                </a>
-              )}
-
-
-              {user?.role === "hr_manager" && (
-                <a
                   href="/user-management"
                   onClick={(e) => {
                     e.preventDefault();
                     window.location.href = "/user-management";
                     setSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-blue-50 hover:border-blue-300 text-gray-700 hover:text-blue-600 border border-transparent ${
-                    window.location.pathname === '/user-management' ? 'bg-blue-50 border-blue-200 text-blue-600' : ''
+                  className={`group w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 ${
+                    window.location.pathname === '/user-management'
+                      ? 'bg-white/10 text-white'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <Users className="h-5 w-5" />
-                  <span className="font-medium">User Management</span>
+                  <Users className={`h-5 w-5 ${window.location.pathname === '/user-management' ? 'text-white' : 'text-gray-500 group-hover:text-gray-300'}`} />
+                  <span className="text-sm font-medium">User Management</span>
                 </a>
               )}
 
-             
-            
-              
+              {/* Reports & Analytics */}
               {["admin", "hr_manager"].includes(user?.role) && (
                 <a
                   href="/report"
@@ -394,169 +318,124 @@ export function MainLayout({
                     window.location.href = "/report";
                     setSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-blue-50 hover:border-blue-300 text-gray-700 hover:text-blue-600 border border-transparent ${
-                    window.location.pathname === '/report' ? 'bg-blue-50 border-blue-200 text-blue-600' : ''
+                  className={`group w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 ${
+                    window.location.pathname === '/report'
+                      ? 'bg-white/10 text-white'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <SettingsIcon className="h-5 w-5" />
-                  <span className="font-medium">Report</span>
+                  <BarChart3 className={`h-5 w-5 ${window.location.pathname === '/report' ? 'text-white' : 'text-gray-500 group-hover:text-gray-300'}`} />
+                  <span className="text-sm font-medium">Reports & Analytics</span>
                 </a>
               )}
             </div>
-
-            
           </nav>
 
           {/* User Profile */}
-          <div className="p-4 border-t border-gray-200 bg-white">
-            <div className="relative">
-              <button
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50 transition-colors border border-transparent hover:border-blue-200"
-              >
-                <div className="relative">
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-medium shadow-sm">
-                    {user?.full_name?.charAt(0) || user?.name?.charAt(0) || "U"}
-                  </div>
-                  {hasAssignedIncidents && (
-                    <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-white"></span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {user?.full_name || user?.name || "User"}
-                  </p>
-                  <p className="text-xs text-blue-600 font-medium truncate">
-                    {displayRole}
-                  </p>
-                  {hasAssignedIncidents && (
-                    <p className="text-xs text-red-600 font-medium">
-                      {assignedCount} assigned incident{assignedCount !== 1 ? 's' : ''}
-                    </p>
-                  )}
-                </div>
-                <ChevronDown
-                  className={`h-4 w-4 text-gray-500 transition-transform ${
-                    showProfileMenu ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-
-              {showProfileMenu && (
-                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                  <a
-                    href="/profile"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      window.location.href = "/profile";
-                      setShowProfileMenu(false);
-                      setSidebarOpen(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 text-gray-700 transition-colors"
-                  >
-                    <UserIcon className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium">My Profile</span>
-                  </a>
-                  {hasAssignedIncidents && (
-                    <a
-                      href="/assigned-incidents"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        window.location.href = "/assigned-incidents";
-                        setShowProfileMenu(false);
-                        setSidebarOpen(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 text-red-600 transition-colors"
-                    >
-                      <AlertCircle className="h-4 w-4" />
-                      <span className="text-sm font-medium">
-                        My Assigned Incidents
-                        {assignedCount > 0 && (
-                          <span className="ml-2 bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded">
-                            {assignedCount}
-                          </span>
-                        )}
-                      </span>
-                    </a>
-                  )}
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 text-red-600 transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span className="text-sm font-medium">Logout</span>
-                  </button>
-                </div>
-              )}
-            </div>
+          <div className="p-4 border-t border-white/10 bg-white/5 backdrop-blur-sm">
             <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 mt-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 border border-transparent transition-colors text-gray-700"
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5 transition-all duration-200 group"
             >
-              <LogOut className="h-4 w-4" />
-              <span className="text-sm font-medium">Logout</span>
+              <div className="relative">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-bold shadow-lg">
+                  {user?.full_name?.charAt(0) || user?.name?.charAt(0) || "U"}
+                </div>
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-sm font-semibold text-white truncate">
+                  {user?.full_name || user?.name || "User"}
+                </p>
+                <p className="text-xs text-gray-400 truncate">{displayRole}</p>
+              </div>
+              <ChevronDown
+                className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${
+                  showProfileMenu ? "rotate-180" : ""
+                }`}
+              />
             </button>
+
+            {showProfileMenu && (
+              <div className="absolute bottom-full left-4 right-4 mb-2 bg-slate-800 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+                <a
+                  href="/profile"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.location.href = "/profile";
+                    setShowProfileMenu(false);
+                    setSidebarOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 text-gray-300 hover:text-white transition-colors"
+                >
+                  <UserIcon className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium">My Profile</span>
+                </a>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors border-t border-white/5"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="text-sm font-medium">Logout</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* ============================================================
+          MAIN CONTENT
+          ============================================================ */}
       <div className="flex-1 lg:ml-72">
-        {/* Top Header */}
-        <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-4">
+        {/* Header */}
+        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3">
+            <div className="flex items-center gap-3">
               <button
-                className="lg:hidden p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                className="lg:hidden p-2 hover:bg-gray-100 rounded-xl transition-colors"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
               >
-                <Menu className="h-6 w-6 text-gray-700" />
+                <Menu className="h-5 w-5 text-gray-600" />
               </button>
               <div className="hidden md:block">
-                <h2 className="text-xl font-bold text-gray-900">
-                  AI-Enhanced Access Control System
-                </h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <Globe className="h-4 w-4 text-blue-600" />
-                  <p className="text-sm text-gray-600">
-                    Powered by Hammer Group Rwanda
-                  </p>
+                <h2 className="text-lg font-bold text-gray-900">Security Management Platform</h2>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Globe className="h-3.5 w-3.5 text-gray-500" />
+                  <p className="text-xs text-gray-500">Powered by Hammer Group Rwanda</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* Assigned Incidents Notification */}
-              {hasAssignedIncidents && (
-                <a
-                  href="/assigned-incidents"
-                  className="relative group flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-lg hover:border-red-300 transition-colors"
+            <div className="flex items-center gap-2">
+              {/* REMOVED: Assigned Incidents Badge from header - now only in notification bell */}
+
+              {/* Notification Bell - Shows unread count */}
+              <div className="relative">
+                <button
+                  className="relative p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  aria-label="Notifications"
                 >
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-red-600 group-hover:text-red-700" />
-                    <span className="text-sm font-medium text-red-700 group-hover:text-red-800">
-                      {assignedCount} Assigned
+                  <Bell className="h-5 w-5 text-gray-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg animate-pulse">
+                      {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
-                    {urgentCount > 0 && (
-                      <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
-                        {urgentCount} URGENT
-                      </span>
-                    )}
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
-                </a>
-              )}
-              
-              <button className="relative p-2 hover:bg-blue-50 rounded-lg transition-colors group">
-                <Bell className="h-5 w-5 text-gray-600 group-hover:text-blue-600" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full animate-pulse"></span>
-              </button>
-              <div className="hidden md:flex items-center gap-2 border border-blue-200 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium">
-                <Activity className="h-3 w-3 text-green-500" />
-                <span>System Status: Active</span>
+                  )}
+                </button>
+                <NotificationDropdown
+                  isOpen={showDropdown}
+                  onClose={() => setShowDropdown(false)}
+                />
               </div>
-              <div className="hidden md:flex items-center gap-2 border border-blue-200 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium">
-                <Zap className="h-3 w-3 text-blue-500" />
+
+              {/* Status Indicators */}
+              <div className="hidden sm:flex items-center gap-2 border border-emerald-200 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                <Activity className="h-3 w-3 text-emerald-500" />
+                <span>Active</span>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 border border-gray-200 bg-gray-50 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
+                <Zap className="h-3 w-3 text-gray-500" />
                 <span>v2.1.0</span>
               </div>
             </div>
@@ -564,34 +443,34 @@ export function MainLayout({
         </header>
 
         {/* Page Content */}
-        <main className="p-6">{children}</main>
+        <main className="p-4 sm:p-6">{children}</main>
 
         {/* Footer */}
-        <footer className="border-t border-gray-200 px-6 py-4 mt-12 bg-white">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-600">
+        <footer className="border-t border-gray-200/50 px-4 sm:px-6 py-4 mt-8 bg-white/80 backdrop-blur-sm">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center">
-                <Shield className="h-4 w-4 text-white" />
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center shadow-md">
+                <img src={logo} alt="Logo" className="w-5 h-5 object-contain" />
               </div>
-              <span className="text-gray-700">
+              <span className="text-gray-600">
                 © {new Date().getFullYear()} Hammer Tech Ltd. All rights reserved.
               </span>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 text-xs text-gray-500">
               <a
                 href="https://www.hammergp.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
+                className="hover:text-gray-700 transition-colors"
               >
                 About Hammer Group
               </a>
               <span className="text-gray-300">•</span>
-              <span className="text-gray-700">Version 2.1.0</span>
+              <span>Version 2.1.0</span>
               <span className="text-gray-300">•</span>
-              <span className="flex items-center gap-2 text-green-600 font-medium">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                System Operational
+              <span className="flex items-center gap-1.5 text-emerald-600">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                Operational
               </span>
             </div>
           </div>
@@ -601,9 +480,9 @@ export function MainLayout({
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
-        ></div>
+        />
       )}
     </div>
   );
